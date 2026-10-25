@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  format:
+    name: Formatting Check
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Install git and clang-format
+        run: |
+          pacman -Syu --noconfirm --needed git clang
+
+      - name: Configure Git safe directory
+        run: git config --global --add safe.directory '*'
+
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Check code formatting
+        run: clang-format --dry-run --Werror src/*.cpp include/flux/*.hpp
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Install system dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel \
+            cmake \
+            ninja \
+            git \
+            pkgconf \
+            wlroots0.20 \
+            wayland \
+            libxkbcommon
+
+      - name: Configure Git safe directory
+        run: git config --global --add safe.directory '*'
+
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_FLAGS="-Werror"
+
+      - name: Build
+        run: cmake --build build
