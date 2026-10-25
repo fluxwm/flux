@@ -43,6 +43,7 @@ namespace flux {
         // Window management & interactions
         bool handle_keybinding(uint32_t modifiers, xkb_keysym_t sym);
         void focus_window(Window* window);
+        void center_window(Window* window);
         void begin_move(Window* window);
         void begin_resize(Window* window, uint32_t edges);
         void reset_cursor_mode();

@@ -304,7 +304,34 @@ namespace flux {
             m_cursor_state);
     }
 
+    void Server::center_window(Window* window) {
+        if (!window || !m_output_layout || !m_cursor) {
+            return;
+        }
+
+        wlr_output* output = wlr_output_layout_output_at(m_output_layout, m_cursor->x, m_cursor->y);
+        if (!output) {
+            output = wlr_output_layout_get_center_output(m_output_layout);
+        }
+        if (!output) {
+            return;
+        }
+
+        wlr_box output_box{};
+        wlr_output_layout_get_box(m_output_layout, output, &output_box);
+
+        const wlr_box& geo = window->geometry();
+        const int width = geo.width > 0 ? geo.width : window->surface()->current.width;
+        const int height = geo.height > 0 ? geo.height : window->surface()->current.height;
+
+        const int center_x = output_box.x + std::max(0, (output_box.width - width) / 2);
+        const int center_y = output_box.y + std::max(0, (output_box.height - height) / 2);
+
+        window->set_position(center_x - geo.x, center_y - geo.y);
+    }
+
     void Server::map_window(Window* window) {
+        center_window(window);
         if (std::ranges::find(m_focus_stack, window) == m_focus_stack.end()) {
             m_focus_stack.insert(m_focus_stack.begin(), window);
         }
