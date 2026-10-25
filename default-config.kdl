@@ -1,0 +1,7 @@
+binds {
+    Super+Shift+Return  { spawn "kitty"; }
+
+    Super+Shift+Q       { close-window; }
+    Alt+Tab             { cycle-window; }
+    Ctrl+Alt+Delete     { quit; }
+}
