@@ -7,7 +7,7 @@
 #include <string_view>
 
 int main(int argc, char* argv[]) {
-    wlr_log_init(WLR_DEBUG, nullptr);
+    wlr_log_importance log_level = WLR_INFO;
     std::optional<std::filesystem::path> config_path;
 
     const std::span args(argv + 1, static_cast<size_t>(argc > 0 ? argc - 1 : 0));
@@ -15,14 +15,18 @@ int main(int argc, char* argv[]) {
         const std::string_view arg = args[i];
         if (arg == "-c" && i + 1 < args.size()) {
             config_path = args[++i];
+        } else if (arg == "-d" || arg == "--debug") {
+            log_level = WLR_DEBUG;
         } else if (arg == "-h" || arg == "--help") {
-            std::println("Usage: {} [-c config file]", argv[0]);
+            std::println("Usage: {} [-c config file] [-d|--debug] [-h|--help]", argv[0]);
             return 0;
         } else {
-            std::println("Usage: {} [-c config file]", argv[0]);
+            std::println("Usage: {} [-c config file] [-d|--debug] [-h|--help]", argv[0]);
             return 1;
         }
     }
+
+    wlr_log_init(log_level, nullptr);
 
     flux::Server server;
     if (!server.init(config_path)) {
