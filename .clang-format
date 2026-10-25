@@ -1,0 +1,16 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+
+AccessModifierOffset: -4
+AllowShortFunctionsOnASingleLine: Inline
+AlwaysBreakTemplateDeclarations: Yes
+ColumnLimit: 120
+FixNamespaceComments: false
+IndentCaseLabels: true
+IndentWidth: 4
+NamespaceIndentation: All
+PointerAlignment: Left
+SortIncludes: false
+TabWidth: 4
+...
