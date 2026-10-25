@@ -19,21 +19,13 @@ namespace flux {
         m_listeners.listen(&xdg_toplevel->events.set_title, this, &Window::on_set_title);
         m_listeners.listen(&xdg_toplevel->events.set_app_id, this, &Window::on_set_app_id);
 
-        if (xdg_toplevel->title) {
-            m_title = xdg_toplevel->title;
-        }
-        if (xdg_toplevel->app_id) {
-            m_app_id = xdg_toplevel->app_id;
-        }
+        on_set_title();
+        on_set_app_id();
     }
 
     void Window::on_map() {
-        if (m_xdg_toplevel->title) {
-            m_title = m_xdg_toplevel->title;
-        }
-        if (m_xdg_toplevel->app_id) {
-            m_app_id = m_xdg_toplevel->app_id;
-        }
+        on_set_title();
+        on_set_app_id();
         wlr_log(WLR_INFO, "Window mapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
         m_server.map_window(this);
     }
