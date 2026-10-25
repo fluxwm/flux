@@ -247,16 +247,21 @@ namespace flux {
     }
 
     void Server::begin_move(Window* window) {
+        if (m_seat->pointer_state.button_count == 0) {
+            return;
+        }
         m_cursor_state = cursor_state::Move{
             .window = window,
             .grab_x = m_cursor->x - window->x(),
             .grab_y = m_cursor->y - window->y(),
         };
-        wlr_seat_pointer_clear_focus(m_seat);
         wlr_cursor_set_xcursor(m_cursor, m_cursor_mgr, "grabbing");
     }
 
     void Server::begin_resize(Window* window, uint32_t edges) {
+        if (m_seat->pointer_state.button_count == 0) {
+            return;
+        }
         const wlr_box& geo_box = window->geometry();
 
         const double border_x = (window->x() + geo_box.x) + ((edges & WLR_EDGE_RIGHT) ? geo_box.width : 0);
@@ -273,7 +278,6 @@ namespace flux {
             .initial_geometry = geobox,
             .resize_edges = edges,
         };
-        wlr_seat_pointer_clear_focus(m_seat);
 
         const char* resize_name = wlr_xcursor_get_resize_name(static_cast<wlr_edges>(edges));
         wlr_cursor_set_xcursor(m_cursor, m_cursor_mgr, resize_name);
@@ -284,6 +288,7 @@ namespace flux {
             window->apply_pending_position();
         }
         m_cursor_state = cursor_state::Passthrough{};
+        wlr_cursor_set_xcursor(m_cursor, m_cursor_mgr, "default");
         process_cursor_motion(0);
     }
 
