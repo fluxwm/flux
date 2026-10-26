@@ -115,6 +115,16 @@ namespace flux {
         wlr_data_device_manager_create(m_display);
 
         m_output_layout = wlr_output_layout_create(m_display);
+        if (!m_output_layout) {
+            wlr_log(WLR_ERROR, "failed to create wlr_output_layout");
+            return false;
+        }
+
+        if (!wlr_xdg_output_manager_v1_create(m_display, m_output_layout)) {
+            wlr_log(WLR_ERROR, "failed to create wlr_xdg_output_manager_v1");
+            return false;
+        }
+
         m_listeners.listen(&m_backend->events.new_output, this, &Server::on_new_output);
 
         m_scene = wlr_scene_create();
