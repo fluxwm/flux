@@ -27,6 +27,7 @@ namespace flux {
 
         bool init(std::optional<std::filesystem::path> config_path = std::nullopt);
         void run();
+        void quit() noexcept;
 
         // Core accessors
         [[nodiscard]] wl_display* display() const noexcept { return m_display; }

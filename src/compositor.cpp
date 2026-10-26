@@ -97,7 +97,16 @@ namespace flux {
             return false;
         }
 
-        m_backend = wlr_backend_autocreate(wl_display_get_event_loop(m_display), &m_session);
+        wl_event_loop* event_loop = wl_display_get_event_loop(m_display);
+        auto on_signal = [](int, void* data) {
+            static_cast<Compositor*>(data)->quit();
+            return 0;
+        };
+        for (const int sig : {SIGINT, SIGTERM}) {
+            wl_event_loop_add_signal(event_loop, sig, on_signal, this);
+        }
+
+        m_backend = wlr_backend_autocreate(event_loop, &m_session);
         if (!m_backend) {
             wlr_log(WLR_ERROR, "failed to create wlr_backend");
             return false;
@@ -184,6 +193,10 @@ namespace flux {
         wl_display_run(m_display);
     }
 
+    void Compositor::quit() noexcept {
+        wl_display_terminate(m_display);
+    }
+
     bool Compositor::handle_keybinding(uint32_t modifiers, xkb_keysym_t sym) {
         if (sym >= XKB_KEY_XF86Switch_VT_1 && sym <= XKB_KEY_XF86Switch_VT_12) {
             wlr_session_change_vt(m_session, sym - XKB_KEY_XF86Switch_VT_1 + 1);
@@ -208,7 +221,7 @@ namespace flux {
             [this](const auto& act) {
                 using T = std::decay_t<decltype(act)>;
                 if constexpr (std::is_same_v<T, action::Quit>) {
-                    wl_display_terminate(m_display);
+                    quit();
                 } else if constexpr (std::is_same_v<T, action::CloseWindow>) {
                     if (!m_focus_stack.empty()) {
                         m_focus_stack.front()->close();
@@ -394,7 +407,12 @@ namespace flux {
     }
 
     void Compositor::remove_output(Output* output) {
+        const bool is_nested = wlr_output_is_wl(output->raw()) || wlr_output_is_x11(output->raw());
         erase_unique_ptr(m_outputs, output);
+
+        if (is_nested && m_outputs.empty()) {
+            quit();
+        }
     }
 
     void Compositor::remove_keyboard(Keyboard* keyboard) {
