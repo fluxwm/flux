@@ -80,6 +80,7 @@ namespace flux {
 
         wl_display* m_display = nullptr;
         wlr_backend* m_backend = nullptr;
+        wlr_session* m_session = nullptr;
         wlr_renderer* m_renderer = nullptr;
         wlr_allocator* m_allocator = nullptr;
         wlr_scene* m_scene = nullptr;

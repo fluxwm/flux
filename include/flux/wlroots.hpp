@@ -12,6 +12,7 @@ extern "C" {
 #define static
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
+#include <wlr/backend/session.h>
 #include <wlr/backend/wayland.h>
 #include <wlr/backend/x11.h>
 #include <wlr/render/allocator.h>

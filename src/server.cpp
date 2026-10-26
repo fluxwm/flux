@@ -97,7 +97,7 @@ namespace flux {
             return false;
         }
 
-        m_backend = wlr_backend_autocreate(wl_display_get_event_loop(m_display), nullptr);
+        m_backend = wlr_backend_autocreate(wl_display_get_event_loop(m_display), &m_session);
         if (!m_backend) {
             wlr_log(WLR_ERROR, "failed to create wlr_backend");
             return false;
@@ -181,6 +181,11 @@ namespace flux {
     }
 
     bool Server::handle_keybinding(uint32_t modifiers, xkb_keysym_t sym) {
+        if (sym >= XKB_KEY_XF86Switch_VT_1 && sym <= XKB_KEY_XF86Switch_VT_12) {
+            wlr_session_change_vt(m_session, sym - XKB_KEY_XF86Switch_VT_1 + 1);
+            return true;
+        }
+
         constexpr uint32_t clean_mask = WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT | WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT;
         const uint32_t clean_mods = modifiers & clean_mask;
         const xkb_keysym_t lower_sym = xkb_keysym_to_lower(sym);
