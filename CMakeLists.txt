@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.3)
-project(flux LANGUAGES CXX)
+project(flux VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -31,3 +31,4 @@ add_executable(flux
 
 target_include_directories(flux PRIVATE include)
 target_link_libraries(flux PRIVATE PkgConfig::DEPS kdlpp)
+target_compile_definitions(flux PRIVATE FLUX_VERSION="${PROJECT_VERSION}")

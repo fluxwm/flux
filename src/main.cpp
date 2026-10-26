@@ -17,11 +17,14 @@ int main(int argc, char* argv[]) {
             config_path = args[++i];
         } else if (arg == "-d" || arg == "--debug") {
             log_level = WLR_DEBUG;
+        } else if (arg == "-v" || arg == "-V" || arg == "--version") {
+            std::println("flux {}", FLUX_VERSION);
+            return 0;
         } else if (arg == "-h" || arg == "--help") {
-            std::println("Usage: {} [-c config file] [-d|--debug] [-h|--help]", argv[0]);
+            std::println("Usage: {} [-c config file] [-d|--debug] [-v|--version] [-h|--help]", argv[0]);
             return 0;
         } else {
-            std::println("Usage: {} [-c config file] [-d|--debug] [-h|--help]", argv[0]);
+            std::println("Usage: {} [-c config file] [-d|--debug] [-v|--version] [-h|--help]", argv[0]);
             return 1;
         }
     }
