@@ -7,10 +7,18 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   format:
-    name: Formatting Check
+    name: Clang-Format Check
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     container:
       image: archlinux:latest
 
@@ -28,9 +36,46 @@ jobs:
       - name: Check code formatting
         run: clang-format --dry-run --Werror src/*.cpp include/flux/*.hpp
 
+  tidy:
+    name: Clang-Tidy Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Install system dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel \
+            cmake \
+            ninja \
+            git \
+            pkgconf \
+            wlroots0.20 \
+            wayland \
+            libxkbcommon \
+            clang \
+            python
+
+      - name: Configure Git safe directory
+        run: git config --global --add safe.directory '*'
+
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Run Clang-Tidy
+        run: run-clang-tidy -p build -warnings-as-errors='*' -quiet $(git ls-files 'src/*.cpp')
+
   build:
     name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     container:
       image: archlinux:latest
 
@@ -61,3 +106,20 @@ jobs:
 
       - name: Build
         run: cmake --build build
+
+  ci:
+    name: CI
+    needs: [format, tidy, build]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify all checks passed
+        run: |
+          if [ "${{ needs.format.result }}" != "success" ] || \
+             [ "${{ needs.tidy.result }}" != "success" ] || \
+             [ "${{ needs.build.result }}" != "success" ]; then
+            echo "One or more required CI checks failed."
+            exit 1
+          fi
+          echo "All CI checks completed successfully!"
