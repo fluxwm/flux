@@ -31,6 +31,7 @@ namespace flux {
     };
 
     struct Config {
+        std::vector<Action> autostart;
         std::vector<Keybind> keybinds;
 
         static std::optional<Config> load(const std::filesystem::path& path);

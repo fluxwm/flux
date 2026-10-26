@@ -140,6 +140,20 @@ namespace flux {
             }
         }
 
+        void parse_autostart(Config& config, const kdl::Node& autostart_node) {
+            for (const auto& action_node : autostart_node.children()) {
+                auto action_opt = parse_action(action_node);
+                if (!action_opt) {
+                    std::string aname(reinterpret_cast<const char*>(action_node.name().data()),
+                                      action_node.name().size());
+                    wlr_log(WLR_ERROR, "Unknown or invalid action '%s' in autostart", aname.c_str());
+                    continue;
+                }
+
+                config.autostart.push_back(std::move(*action_opt));
+            }
+        }
+
     }
 
     std::optional<Config> Config::load(const std::filesystem::path& path) {
@@ -172,12 +186,15 @@ namespace flux {
 
         for (const auto& node : doc.nodes()) {
             std::string_view node_name(reinterpret_cast<const char*>(node.name().data()), node.name().size());
-            if (iequals(node_name, "binds")) {
+            if (iequals(node_name, "autostart")) {
+                parse_autostart(config, node);
+            } else if (iequals(node_name, "binds")) {
                 parse_binds(config, node);
             }
         }
 
-        wlr_log(WLR_INFO, "Loaded %zu keybindings from %s", config.keybinds.size(), path.c_str());
+        wlr_log(WLR_INFO, "Loaded %zu autostart actions and %zu keybindings from %s", config.autostart.size(),
+                config.keybinds.size(), path.c_str());
         return config;
     }
 

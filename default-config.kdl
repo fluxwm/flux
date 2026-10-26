@@ -1,3 +1,7 @@
+autostart {
+    // spawn "waybar"
+}
+
 binds {
     Super+Shift+Return  { spawn "kitty"; }
 

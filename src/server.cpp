@@ -177,6 +177,10 @@ namespace flux {
     }
 
     void Server::run() {
+        for (const auto& action : m_config.autostart) {
+            execute_action(action);
+        }
+
         wl_display_run(m_display);
     }
 
