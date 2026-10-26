@@ -21,7 +21,7 @@ pkg_check_modules(DEPS REQUIRED IMPORTED_TARGET wlroots-0.20 wayland-server xkbc
 
 add_executable(flux
         src/main.cpp
-        src/server.cpp
+        src/compositor.cpp
         src/output.cpp
         src/keyboard.cpp
         src/window.cpp

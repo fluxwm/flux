@@ -8,11 +8,11 @@
 
 namespace flux {
 
-    class Server;
+    class Compositor;
 
     class Window {
     public:
-        Window(Server& server, wlr_xdg_toplevel* xdg_toplevel);
+        Window(Compositor& compositor, wlr_xdg_toplevel* xdg_toplevel);
         ~Window() = default;
 
         Window(const Window&) = delete;
@@ -56,7 +56,7 @@ namespace flux {
         void on_set_title();
         void on_set_app_id();
 
-        Server& m_server;
+        Compositor& m_compositor;
         wlr_xdg_toplevel* m_xdg_toplevel = nullptr;
         wlr_scene_tree* m_scene_tree = nullptr;
         int m_pending_x = 0;

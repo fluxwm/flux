@@ -1,12 +1,12 @@
 #include "flux/keyboard.hpp"
-#include "flux/server.hpp"
+#include "flux/compositor.hpp"
 
 #include <algorithm>
 
 namespace flux {
 
-    Keyboard::Keyboard(Server& server, wlr_input_device* device)
-        : m_server(server), m_wlr_keyboard(wlr_keyboard_from_input_device(device)) {
+    Keyboard::Keyboard(Compositor& compositor, wlr_input_device* device)
+        : m_compositor(compositor), m_wlr_keyboard(wlr_keyboard_from_input_device(device)) {
         xkb_context* context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
         xkb_keymap* keymap = xkb_keymap_new_from_names(context, nullptr, XKB_KEYMAP_COMPILE_NO_FLAGS);
 
@@ -19,12 +19,12 @@ namespace flux {
         m_listeners.listen(&m_wlr_keyboard->events.key, this, &Keyboard::on_key);
         m_listeners.listen(&device->events.destroy, this, &Keyboard::on_destroy);
 
-        wlr_seat_set_keyboard(m_server.seat(), m_wlr_keyboard);
+        wlr_seat_set_keyboard(m_compositor.seat(), m_wlr_keyboard);
     }
 
     void Keyboard::on_modifiers() {
-        wlr_seat_set_keyboard(m_server.seat(), m_wlr_keyboard);
-        wlr_seat_keyboard_notify_modifiers(m_server.seat(), &m_wlr_keyboard->modifiers);
+        wlr_seat_set_keyboard(m_compositor.seat(), m_wlr_keyboard);
+        wlr_seat_keyboard_notify_modifiers(m_compositor.seat(), &m_wlr_keyboard->modifiers);
     }
 
     void Keyboard::on_key(wlr_keyboard_key_event* event) {
@@ -37,7 +37,7 @@ namespace flux {
 
         if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
             for (int i = 0; i < nsyms; ++i) {
-                if (m_server.handle_keybinding(modifiers, syms[i])) {
+                if (m_compositor.handle_keybinding(modifiers, syms[i])) {
                     handled = true;
                     break;
                 }
@@ -48,7 +48,7 @@ namespace flux {
                 const xkb_keysym_t* raw_syms = nullptr;
                 int n_raw = xkb_keymap_key_get_syms_by_level(m_wlr_keyboard->keymap, keycode, layout, 0, &raw_syms);
                 for (int i = 0; i < n_raw; ++i) {
-                    if (m_server.handle_keybinding(modifiers, raw_syms[i])) {
+                    if (m_compositor.handle_keybinding(modifiers, raw_syms[i])) {
                         handled = true;
                         break;
                     }
@@ -63,13 +63,13 @@ namespace flux {
         }
 
         if (!handled) {
-            wlr_seat_set_keyboard(m_server.seat(), m_wlr_keyboard);
-            wlr_seat_keyboard_notify_key(m_server.seat(), event->time_msec, event->keycode, event->state);
+            wlr_seat_set_keyboard(m_compositor.seat(), m_wlr_keyboard);
+            wlr_seat_keyboard_notify_key(m_compositor.seat(), event->time_msec, event->keycode, event->state);
         }
     }
 
     void Keyboard::on_destroy() {
-        m_server.remove_keyboard(this);
+        m_compositor.remove_keyboard(this);
     }
 
 }

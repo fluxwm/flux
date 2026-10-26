@@ -1,4 +1,4 @@
-#include "flux/server.hpp"
+#include "flux/compositor.hpp"
 #include "flux/keyboard.hpp"
 #include "flux/output.hpp"
 #include "flux/popup.hpp"
@@ -22,9 +22,9 @@ namespace flux {
         constexpr uint32_t btn_right = 0x111;
     }
 
-    Server::Server() = default;
+    Compositor::Compositor() = default;
 
-    Server::~Server() {
+    Compositor::~Compositor() {
         if (m_display) {
             wl_display_destroy_clients(m_display);
         }
@@ -66,7 +66,7 @@ namespace flux {
         }
     }
 
-    bool Server::init(std::optional<std::filesystem::path> config_path) {
+    bool Compositor::init(std::optional<std::filesystem::path> config_path) {
         signal(SIGCHLD, SIG_IGN);
 
         std::filesystem::path resolved_path;
@@ -132,14 +132,14 @@ namespace flux {
             return false;
         }
 
-        m_listeners.listen(&m_backend->events.new_output, this, &Server::on_new_output);
+        m_listeners.listen(&m_backend->events.new_output, this, &Compositor::on_new_output);
 
         m_scene = wlr_scene_create();
         m_scene_layout = wlr_scene_attach_output_layout(m_scene, m_output_layout);
 
         m_xdg_shell = wlr_xdg_shell_create(m_display, 7);
-        m_listeners.listen(&m_xdg_shell->events.new_toplevel, this, &Server::on_new_window);
-        m_listeners.listen(&m_xdg_shell->events.new_popup, this, &Server::on_new_popup);
+        m_listeners.listen(&m_xdg_shell->events.new_toplevel, this, &Compositor::on_new_window);
+        m_listeners.listen(&m_xdg_shell->events.new_popup, this, &Compositor::on_new_popup);
 
         m_cursor = wlr_cursor_create();
         wlr_cursor_attach_output_layout(m_cursor, m_output_layout);
@@ -148,19 +148,19 @@ namespace flux {
 
         m_cursor_state = cursor_state::Passthrough{};
 
-        m_listeners.listen(&m_cursor->events.motion, this, &Server::on_cursor_motion);
-        m_listeners.listen(&m_cursor->events.motion_absolute, this, &Server::on_cursor_motion_absolute);
-        m_listeners.listen(&m_cursor->events.button, this, &Server::on_cursor_button);
-        m_listeners.listen(&m_cursor->events.axis, this, &Server::on_cursor_axis);
-        m_listeners.listen(&m_cursor->events.frame, this, &Server::on_cursor_frame);
+        m_listeners.listen(&m_cursor->events.motion, this, &Compositor::on_cursor_motion);
+        m_listeners.listen(&m_cursor->events.motion_absolute, this, &Compositor::on_cursor_motion_absolute);
+        m_listeners.listen(&m_cursor->events.button, this, &Compositor::on_cursor_button);
+        m_listeners.listen(&m_cursor->events.axis, this, &Compositor::on_cursor_axis);
+        m_listeners.listen(&m_cursor->events.frame, this, &Compositor::on_cursor_frame);
 
-        m_listeners.listen(&m_backend->events.new_input, this, &Server::on_new_input);
+        m_listeners.listen(&m_backend->events.new_input, this, &Compositor::on_new_input);
 
         m_seat = wlr_seat_create(m_display, "seat0");
 
-        m_listeners.listen(&m_seat->events.request_set_cursor, this, &Server::on_request_cursor);
-        m_listeners.listen(&m_seat->pointer_state.events.focus_change, this, &Server::on_pointer_focus_change);
-        m_listeners.listen(&m_seat->events.request_set_selection, this, &Server::on_request_set_selection);
+        m_listeners.listen(&m_seat->events.request_set_cursor, this, &Compositor::on_request_cursor);
+        m_listeners.listen(&m_seat->pointer_state.events.focus_change, this, &Compositor::on_pointer_focus_change);
+        m_listeners.listen(&m_seat->events.request_set_selection, this, &Compositor::on_request_set_selection);
 
         const char* socket = wl_display_add_socket_auto(m_display);
         if (!socket) {
@@ -176,7 +176,7 @@ namespace flux {
         return true;
     }
 
-    void Server::run() {
+    void Compositor::run() {
         for (const auto& action : m_config.autostart) {
             execute_action(action);
         }
@@ -184,7 +184,7 @@ namespace flux {
         wl_display_run(m_display);
     }
 
-    bool Server::handle_keybinding(uint32_t modifiers, xkb_keysym_t sym) {
+    bool Compositor::handle_keybinding(uint32_t modifiers, xkb_keysym_t sym) {
         if (sym >= XKB_KEY_XF86Switch_VT_1 && sym <= XKB_KEY_XF86Switch_VT_12) {
             wlr_session_change_vt(m_session, sym - XKB_KEY_XF86Switch_VT_1 + 1);
             return true;
@@ -203,7 +203,7 @@ namespace flux {
         return false;
     }
 
-    void Server::execute_action(const Action& action) {
+    void Compositor::execute_action(const Action& action) {
         std::visit(
             [this](const auto& act) {
                 using T = std::decay_t<decltype(act)>;
@@ -225,7 +225,7 @@ namespace flux {
             action);
     }
 
-    void Server::spawn(const action::Spawn& action) {
+    void Compositor::spawn(const action::Spawn& action) {
         std::vector<const char*> argv;
         argv.reserve(action.args.size() + 2);
         argv.push_back(action.program.c_str());
@@ -251,7 +251,7 @@ namespace flux {
         }
     }
 
-    void Server::focus_window(Window* window) {
+    void Compositor::focus_window(Window* window) {
         if (!window) {
             return;
         }
@@ -280,7 +280,7 @@ namespace flux {
         }
     }
 
-    void Server::begin_move(Window* window) {
+    void Compositor::begin_move(Window* window) {
         if (m_seat->pointer_state.button_count == 0) {
             return;
         }
@@ -292,7 +292,7 @@ namespace flux {
         wlr_cursor_set_xcursor(m_cursor, m_cursor_mgr, "grabbing");
     }
 
-    void Server::begin_resize(Window* window, uint32_t edges) {
+    void Compositor::begin_resize(Window* window, uint32_t edges) {
         if (m_seat->pointer_state.button_count == 0) {
             return;
         }
@@ -317,7 +317,7 @@ namespace flux {
         wlr_cursor_set_xcursor(m_cursor, m_cursor_mgr, resize_name);
     }
 
-    void Server::reset_cursor_mode() {
+    void Compositor::reset_cursor_mode() {
         if (Window* window = grabbed_window()) {
             window->apply_pending_position();
         }
@@ -326,7 +326,7 @@ namespace flux {
         process_cursor_motion(0);
     }
 
-    Window* Server::grabbed_window() const noexcept {
+    Window* Compositor::grabbed_window() const noexcept {
         return std::visit(
             [](const auto& state) -> Window* {
                 using T = std::decay_t<decltype(state)>;
@@ -338,7 +338,7 @@ namespace flux {
             m_cursor_state);
     }
 
-    void Server::center_window(Window* window) {
+    void Compositor::center_window(Window* window) {
         if (!window || !m_output_layout || !m_cursor) {
             return;
         }
@@ -364,7 +364,7 @@ namespace flux {
         window->set_position(center_x - geo.x, center_y - geo.y);
     }
 
-    void Server::map_window(Window* window) {
+    void Compositor::map_window(Window* window) {
         center_window(window);
         if (std::ranges::find(m_focus_stack, window) == m_focus_stack.end()) {
             m_focus_stack.insert(m_focus_stack.begin(), window);
@@ -372,7 +372,7 @@ namespace flux {
         focus_window(window);
     }
 
-    void Server::unmap_window(Window* window) {
+    void Compositor::unmap_window(Window* window) {
         if (window == grabbed_window()) {
             reset_cursor_mode();
         }
@@ -384,20 +384,20 @@ namespace flux {
         }
     }
 
-    void Server::remove_window(Window* window) {
+    void Compositor::remove_window(Window* window) {
         unmap_window(window);
         erase_unique_ptr(m_windows, window);
     }
 
-    void Server::remove_popup(Popup* popup) {
+    void Compositor::remove_popup(Popup* popup) {
         erase_unique_ptr(m_popups, popup);
     }
 
-    void Server::remove_output(Output* output) {
+    void Compositor::remove_output(Output* output) {
         erase_unique_ptr(m_outputs, output);
     }
 
-    void Server::remove_keyboard(Keyboard* keyboard) {
+    void Compositor::remove_keyboard(Keyboard* keyboard) {
         if (wlr_seat_get_keyboard(m_seat) == keyboard->raw()) {
             wlr_keyboard* next_keyboard = nullptr;
             for (const auto& kbd : m_keyboards) {
@@ -417,29 +417,29 @@ namespace flux {
         wlr_seat_set_capabilities(m_seat, caps);
     }
 
-    void Server::on_new_output(wlr_output* output) {
+    void Compositor::on_new_output(wlr_output* output) {
         m_outputs.push_back(std::make_unique<Output>(*this, output));
     }
 
-    void Server::on_new_window(wlr_xdg_toplevel* toplevel) {
+    void Compositor::on_new_window(wlr_xdg_toplevel* toplevel) {
         m_windows.push_back(std::make_unique<Window>(*this, toplevel));
     }
 
-    void Server::on_new_popup(wlr_xdg_popup* popup) {
+    void Compositor::on_new_popup(wlr_xdg_popup* popup) {
         m_popups.push_back(std::make_unique<Popup>(*this, popup));
     }
 
-    void Server::on_cursor_motion(wlr_pointer_motion_event* event) {
+    void Compositor::on_cursor_motion(wlr_pointer_motion_event* event) {
         wlr_cursor_move(m_cursor, &event->pointer->base, event->delta_x, event->delta_y);
         process_cursor_motion(event->time_msec);
     }
 
-    void Server::on_cursor_motion_absolute(wlr_pointer_motion_absolute_event* event) {
+    void Compositor::on_cursor_motion_absolute(wlr_pointer_motion_absolute_event* event) {
         wlr_cursor_warp_absolute(m_cursor, &event->pointer->base, event->x, event->y);
         process_cursor_motion(event->time_msec);
     }
 
-    void Server::on_cursor_button(wlr_pointer_button_event* event) {
+    void Compositor::on_cursor_button(wlr_pointer_button_event* event) {
         if (std::holds_alternative<cursor_state::Passthrough>(m_cursor_state)) {
             if (event->state == WL_POINTER_BUTTON_STATE_PRESSED) {
                 double sx = 0;
@@ -497,16 +497,16 @@ namespace flux {
         }
     }
 
-    void Server::on_cursor_axis(wlr_pointer_axis_event* event) {
+    void Compositor::on_cursor_axis(wlr_pointer_axis_event* event) {
         wlr_seat_pointer_notify_axis(m_seat, event->time_msec, event->orientation, event->delta, event->delta_discrete,
                                      event->source, event->relative_direction);
     }
 
-    void Server::on_cursor_frame() {
+    void Compositor::on_cursor_frame() {
         wlr_seat_pointer_notify_frame(m_seat);
     }
 
-    void Server::on_new_input(wlr_input_device* device) {
+    void Compositor::on_new_input(wlr_input_device* device) {
         switch (device->type) {
             case WLR_INPUT_DEVICE_KEYBOARD:
                 m_keyboards.push_back(std::make_unique<Keyboard>(*this, device));
@@ -524,28 +524,28 @@ namespace flux {
         wlr_seat_set_capabilities(m_seat, caps);
     }
 
-    void Server::on_request_cursor(wlr_seat_pointer_request_set_cursor_event* event) {
+    void Compositor::on_request_cursor(wlr_seat_pointer_request_set_cursor_event* event) {
         wlr_seat_client* focused_client = m_seat->pointer_state.focused_client;
         if (focused_client == event->seat_client && std::holds_alternative<cursor_state::Passthrough>(m_cursor_state)) {
             wlr_cursor_set_surface(m_cursor, event->surface, event->hotspot_x, event->hotspot_y);
         }
     }
 
-    void Server::on_pointer_focus_change(wlr_seat_pointer_focus_change_event* event) {
+    void Compositor::on_pointer_focus_change(wlr_seat_pointer_focus_change_event* event) {
         if (event->new_surface == nullptr && std::holds_alternative<cursor_state::Passthrough>(m_cursor_state)) {
             wlr_cursor_set_xcursor(m_cursor, m_cursor_mgr, "default");
         }
     }
 
-    void Server::on_request_set_selection(wlr_seat_request_set_selection_event* event) {
+    void Compositor::on_request_set_selection(wlr_seat_request_set_selection_event* event) {
         wlr_seat_set_selection(m_seat, event->source, event->serial);
     }
 
-    void Server::process_cursor_move(const cursor_state::Move& state) {
+    void Compositor::process_cursor_move(const cursor_state::Move& state) {
         state.window->set_position(m_cursor->x - state.grab_x, m_cursor->y - state.grab_y);
     }
 
-    void Server::process_cursor_resize(const cursor_state::Resize& state) {
+    void Compositor::process_cursor_resize(const cursor_state::Resize& state) {
         const double border_x = m_cursor->x - state.grab_x;
         const double border_y = m_cursor->y - state.grab_y;
         int new_left = state.initial_geometry.x;
@@ -613,7 +613,7 @@ namespace flux {
         state.window->set_size(new_w, new_h);
     }
 
-    void Server::process_cursor_motion(uint32_t time_msec) {
+    void Compositor::process_cursor_motion(uint32_t time_msec) {
         bool handled = std::visit(
             [this](const auto& state) -> bool {
                 using T = std::decay_t<decltype(state)>;
@@ -647,7 +647,7 @@ namespace flux {
         }
     }
 
-    Window* Server::window_at(double lx, double ly, wlr_surface** surface, double* sx, double* sy) {
+    Window* Compositor::window_at(double lx, double ly, wlr_surface** surface, double* sx, double* sy) {
         wlr_scene_node* node = wlr_scene_node_at(&m_scene->tree.node, lx, ly, sx, sy);
         if (!node || node->type != WLR_SCENE_NODE_BUFFER) {
             return nullptr;

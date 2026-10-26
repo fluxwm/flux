@@ -17,13 +17,13 @@ namespace flux {
     class Window;
     class Popup;
 
-    class Server {
+    class Compositor {
     public:
-        Server();
-        ~Server();
+        Compositor();
+        ~Compositor();
 
-        Server(const Server&) = delete;
-        Server& operator=(const Server&) = delete;
+        Compositor(const Compositor&) = delete;
+        Compositor& operator=(const Compositor&) = delete;
 
         bool init(std::optional<std::filesystem::path> config_path = std::nullopt);
         void run();

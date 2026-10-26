@@ -1,9 +1,9 @@
 #include "flux/popup.hpp"
-#include "flux/server.hpp"
+#include "flux/compositor.hpp"
 
 namespace flux {
 
-    Popup::Popup(Server& server, wlr_xdg_popup* xdg_popup) : m_server(server), m_xdg_popup(xdg_popup) {
+    Popup::Popup(Compositor& compositor, wlr_xdg_popup* xdg_popup) : m_compositor(compositor), m_xdg_popup(xdg_popup) {
         m_listeners.listen(&xdg_popup->events.destroy, this, &Popup::on_destroy);
 
         wlr_xdg_surface* parent = wlr_xdg_surface_try_from_wlr_surface(xdg_popup->parent);
@@ -35,10 +35,10 @@ namespace flux {
                 int root_ly = 0;
                 wlr_scene_node_coords(&root_tree->node, &root_lx, &root_ly);
 
-                wlr_output* output = wlr_output_layout_output_at(m_server.output_layout(), root_lx, root_ly);
+                wlr_output* output = wlr_output_layout_output_at(m_compositor.output_layout(), root_lx, root_ly);
                 if (output != nullptr) {
                     wlr_box output_box{};
-                    wlr_output_layout_get_box(m_server.output_layout(), output, &output_box);
+                    wlr_output_layout_get_box(m_compositor.output_layout(), output, &output_box);
 
                     wlr_box toplevel_space_box{
                         .x = output_box.x - root_lx,
@@ -55,7 +55,7 @@ namespace flux {
     }
 
     void Popup::on_destroy() {
-        m_server.remove_popup(this);
+        m_compositor.remove_popup(this);
     }
 
 }

@@ -1,4 +1,4 @@
-#include "flux/server.hpp"
+#include "flux/compositor.hpp"
 
 #include <filesystem>
 #include <optional>
@@ -28,11 +28,11 @@ int main(int argc, char* argv[]) {
 
     wlr_log_init(log_level, nullptr);
 
-    flux::Server server;
-    if (!server.init(config_path)) {
+    flux::Compositor compositor;
+    if (!compositor.init(config_path)) {
         return 1;
     }
 
-    server.run();
+    compositor.run();
     return 0;
 }

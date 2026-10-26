@@ -5,11 +5,11 @@
 
 namespace flux {
 
-    class Server;
+    class Compositor;
 
     class Popup {
     public:
-        Popup(Server& server, wlr_xdg_popup* xdg_popup);
+        Popup(Compositor& compositor, wlr_xdg_popup* xdg_popup);
         ~Popup() = default;
 
         Popup(const Popup&) = delete;
@@ -21,7 +21,7 @@ namespace flux {
         void on_commit();
         void on_destroy();
 
-        Server& m_server;
+        Compositor& m_compositor;
         wlr_xdg_popup* m_xdg_popup = nullptr;
 
         ListenerGroup m_listeners;

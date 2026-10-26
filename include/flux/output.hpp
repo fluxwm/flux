@@ -5,11 +5,11 @@
 
 namespace flux {
 
-    class Server;
+    class Compositor;
 
     class Output {
     public:
-        Output(Server& server, wlr_output* wlr_output);
+        Output(Compositor& compositor, wlr_output* wlr_output);
         ~Output() = default;
 
         Output(const Output&) = delete;
@@ -22,7 +22,7 @@ namespace flux {
         void on_request_state(const wlr_output_event_request_state* event);
         void on_destroy();
 
-        Server& m_server;
+        Compositor& m_compositor;
         wlr_output* m_wlr_output = nullptr;
 
         ListenerGroup m_listeners;

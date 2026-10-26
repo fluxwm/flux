@@ -1,10 +1,11 @@
 #include "flux/window.hpp"
-#include "flux/server.hpp"
+#include "flux/compositor.hpp"
 
 namespace flux {
 
-    Window::Window(Server& server, wlr_xdg_toplevel* xdg_toplevel) : m_server(server), m_xdg_toplevel(xdg_toplevel) {
-        m_scene_tree = wlr_scene_xdg_surface_create(&m_server.scene()->tree, xdg_toplevel->base);
+    Window::Window(Compositor& compositor, wlr_xdg_toplevel* xdg_toplevel)
+        : m_compositor(compositor), m_xdg_toplevel(xdg_toplevel) {
+        m_scene_tree = wlr_scene_xdg_surface_create(&m_compositor.scene()->tree, xdg_toplevel->base);
         m_scene_tree->node.data = this;
         xdg_toplevel->base->data = m_scene_tree;
 
@@ -27,12 +28,12 @@ namespace flux {
         on_set_title();
         on_set_app_id();
         wlr_log(WLR_INFO, "Window mapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
-        m_server.map_window(this);
+        m_compositor.map_window(this);
     }
 
     void Window::on_unmap() {
         wlr_log(WLR_INFO, "Window unmapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
-        m_server.unmap_window(this);
+        m_compositor.unmap_window(this);
     }
 
     void Window::on_commit() {
@@ -44,15 +45,15 @@ namespace flux {
     }
 
     void Window::on_destroy() {
-        m_server.remove_window(this);
+        m_compositor.remove_window(this);
     }
 
     void Window::on_request_move() {
-        m_server.begin_move(this);
+        m_compositor.begin_move(this);
     }
 
     void Window::on_request_resize(wlr_xdg_toplevel_resize_event* event) {
-        m_server.begin_resize(this, event->edges);
+        m_compositor.begin_resize(this, event->edges);
     }
 
     void Window::on_request_maximize() {

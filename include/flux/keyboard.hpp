@@ -7,11 +7,11 @@
 
 namespace flux {
 
-    class Server;
+    class Compositor;
 
     class Keyboard {
     public:
-        Keyboard(Server& server, wlr_input_device* device);
+        Keyboard(Compositor& compositor, wlr_input_device* device);
         ~Keyboard() = default;
 
         Keyboard(const Keyboard&) = delete;
@@ -24,7 +24,7 @@ namespace flux {
         void on_key(wlr_keyboard_key_event* event);
         void on_destroy();
 
-        Server& m_server;
+        Compositor& m_compositor;
         wlr_keyboard* m_wlr_keyboard = nullptr;
         std::vector<uint32_t> m_consumed_keycodes;
 
