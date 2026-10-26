@@ -251,15 +251,16 @@ namespace flux {
             setsid();
             signal(SIGCHLD, SIG_DFL);
 
-            const int dev_null = open("/dev/null", O_RDONLY | O_CLOEXEC);
+            const int dev_null = open("/dev/null", O_RDWR | O_CLOEXEC);
             if (dev_null >= 0) {
                 dup2(dev_null, STDIN_FILENO);
+                dup2(dev_null, STDOUT_FILENO);
+                dup2(dev_null, STDERR_FILENO);
             }
 
             closefrom(3);
 
             execvp(action.program.c_str(), const_cast<char* const*>(argv.data()));
-            wlr_log(WLR_ERROR, "Failed to exec '%s': %s", action.program.c_str(), strerror(errno));
             _exit(1);
         }
     }
