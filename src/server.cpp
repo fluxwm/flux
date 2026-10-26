@@ -9,9 +9,11 @@
 #include <cerrno>
 #include <csignal>
 #include <cstring>
+#include <fcntl.h>
 #include <ranges>
 #include <string>
 #include <unistd.h>
+#include <vector>
 
 namespace flux {
 
@@ -215,16 +217,24 @@ namespace flux {
     }
 
     void Server::spawn(const action::Spawn& action) {
+        std::vector<const char*> argv;
+        argv.reserve(action.args.size() + 2);
+        argv.push_back(action.program.c_str());
+        for (const auto& arg : action.args) {
+            argv.push_back(arg.c_str());
+        }
+        argv.push_back(nullptr);
+
         if (fork() == 0) {
             setsid();
+            signal(SIGCHLD, SIG_DFL);
 
-            std::vector<const char*> argv;
-            argv.reserve(action.args.size() + 2);
-            argv.push_back(action.program.c_str());
-            for (const auto& arg : action.args) {
-                argv.push_back(arg.c_str());
+            const int dev_null = open("/dev/null", O_RDONLY | O_CLOEXEC);
+            if (dev_null >= 0) {
+                dup2(dev_null, STDIN_FILENO);
             }
-            argv.push_back(nullptr);
+
+            closefrom(3);
 
             execvp(action.program.c_str(), const_cast<char* const*>(argv.data()));
             wlr_log(WLR_ERROR, "Failed to exec '%s': %s", action.program.c_str(), strerror(errno));
