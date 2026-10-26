@@ -12,7 +12,7 @@ FetchContent_Declare(
     ckdl
     SYSTEM
     GIT_REPOSITORY https://github.com/tjol/ckdl.git
-    GIT_TAG        main
+    GIT_TAG        c9c33fe64446287215e80705545139d92a48f829
 )
 FetchContent_MakeAvailable(ckdl)
 
