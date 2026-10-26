@@ -27,9 +27,6 @@ namespace flux {
         }
 
         auto* scene_tree = wlr_scene_xdg_surface_create(parent_tree, xdg_popup->base);
-        if (!scene_tree) {
-            return;
-        }
         xdg_popup->base->data = scene_tree;
 
         m_listeners.listen(&xdg_popup->base->surface->events.commit, this, &Popup::on_commit);

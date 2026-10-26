@@ -137,15 +137,7 @@ namespace flux {
         wlr_data_control_manager_v1_create(m_display);
 
         m_output_layout = wlr_output_layout_create(m_display);
-        if (!m_output_layout) {
-            wlr_log(WLR_ERROR, "failed to create wlr_output_layout");
-            return false;
-        }
-
-        if (!wlr_xdg_output_manager_v1_create(m_display, m_output_layout)) {
-            wlr_log(WLR_ERROR, "failed to create wlr_xdg_output_manager_v1");
-            return false;
-        }
+        wlr_xdg_output_manager_v1_create(m_display, m_output_layout);
 
         m_listeners.listen(&m_backend->events.new_output, this, &Compositor::on_new_output);
 
@@ -164,10 +156,6 @@ namespace flux {
         m_listeners.listen(&m_xdg_shell->events.new_popup, this, &Compositor::create_popup);
 
         m_layer_shell = wlr_layer_shell_v1_create(m_display, 5);
-        if (!m_layer_shell) {
-            wlr_log(WLR_ERROR, "failed to create wlr_layer_shell_v1");
-            return false;
-        }
         m_listeners.listen(&m_layer_shell->events.new_surface, this, &Compositor::on_new_layer);
 
         m_cursor = wlr_cursor_create();

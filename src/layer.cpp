@@ -8,12 +8,6 @@ namespace flux {
         : m_compositor(compositor), m_layer_surface(layer_surface) {
         wlr_scene_tree* parent = m_compositor.layer_tree(layer_surface->pending.layer);
         m_scene_layer = wlr_scene_layer_surface_v1_create(parent, layer_surface);
-        if (!m_scene_layer) {
-            wlr_layer_surface_v1_destroy(layer_surface);
-            m_layer_surface = nullptr;
-            return;
-        }
-
         layer_surface->data = this;
 
         m_listeners.listen(&layer_surface->surface->events.commit, this, &Layer::on_commit);
@@ -34,10 +28,6 @@ namespace flux {
     }
 
     void Layer::on_commit() {
-        if (!m_layer_surface) {
-            return;
-        }
-
         if (m_layer_surface->current.committed & WLR_LAYER_SURFACE_V1_STATE_LAYER) {
             wlr_scene_tree* new_parent = m_compositor.layer_tree(m_layer_surface->current.layer);
             wlr_scene_node_reparent(&m_scene_layer->tree->node, new_parent);
@@ -61,10 +51,6 @@ namespace flux {
     }
 
     void Layer::on_map() {
-        if (!m_layer_surface) {
-            return;
-        }
-
         wlr_log(WLR_DEBUG, "layer surface mapped: namespace '%s'",
                 m_layer_surface->_namespace ? m_layer_surface->_namespace : "");
 
