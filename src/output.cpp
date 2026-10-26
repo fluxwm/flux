@@ -35,6 +35,8 @@ namespace flux {
         } else if (wlr_output_is_x11(m_wlr_output)) {
             wlr_x11_output_set_title(m_wlr_output, "Flux");
         }
+
+        m_compositor.arrange_layers(this);
     }
 
     void Output::on_frame() {
@@ -44,7 +46,9 @@ namespace flux {
             return;
         }
 
-        wlr_scene_output_commit(scene_output, nullptr);
+        if (!wlr_scene_output_commit(scene_output, nullptr)) {
+            return;
+        }
 
         timespec now{};
         clock_gettime(CLOCK_MONOTONIC, &now);
@@ -52,7 +56,9 @@ namespace flux {
     }
 
     void Output::on_request_state(const wlr_output_event_request_state* event) {
-        wlr_output_commit_state(m_wlr_output, event->state);
+        if (wlr_output_commit_state(m_wlr_output, event->state)) {
+            m_compositor.arrange_layers(this);
+        }
     }
 
     void Output::on_destroy() {

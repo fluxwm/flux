@@ -1,15 +1,18 @@
 #include "flux/compositor.hpp"
 #include "flux/keyboard.hpp"
+#include "flux/layer.hpp"
 #include "flux/output.hpp"
 #include "flux/popup.hpp"
 #include "flux/util.hpp"
 #include "flux/window.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cerrno>
 #include <csignal>
 #include <cstring>
 #include <fcntl.h>
+#include <limits>
 #include <ranges>
 #include <string>
 #include <unistd.h>
@@ -32,6 +35,7 @@ namespace flux {
         m_listeners.clear();
 
         m_popups.clear();
+        m_layers.clear();
         m_focus_stack.clear();
         m_windows.clear();
         m_keyboards.clear();
@@ -144,11 +148,23 @@ namespace flux {
         m_listeners.listen(&m_backend->events.new_output, this, &Compositor::on_new_output);
 
         m_scene = wlr_scene_create();
+        m_scene_background = wlr_scene_tree_create(&m_scene->tree);
+        m_scene_bottom = wlr_scene_tree_create(&m_scene->tree);
+        m_scene_windows = wlr_scene_tree_create(&m_scene->tree);
+        m_scene_top = wlr_scene_tree_create(&m_scene->tree);
+        m_scene_overlay = wlr_scene_tree_create(&m_scene->tree);
         m_scene_layout = wlr_scene_attach_output_layout(m_scene, m_output_layout);
 
         m_xdg_shell = wlr_xdg_shell_create(m_display, 7);
         m_listeners.listen(&m_xdg_shell->events.new_toplevel, this, &Compositor::on_new_window);
-        m_listeners.listen(&m_xdg_shell->events.new_popup, this, &Compositor::on_new_popup);
+        m_listeners.listen(&m_xdg_shell->events.new_popup, this, &Compositor::create_popup);
+
+        m_layer_shell = wlr_layer_shell_v1_create(m_display, 5);
+        if (!m_layer_shell) {
+            wlr_log(WLR_ERROR, "failed to create wlr_layer_shell_v1");
+            return false;
+        }
+        m_listeners.listen(&m_layer_shell->events.new_surface, this, &Compositor::on_new_layer);
 
         m_cursor = wlr_cursor_create();
         wlr_cursor_attach_output_layout(m_cursor, m_output_layout);
@@ -201,6 +217,10 @@ namespace flux {
         if (sym >= XKB_KEY_XF86Switch_VT_1 && sym <= XKB_KEY_XF86Switch_VT_12) {
             wlr_session_change_vt(m_session, sym - XKB_KEY_XF86Switch_VT_1 + 1);
             return true;
+        }
+
+        if (exclusive_layer()) {
+            return false;
         }
 
         constexpr uint32_t clean_mask = WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT | WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT;
@@ -265,33 +285,44 @@ namespace flux {
         }
     }
 
-    void Compositor::focus_window(Window* window) {
-        if (!window) {
-            return;
-        }
+    void Compositor::focus_surface(wlr_surface* surface) {
         wlr_surface* prev_surface = m_seat->keyboard_state.focused_surface;
-        wlr_surface* surface = window->surface();
         if (prev_surface == surface) {
             return;
         }
         if (prev_surface) {
-            wlr_xdg_toplevel* prev_toplevel = wlr_xdg_toplevel_try_from_wlr_surface(prev_surface);
-            if (prev_toplevel != nullptr) {
+            wlr_surface* prev_root = root_popup_parent(prev_surface);
+            if (wlr_xdg_toplevel* prev_toplevel = wlr_xdg_toplevel_try_from_wlr_surface(prev_root)) {
                 wlr_xdg_toplevel_set_activated(prev_toplevel, false);
             }
         }
-
+        if (!surface) {
+            wlr_seat_keyboard_notify_clear_focus(m_seat);
+            return;
+        }
         wlr_keyboard* keyboard = wlr_seat_get_keyboard(m_seat);
-        window->raise_to_top();
+        if (!keyboard) {
+            return;
+        }
+        wlr_seat_keyboard_notify_enter(m_seat, surface, keyboard->keycodes, keyboard->num_keycodes,
+                                       &keyboard->modifiers);
+    }
 
+    void Compositor::focus_window(Window* window) {
+        if (exclusive_layer()) {
+            return;
+        }
+
+        if (!window) {
+            focus_surface(nullptr);
+            return;
+        }
+
+        window->raise_to_top();
         std::erase(m_focus_stack, window);
         m_focus_stack.insert(m_focus_stack.begin(), window);
-
         window->set_activated(true);
-        if (keyboard != nullptr) {
-            wlr_seat_keyboard_notify_enter(m_seat, surface, keyboard->keycodes, keyboard->num_keycodes,
-                                           &keyboard->modifiers);
-        }
+        focus_surface(window->surface());
     }
 
     void Compositor::begin_move(Window* window) {
@@ -352,35 +383,64 @@ namespace flux {
             m_cursor_state);
     }
 
+    wlr_scene_tree* Compositor::layer_tree(zwlr_layer_shell_v1_layer layer) const noexcept {
+        switch (layer) {
+            case ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND:
+                return m_scene_background;
+            case ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM:
+                return m_scene_bottom;
+            case ZWLR_LAYER_SHELL_V1_LAYER_TOP:
+                return m_scene_top;
+            case ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY:
+                return m_scene_overlay;
+        }
+        return m_scene_top;
+    }
+
+    Output* Compositor::output_from_wlr(wlr_output* wlr_out) const noexcept {
+        if (!wlr_out) {
+            return nullptr;
+        }
+        auto it = std::ranges::find_if(m_outputs, [wlr_out](const auto& o) { return o->raw() == wlr_out; });
+        return it != m_outputs.end() ? it->get() : nullptr;
+    }
+
+    Output* Compositor::focused_output() const noexcept {
+        if (!m_output_layout || !m_cursor) {
+            return m_outputs.empty() ? nullptr : m_outputs.front().get();
+        }
+        wlr_output* wlr_out = wlr_output_layout_output_at(m_output_layout, m_cursor->x, m_cursor->y);
+        if (!wlr_out) {
+            wlr_out = wlr_output_layout_get_center_output(m_output_layout);
+        }
+        Output* out = output_from_wlr(wlr_out);
+        return out ? out : (m_outputs.empty() ? nullptr : m_outputs.front().get());
+    }
+
     void Compositor::center_window(Window* window) {
-        if (!window || !m_output_layout || !m_cursor) {
+        if (!window) {
             return;
         }
 
-        wlr_output* output = wlr_output_layout_output_at(m_output_layout, m_cursor->x, m_cursor->y);
-        if (!output) {
-            output = wlr_output_layout_get_center_output(m_output_layout);
-        }
+        Output* output = focused_output();
         if (!output) {
             return;
         }
 
-        wlr_box output_box{};
-        wlr_output_layout_get_box(m_output_layout, output, &output_box);
-
+        const wlr_box& box = output->usable_area();
         const wlr_box& geo = window->geometry();
         const int width = geo.width > 0 ? geo.width : window->surface()->current.width;
         const int height = geo.height > 0 ? geo.height : window->surface()->current.height;
 
-        const int center_x = output_box.x + std::max(0, (output_box.width - width) / 2);
-        const int center_y = output_box.y + std::max(0, (output_box.height - height) / 2);
+        const int center_x = box.x + std::max(0, (box.width - width) / 2);
+        const int center_y = box.y + std::max(0, (box.height - height) / 2);
 
         window->set_position(center_x - geo.x, center_y - geo.y);
     }
 
     void Compositor::map_window(Window* window) {
         center_window(window);
-        if (std::ranges::find(m_focus_stack, window) == m_focus_stack.end()) {
+        if (!std::ranges::contains(m_focus_stack, window)) {
             m_focus_stack.insert(m_focus_stack.begin(), window);
         }
         focus_window(window);
@@ -391,11 +451,45 @@ namespace flux {
             reset_cursor_mode();
         }
         std::erase(m_focus_stack, window);
-        if (!m_focus_stack.empty()) {
-            focus_window(m_focus_stack.front());
-        } else {
-            wlr_seat_keyboard_notify_clear_focus(m_seat);
+        refocus();
+    }
+
+    Layer* Compositor::exclusive_layer() const noexcept {
+        constexpr std::array layers = {
+            ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
+            ZWLR_LAYER_SHELL_V1_LAYER_TOP,
+        };
+
+        for (auto layer : layers) {
+            for (const auto& ls : std::views::reverse(m_layers)) {
+                auto* raw = ls->raw();
+                if (raw && raw->surface->mapped && raw->current.layer == layer &&
+                    raw->current.keyboard_interactive == ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE) {
+                    return ls.get();
+                }
+            }
         }
+
+        return nullptr;
+    }
+
+    void Compositor::refocus() {
+        if (auto* excl = exclusive_layer()) {
+            focus_layer(excl);
+            return;
+        }
+
+        wlr_surface* focused = m_seat->keyboard_state.focused_surface;
+        if (focused) {
+            wlr_surface* root = root_popup_parent(focused);
+            if (auto* ls = wlr_layer_surface_v1_try_from_wlr_surface(root);
+                ls && ls->surface->mapped &&
+                ls->current.keyboard_interactive != ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE) {
+                return;
+            }
+        }
+
+        focus_window(m_focus_stack.empty() ? nullptr : m_focus_stack.front());
     }
 
     void Compositor::remove_window(Window* window) {
@@ -409,23 +503,41 @@ namespace flux {
 
     void Compositor::remove_output(Output* output) {
         const bool is_nested = wlr_output_is_wl(output->raw()) || wlr_output_is_x11(output->raw());
+
+        std::vector<wlr_layer_surface_v1*> to_destroy;
+        for (const auto& ls : m_layers) {
+            if (ls->raw() && ls->raw()->output == output->raw()) {
+                to_destroy.push_back(ls->raw());
+            }
+        }
         erase_unique_ptr(m_outputs, output);
+        for (auto* raw : to_destroy) {
+            wlr_layer_surface_v1_destroy(raw);
+        }
 
         if (is_nested && m_outputs.empty()) {
             quit();
         }
     }
 
+    void Compositor::remove_layer(Layer* layer) {
+        if (!layer) {
+            return;
+        }
+
+        Output* output = layer->output();
+        erase_unique_ptr(m_layers, layer);
+
+        if (output && output_from_wlr(output->raw())) {
+            arrange_layers(output);
+        }
+        refocus();
+    }
+
     void Compositor::remove_keyboard(Keyboard* keyboard) {
         if (wlr_seat_get_keyboard(m_seat) == keyboard->raw()) {
-            wlr_keyboard* next_keyboard = nullptr;
-            for (const auto& kbd : m_keyboards) {
-                if (kbd.get() != keyboard) {
-                    next_keyboard = kbd->raw();
-                    break;
-                }
-            }
-            wlr_seat_set_keyboard(m_seat, next_keyboard);
+            auto it = std::ranges::find_if(m_keyboards, [keyboard](const auto& k) { return k.get() != keyboard; });
+            wlr_seat_set_keyboard(m_seat, it != m_keyboards.end() ? (*it)->raw() : nullptr);
         }
 
         erase_unique_ptr(m_keyboards, keyboard);
@@ -444,8 +556,70 @@ namespace flux {
         m_windows.push_back(std::make_unique<Window>(*this, toplevel));
     }
 
-    void Compositor::on_new_popup(wlr_xdg_popup* popup) {
+    void Compositor::create_popup(wlr_xdg_popup* popup) {
         m_popups.push_back(std::make_unique<Popup>(*this, popup));
+    }
+
+    void Compositor::on_new_layer(wlr_layer_surface_v1* layer_surface) {
+        if (!layer_surface->output) {
+            Output* output = focused_output();
+            if (!output) {
+                wlr_log(WLR_ERROR, "no output available for layer surface");
+                wlr_layer_surface_v1_destroy(layer_surface);
+                return;
+            }
+            layer_surface->output = output->raw();
+        }
+
+        auto ls = std::make_unique<Layer>(*this, layer_surface);
+        if (!ls->raw()) {
+            return;
+        }
+        m_layers.push_back(std::move(ls));
+    }
+
+    void Compositor::arrange_layers(Output* output) {
+        if (!output || !output->raw()->enabled) {
+            return;
+        }
+
+        wlr_box output_box{};
+        wlr_output_layout_get_box(m_output_layout, output->raw(), &output_box);
+
+        wlr_box full_area = output_box;
+        wlr_box usable_area = output_box;
+
+        constexpr std::array layers = {
+            ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
+            ZWLR_LAYER_SHELL_V1_LAYER_TOP,
+            ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM,
+            ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND,
+        };
+
+        auto configure = [&](bool exclusive) {
+            for (auto layer : layers) {
+                for (const auto& ls : m_layers) {
+                    if (ls->output() == output && ls->scene_layer() && ls->raw()->initialized &&
+                        ls->raw()->current.layer == layer && (ls->raw()->current.exclusive_zone > 0) == exclusive) {
+                        wlr_scene_layer_surface_v1_configure(ls->scene_layer(), &full_area, &usable_area);
+                    }
+                }
+            }
+        };
+
+        configure(true);
+        output->set_usable_area(usable_area);
+        configure(false);
+    }
+
+    void Compositor::focus_layer(Layer* layer) {
+        if (!layer || !layer->raw()->surface->mapped) {
+            return;
+        }
+        if (layer->scene_layer()) {
+            wlr_scene_node_raise_to_top(&layer->scene_layer()->tree->node);
+        }
+        focus_surface(layer->raw()->surface);
     }
 
     void Compositor::on_cursor_motion(wlr_pointer_motion_event* event) {
@@ -465,13 +639,28 @@ namespace flux {
                 double sy = 0;
                 wlr_surface* surface = nullptr;
                 Window* window = window_at(m_cursor->x, m_cursor->y, &surface, &sx, &sy);
-                focus_window(window);
+
+                if (auto* excl = exclusive_layer()) {
+                    if (surface && root_popup_parent(surface) == excl->raw()->surface) {
+                        focus_surface(surface);
+                    }
+                } else if (window != nullptr) {
+                    focus_window(window);
+                } else if (surface != nullptr) {
+                    wlr_surface* root = root_popup_parent(surface);
+                    if (auto* ls = wlr_layer_surface_v1_try_from_wlr_surface(root);
+                        ls && ls->current.keyboard_interactive != ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE) {
+                        focus_surface(surface);
+                    }
+                } else {
+                    focus_window(nullptr);
+                }
 
                 wlr_keyboard* keyboard = wlr_seat_get_keyboard(m_seat);
                 const uint32_t modifiers = keyboard ? wlr_keyboard_get_modifiers(keyboard) : 0;
                 const bool mod_down = (modifiers & WLR_MODIFIER_LOGO) != 0;
 
-                if (window != nullptr && mod_down) {
+                if (window != nullptr && mod_down && !exclusive_layer()) {
                     if (event->button == btn_left || event->button == btn_right) {
                         wlr_seat_pointer_clear_focus(m_seat);
                         wlr_seat_pointer_notify_button(m_seat, event->time_msec, event->button, event->state);
@@ -583,47 +772,22 @@ namespace flux {
             new_right = std::max(static_cast<int>(border_x), new_left + 1);
         }
 
-        int min_w = std::max(1, state.window->raw()->current.min_width);
-        int min_h = std::max(1, state.window->raw()->current.min_height);
-        int max_w = state.window->raw()->current.max_width;
-        int max_h = state.window->raw()->current.max_height;
+        auto clamp_dim = [](int& start, int& end, int min_val, int max_val, bool from_start) {
+            const int upper = max_val > 0 ? max_val : std::numeric_limits<int>::max();
+            const int size = std::clamp(end - start, min_val, upper);
+            if (from_start) {
+                start = end - size;
+            } else {
+                end = start + size;
+            }
+            return size;
+        };
 
-        int new_w = new_right - new_left;
-        int new_h = new_bottom - new_top;
-
-        if (new_w < min_w) {
-            if (state.resize_edges & WLR_EDGE_LEFT) {
-                new_left = new_right - min_w;
-            } else {
-                new_right = new_left + min_w;
-            }
-            new_w = min_w;
-        }
-        if (max_w > 0 && new_w > max_w) {
-            if (state.resize_edges & WLR_EDGE_LEFT) {
-                new_left = new_right - max_w;
-            } else {
-                new_right = new_left + max_w;
-            }
-            new_w = max_w;
-        }
-
-        if (new_h < min_h) {
-            if (state.resize_edges & WLR_EDGE_TOP) {
-                new_top = new_bottom - min_h;
-            } else {
-                new_bottom = new_top + min_h;
-            }
-            new_h = min_h;
-        }
-        if (max_h > 0 && new_h > max_h) {
-            if (state.resize_edges & WLR_EDGE_TOP) {
-                new_top = new_bottom - max_h;
-            } else {
-                new_bottom = new_top + max_h;
-            }
-            new_h = max_h;
-        }
+        const auto* toplevel = state.window->raw();
+        int new_w = clamp_dim(new_left, new_right, std::max(1, toplevel->current.min_width),
+                              toplevel->current.max_width, state.resize_edges & WLR_EDGE_LEFT);
+        int new_h = clamp_dim(new_top, new_bottom, std::max(1, toplevel->current.min_height),
+                              toplevel->current.max_height, state.resize_edges & WLR_EDGE_TOP);
 
         const wlr_box& geo_box = state.window->geometry();
         if (state.resize_edges & (WLR_EDGE_TOP | WLR_EDGE_LEFT)) {
@@ -655,7 +819,7 @@ namespace flux {
         double sy = 0;
         wlr_surface* surface = nullptr;
         Window* window = window_at(m_cursor->x, m_cursor->y, &surface, &sx, &sy);
-        if (!window) {
+        if (!surface) {
             wlr_cursor_set_xcursor(m_cursor, m_cursor_mgr, "default");
         }
         if (surface) {
@@ -677,14 +841,15 @@ namespace flux {
             return nullptr;
         }
         *surface = scene_surface->surface;
-        wlr_scene_tree* tree = node->parent;
-        while (tree != nullptr && tree->node.data == nullptr) {
-            tree = tree->node.parent;
-        }
-        if (!tree) {
+        if (!wlr_xdg_surface_try_from_wlr_surface(scene_surface->surface)) {
             return nullptr;
         }
-        return static_cast<Window*>(tree->node.data);
+
+        wlr_scene_tree* tree = node->parent;
+        while (tree && !tree->node.data) {
+            tree = tree->node.parent;
+        }
+        return tree ? static_cast<Window*>(tree->node.data) : nullptr;
     }
 
 }

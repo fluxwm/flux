@@ -5,7 +5,7 @@ namespace flux {
 
     Window::Window(Compositor& compositor, wlr_xdg_toplevel* xdg_toplevel)
         : m_compositor(compositor), m_xdg_toplevel(xdg_toplevel) {
-        m_scene_tree = wlr_scene_xdg_surface_create(&m_compositor.scene()->tree, xdg_toplevel->base);
+        m_scene_tree = wlr_scene_xdg_surface_create(m_compositor.scene_windows(), xdg_toplevel->base);
         m_scene_tree->node.data = this;
         xdg_toplevel->base->data = m_scene_tree;
 

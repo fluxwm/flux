@@ -16,6 +16,8 @@ namespace flux {
         Output& operator=(const Output&) = delete;
 
         [[nodiscard]] wlr_output* raw() const noexcept { return m_wlr_output; }
+        [[nodiscard]] const wlr_box& usable_area() const noexcept { return m_usable_area; }
+        void set_usable_area(const wlr_box& area) noexcept { m_usable_area = area; }
 
     private:
         void on_frame();
@@ -24,6 +26,7 @@ namespace flux {
 
         Compositor& m_compositor;
         wlr_output* m_wlr_output = nullptr;
+        wlr_box m_usable_area{};
 
         ListenerGroup m_listeners;
     };

@@ -69,6 +69,9 @@ jobs:
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug
 
+      - name: Build project
+        run: cmake --build build
+
       - name: Run Clang-Tidy
         run: run-clang-tidy -p build -warnings-as-errors='*' -quiet $(git ls-files 'src/*.cpp')
 

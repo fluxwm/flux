@@ -18,7 +18,9 @@ namespace flux {
         [[nodiscard]] wlr_xdg_popup* raw() const noexcept { return m_xdg_popup; }
 
     private:
+        void unconstrain();
         void on_commit();
+        void on_reposition();
         void on_destroy();
 
         Compositor& m_compositor;
