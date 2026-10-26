@@ -157,6 +157,8 @@ namespace flux {
         m_scene_overlay = wlr_scene_tree_create(&m_scene->tree);
         m_scene_layout = wlr_scene_attach_output_layout(m_scene, m_output_layout);
 
+        wlr_scene_set_gamma_control_manager_v1(m_scene, wlr_gamma_control_manager_v1_create(m_display));
+
         m_xdg_shell = wlr_xdg_shell_create(m_display, 7);
         m_listeners.listen(&m_xdg_shell->events.new_toplevel, this, &Compositor::on_new_window);
         m_listeners.listen(&m_xdg_shell->events.new_popup, this, &Compositor::create_popup);
