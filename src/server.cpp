@@ -15,6 +15,11 @@
 
 namespace flux {
 
+    namespace {
+        constexpr uint32_t btn_left = 0x110;
+        constexpr uint32_t btn_right = 0x111;
+    }
+
     Server::Server() = default;
 
     Server::~Server() {
@@ -423,6 +428,46 @@ namespace flux {
                 wlr_surface* surface = nullptr;
                 Window* window = window_at(m_cursor->x, m_cursor->y, &surface, &sx, &sy);
                 focus_window(window);
+
+                wlr_keyboard* keyboard = wlr_seat_get_keyboard(m_seat);
+                const uint32_t modifiers = keyboard ? wlr_keyboard_get_modifiers(keyboard) : 0;
+                const bool mod_down = (modifiers & WLR_MODIFIER_LOGO) != 0;
+
+                if (window != nullptr && mod_down) {
+                    if (event->button == btn_left || event->button == btn_right) {
+                        wlr_seat_pointer_clear_focus(m_seat);
+                        wlr_seat_pointer_notify_button(m_seat, event->time_msec, event->button, event->state);
+
+                        if (event->button == btn_left) {
+                            begin_move(window);
+                        } else {
+                            const wlr_box& geo = window->geometry();
+                            const int width = geo.width > 0 ? geo.width : window->surface()->current.width;
+                            const int height = geo.height > 0 ? geo.height : window->surface()->current.height;
+                            const double rx = m_cursor->x - (window->x() + geo.x);
+                            const double ry = m_cursor->y - (window->y() + geo.y);
+
+                            uint32_t edges = 0;
+                            if (rx < width / 3.0) {
+                                edges |= WLR_EDGE_LEFT;
+                            } else if (rx > 2.0 * width / 3.0) {
+                                edges |= WLR_EDGE_RIGHT;
+                            }
+                            if (ry < height / 3.0) {
+                                edges |= WLR_EDGE_TOP;
+                            } else if (ry > 2.0 * height / 3.0) {
+                                edges |= WLR_EDGE_BOTTOM;
+                            }
+                            if (edges == 0) {
+                                edges = (rx < width / 2.0 ? WLR_EDGE_LEFT : WLR_EDGE_RIGHT) |
+                                        (ry < height / 2.0 ? WLR_EDGE_TOP : WLR_EDGE_BOTTOM);
+                            }
+
+                            begin_resize(window, edges);
+                        }
+                        return;
+                    }
+                }
             }
             wlr_seat_pointer_notify_button(m_seat, event->time_msec, event->button, event->state);
         } else {
