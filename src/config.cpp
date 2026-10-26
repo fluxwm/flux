@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -16,6 +17,10 @@
 namespace flux {
 
     namespace {
+
+        std::string_view node_name(const kdl::Node& node) noexcept {
+            return {reinterpret_cast<const char*>(node.name().data()), node.name().size()};
+        }
 
         bool iequals(std::string_view a, std::string_view b) noexcept {
             return std::ranges::equal(a, b, [](char x, char y) {
@@ -28,12 +33,8 @@ namespace flux {
             keysym = XKB_KEY_NoSymbol;
             std::string key_name;
 
-            size_t start = 0;
-            while (start < combo.size()) {
-                size_t end = combo.find('+', start);
-                std::string_view token =
-                    (end == std::string_view::npos) ? combo.substr(start) : combo.substr(start, end - start);
-
+            for (auto part : std::views::split(combo, '+')) {
+                std::string_view token(part.begin(), part.end());
                 while (!token.empty() && std::isspace(static_cast<unsigned char>(token.front()))) {
                     token.remove_prefix(1);
                 }
@@ -41,25 +42,22 @@ namespace flux {
                     token.remove_suffix(1);
                 }
 
-                if (!token.empty()) {
-                    if (iequals(token, "ctrl") || iequals(token, "control")) {
-                        modifiers |= WLR_MODIFIER_CTRL;
-                    } else if (iequals(token, "alt") || iequals(token, "mod1")) {
-                        modifiers |= WLR_MODIFIER_ALT;
-                    } else if (iequals(token, "super") || iequals(token, "mod") || iequals(token, "mod4") ||
-                               iequals(token, "logo")) {
-                        modifiers |= WLR_MODIFIER_LOGO;
-                    } else if (iequals(token, "shift")) {
-                        modifiers |= WLR_MODIFIER_SHIFT;
-                    } else {
-                        key_name = std::string(token);
-                    }
+                if (token.empty()) {
+                    continue;
                 }
 
-                if (end == std::string_view::npos) {
-                    break;
+                if (iequals(token, "ctrl") || iequals(token, "control")) {
+                    modifiers |= WLR_MODIFIER_CTRL;
+                } else if (iequals(token, "alt") || iequals(token, "mod1")) {
+                    modifiers |= WLR_MODIFIER_ALT;
+                } else if (iequals(token, "super") || iequals(token, "mod") || iequals(token, "mod4") ||
+                           iequals(token, "logo")) {
+                    modifiers |= WLR_MODIFIER_LOGO;
+                } else if (iequals(token, "shift")) {
+                    modifiers |= WLR_MODIFIER_SHIFT;
+                } else {
+                    key_name = token;
                 }
-                start = end + 1;
             }
 
             if (key_name.empty()) {
@@ -71,8 +69,7 @@ namespace flux {
         }
 
         std::optional<Action> parse_action(const kdl::Node& action_node) {
-            std::string_view action_name(reinterpret_cast<const char*>(action_node.name().data()),
-                                         action_node.name().size());
+            std::string_view action_name = node_name(action_node);
 
             if (iequals(action_name, "quit")) {
                 return action::Quit{};
@@ -112,7 +109,7 @@ namespace flux {
 
         void parse_binds(Config& config, const kdl::Node& binds_node) {
             for (const auto& bind_node : binds_node.children()) {
-                std::string combo(reinterpret_cast<const char*>(bind_node.name().data()), bind_node.name().size());
+                std::string combo(node_name(bind_node));
                 uint32_t modifiers = 0;
                 xkb_keysym_t keysym = XKB_KEY_NoSymbol;
 
@@ -124,8 +121,7 @@ namespace flux {
                 for (const auto& action_node : bind_node.children()) {
                     auto action_opt = parse_action(action_node);
                     if (!action_opt) {
-                        std::string aname(reinterpret_cast<const char*>(action_node.name().data()),
-                                          action_node.name().size());
+                        std::string aname(node_name(action_node));
                         wlr_log(WLR_ERROR, "Unknown or invalid action '%s' for bind '%s'", aname.c_str(),
                                 combo.c_str());
                         continue;
@@ -144,8 +140,7 @@ namespace flux {
             for (const auto& action_node : autostart_node.children()) {
                 auto action_opt = parse_action(action_node);
                 if (!action_opt) {
-                    std::string aname(reinterpret_cast<const char*>(action_node.name().data()),
-                                      action_node.name().size());
+                    std::string aname(node_name(action_node));
                     wlr_log(WLR_ERROR, "Unknown or invalid action '%s' in autostart", aname.c_str());
                     continue;
                 }
@@ -185,10 +180,10 @@ namespace flux {
         Config config;
 
         for (const auto& node : doc.nodes()) {
-            std::string_view node_name(reinterpret_cast<const char*>(node.name().data()), node.name().size());
-            if (iequals(node_name, "autostart")) {
+            std::string_view name = node_name(node);
+            if (iequals(name, "autostart")) {
                 parse_autostart(config, node);
-            } else if (iequals(node_name, "binds")) {
+            } else if (iequals(name, "binds")) {
                 parse_binds(config, node);
             }
         }

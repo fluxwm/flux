@@ -55,17 +55,11 @@ namespace flux {
                 }
             }
 
-            if (handled) {
-                if (std::ranges::find(m_consumed_keycodes, event->keycode) == m_consumed_keycodes.end()) {
-                    m_consumed_keycodes.push_back(event->keycode);
-                }
+            if (handled && !std::ranges::contains(m_consumed_keycodes, event->keycode)) {
+                m_consumed_keycodes.push_back(event->keycode);
             }
         } else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
-            auto it = std::ranges::find(m_consumed_keycodes, event->keycode);
-            if (it != m_consumed_keycodes.end()) {
-                m_consumed_keycodes.erase(it);
-                handled = true;
-            }
+            handled = std::erase(m_consumed_keycodes, event->keycode) > 0;
         }
 
         if (!handled) {
