@@ -1,4 +1,5 @@
 #include "flux/compositor.hpp"
+#include "flux/log.hpp"
 
 #include <filesystem>
 #include <optional>
@@ -29,7 +30,8 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    wlr_log_init(log_level, nullptr);
+    flux::log_init(log_level);
+    wlr_log(WLR_INFO, "starting version %s", FLUX_VERSION);
 
     flux::Compositor compositor;
     if (!compositor.init(config_path)) {

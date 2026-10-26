@@ -27,12 +27,12 @@ namespace flux {
     void Window::on_map() {
         on_set_title();
         on_set_app_id();
-        wlr_log(WLR_INFO, "Window mapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
+        wlr_log(WLR_DEBUG, "window mapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
         m_compositor.map_window(this);
     }
 
     void Window::on_unmap() {
-        wlr_log(WLR_INFO, "Window unmapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
+        wlr_log(WLR_DEBUG, "window unmapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
         m_compositor.unmap_window(this);
     }
 
@@ -70,12 +70,12 @@ namespace flux {
 
     void Window::on_set_title() {
         m_title = m_xdg_toplevel->title ? m_xdg_toplevel->title : "";
-        wlr_log(WLR_DEBUG, "Window title updated: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
+        wlr_log(WLR_DEBUG, "window title updated: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
     }
 
     void Window::on_set_app_id() {
         m_app_id = m_xdg_toplevel->app_id ? m_xdg_toplevel->app_id : "";
-        wlr_log(WLR_DEBUG, "Window app_id updated: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
+        wlr_log(WLR_DEBUG, "window app_id updated: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
     }
 
 }

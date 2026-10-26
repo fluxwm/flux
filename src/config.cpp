@@ -114,7 +114,7 @@ namespace flux {
                 xkb_keysym_t keysym = XKB_KEY_NoSymbol;
 
                 if (!parse_combo(combo, modifiers, keysym)) {
-                    wlr_log(WLR_ERROR, "Invalid key combo in config: '%s'", combo.c_str());
+                    wlr_log(WLR_ERROR, "invalid key combo in config: '%s'", combo.c_str());
                     continue;
                 }
 
@@ -122,7 +122,7 @@ namespace flux {
                     auto action_opt = parse_action(action_node);
                     if (!action_opt) {
                         std::string aname(node_name(action_node));
-                        wlr_log(WLR_ERROR, "Unknown or invalid action '%s' for bind '%s'", aname.c_str(),
+                        wlr_log(WLR_ERROR, "unknown or invalid action '%s' for bind '%s'", aname.c_str(),
                                 combo.c_str());
                         continue;
                     }
@@ -141,7 +141,7 @@ namespace flux {
                 auto action_opt = parse_action(action_node);
                 if (!action_opt) {
                     std::string aname(node_name(action_node));
-                    wlr_log(WLR_ERROR, "Unknown or invalid action '%s' in autostart", aname.c_str());
+                    wlr_log(WLR_ERROR, "unknown or invalid action '%s' in autostart", aname.c_str());
                     continue;
                 }
 
@@ -153,13 +153,13 @@ namespace flux {
 
     std::optional<Config> Config::load(const std::filesystem::path& path) {
         if (!std::filesystem::exists(path)) {
-            wlr_log(WLR_ERROR, "Config file does not exist: %s", path.c_str());
+            wlr_log(WLR_ERROR, "config file does not exist: %s", path.c_str());
             return std::nullopt;
         }
 
         std::ifstream file(path, std::ios::binary);
         if (!file.is_open()) {
-            wlr_log(WLR_ERROR, "Failed to open config file: %s", path.c_str());
+            wlr_log(WLR_ERROR, "failed to open config file: %s", path.c_str());
             return std::nullopt;
         }
 
@@ -170,10 +170,10 @@ namespace flux {
         try {
             doc = kdl::parse(u8view);
         } catch (const kdl::ParseError& e) {
-            wlr_log(WLR_ERROR, "KDL parse error in '%s': %s", path.c_str(), e.what());
+            wlr_log(WLR_ERROR, "kdl parse error in '%s': %s", path.c_str(), e.what());
             return std::nullopt;
         } catch (const std::exception& e) {
-            wlr_log(WLR_ERROR, "Error reading KDL config '%s': %s", path.c_str(), e.what());
+            wlr_log(WLR_ERROR, "error reading kdl config '%s': %s", path.c_str(), e.what());
             return std::nullopt;
         }
 
@@ -188,8 +188,7 @@ namespace flux {
             }
         }
 
-        wlr_log(WLR_INFO, "Loaded %zu autostart actions and %zu keybindings from %s", config.autostart.size(),
-                config.keybinds.size(), path.c_str());
+        wlr_log(WLR_INFO, "loaded config from '%s'", path.c_str());
         return config;
     }
 

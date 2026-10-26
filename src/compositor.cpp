@@ -181,7 +181,7 @@ namespace flux {
         }
 
         setenv("WAYLAND_DISPLAY", socket, 1);
-        wlr_log(WLR_INFO, "Running Wayland compositor on WAYLAND_DISPLAY=%s", socket);
+        wlr_log(WLR_INFO, "ready on Wayland socket: %s", socket);
         return true;
     }
 

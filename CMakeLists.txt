@@ -27,6 +27,7 @@ add_executable(flux
         src/window.cpp
         src/popup.cpp
         src/config.cpp
+        src/log.cpp
 )
 
 target_include_directories(flux PRIVATE include)
