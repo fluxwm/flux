@@ -70,6 +70,8 @@ namespace flux {
         void on_new_output(wlr_output* output);
         void on_new_window(wlr_xdg_toplevel* toplevel);
         void on_new_layer(wlr_layer_surface_v1* layer_surface);
+        void setup_config_watcher(wl_event_loop* event_loop);
+        void reload_config();
         void execute_action(const Action& action);
         void spawn(const action::Spawn& action);
 
@@ -90,6 +92,10 @@ namespace flux {
         wlr_xdg_shell* m_xdg_shell = nullptr;
         wlr_layer_shell_v1* m_layer_shell = nullptr;
 
+        std::filesystem::path m_config_path;
+        std::filesystem::path m_real_config_filename;
+        int m_inotify_fd = -1;
+        wl_event_source* m_inotify_source = nullptr;
         Config m_config;
         std::unique_ptr<Input> m_input;
 
