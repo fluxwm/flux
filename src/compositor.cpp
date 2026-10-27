@@ -567,9 +567,6 @@ namespace flux {
             return nullptr;
         }
         *surface = scene_surface->surface;
-        if (!wlr_xdg_surface_try_from_wlr_surface(scene_surface->surface)) {
-            return nullptr;
-        }
 
         wlr_scene_tree* tree = node->parent;
         while (tree && !tree->node.data) {
