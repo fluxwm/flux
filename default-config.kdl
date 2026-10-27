@@ -9,6 +9,7 @@ binds {
     Super+Shift+Q       { close-window; }
     Alt+Tab             { cycle-window; }
     Super+Shift+F       { maximize-window; }
+    F11                 { fullscreen-window; }
 
     Ctrl+Alt+Delete     { quit; }
 }

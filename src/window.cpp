@@ -30,7 +30,9 @@ namespace flux {
         on_set_app_id();
         wlr_log(WLR_DEBUG, "window mapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
         m_compositor.map_window(this);
-        if (m_xdg_toplevel->requested.maximized) {
+        if (m_xdg_toplevel->requested.fullscreen) {
+            set_fullscreen(true);
+        } else if (m_xdg_toplevel->requested.maximized) {
             set_maximized(true);
         }
     }
@@ -53,13 +55,13 @@ namespace flux {
     }
 
     void Window::on_request_move() {
-        if (!m_maximized) {
+        if (!m_maximized && !m_fullscreen) {
             m_compositor.begin_move(this);
         }
     }
 
     void Window::on_request_resize(wlr_xdg_toplevel_resize_event* event) {
-        if (!m_maximized) {
+        if (!m_maximized && !m_fullscreen) {
             m_compositor.begin_resize(this, event->edges);
         }
     }
@@ -76,6 +78,10 @@ namespace flux {
         }
 
         m_maximized = maximize;
+
+        if (m_fullscreen) {
+            return;
+        }
 
         if (m_maximized) {
             m_saved_geometry = wlr_box{
@@ -101,7 +107,62 @@ namespace flux {
 
     void Window::on_request_fullscreen() {
         if (m_xdg_toplevel->base->initialized) {
-            wlr_xdg_surface_schedule_configure(m_xdg_toplevel->base);
+            set_fullscreen(m_xdg_toplevel->requested.fullscreen);
+        }
+    }
+
+    void Window::set_fullscreen(bool fullscreen) {
+        if (m_fullscreen == fullscreen) {
+            return;
+        }
+
+        m_fullscreen = fullscreen;
+
+        if (m_fullscreen) {
+            if (!m_maximized) {
+                m_saved_geometry = wlr_box{
+                    .x = x(),
+                    .y = y(),
+                    .width = width(),
+                    .height = height(),
+                };
+            }
+
+            Output* out = nullptr;
+            if (m_xdg_toplevel->requested.fullscreen_output) {
+                out = m_compositor.output_from_wlr(m_xdg_toplevel->requested.fullscreen_output);
+            }
+            if (!out) {
+                out = m_compositor.window_output(this);
+            }
+
+            if (out) {
+                wlr_box output_box{};
+                wlr_output_layout_get_box(m_compositor.output_layout(), out->raw(), &output_box);
+                set_pending_position(output_box.x, output_box.y);
+                set_size(output_box.width, output_box.height);
+            }
+
+            wlr_scene_node_reparent(&m_scene_tree->node, m_compositor.scene_fullscreen());
+            wlr_xdg_toplevel_set_fullscreen(m_xdg_toplevel, true);
+        } else {
+            wlr_scene_node_reparent(&m_scene_tree->node, m_compositor.scene_windows());
+            wlr_xdg_toplevel_set_fullscreen(m_xdg_toplevel, false);
+
+            if (m_maximized) {
+                Output* out = m_compositor.window_output(this);
+                if (out) {
+                    const auto& area = out->usable_area();
+                    set_pending_position(area.x, area.y);
+                    set_size(area.width, area.height);
+                }
+                wlr_xdg_toplevel_set_maximized(m_xdg_toplevel, true);
+            } else {
+                set_pending_position(m_saved_geometry.x, m_saved_geometry.y);
+                set_size(m_saved_geometry.width, m_saved_geometry.height);
+            }
+
+            raise_to_top();
         }
     }
 

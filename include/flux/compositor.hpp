@@ -42,6 +42,7 @@ namespace flux {
         [[nodiscard]] wlr_cursor* cursor() const noexcept { return m_cursor; }
         [[nodiscard]] wlr_xcursor_manager* cursor_mgr() const noexcept { return m_cursor_mgr; }
         [[nodiscard]] wlr_scene_tree* scene_windows() const noexcept { return m_scene_windows; }
+        [[nodiscard]] wlr_scene_tree* scene_fullscreen() const noexcept { return m_scene_fullscreen; }
         [[nodiscard]] wlr_scene_tree* layer_tree(zwlr_layer_shell_v1_layer layer) const noexcept;
         [[nodiscard]] Output* output_from_wlr(wlr_output* wlr_out) const noexcept;
         [[nodiscard]] Output* focused_output() const noexcept;
@@ -102,6 +103,7 @@ namespace flux {
         wlr_scene_tree* m_scene_bottom = nullptr;
         wlr_scene_tree* m_scene_windows = nullptr;
         wlr_scene_tree* m_scene_top = nullptr;
+        wlr_scene_tree* m_scene_fullscreen = nullptr;
         wlr_scene_tree* m_scene_overlay = nullptr;
         wlr_scene_output_layout* m_scene_layout = nullptr;
         wlr_output_layout* m_output_layout = nullptr;

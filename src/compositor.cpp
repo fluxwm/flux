@@ -146,6 +146,7 @@ namespace flux {
         m_scene_bottom = wlr_scene_tree_create(&m_scene->tree);
         m_scene_windows = wlr_scene_tree_create(&m_scene->tree);
         m_scene_top = wlr_scene_tree_create(&m_scene->tree);
+        m_scene_fullscreen = wlr_scene_tree_create(&m_scene->tree);
         m_scene_overlay = wlr_scene_tree_create(&m_scene->tree);
         m_scene_layout = wlr_scene_attach_output_layout(m_scene, m_output_layout);
 
@@ -247,6 +248,10 @@ namespace flux {
                     if (!m_focus_stack.empty()) {
                         m_focus_stack.front()->toggle_maximize();
                     }
+                } else if constexpr (std::is_same_v<T, action::FullscreenWindow>) {
+                    if (!m_focus_stack.empty()) {
+                        m_focus_stack.front()->toggle_fullscreen();
+                    }
                 } else if constexpr (std::is_same_v<T, action::Spawn>) {
                     spawn(act);
                 }
@@ -322,7 +327,7 @@ namespace flux {
     }
 
     void Compositor::begin_move(Window* window) {
-        if (m_seat->pointer_state.button_count == 0 || window->is_maximized()) {
+        if (m_seat->pointer_state.button_count == 0 || window->is_maximized() || window->is_fullscreen()) {
             return;
         }
         m_cursor_state = cursor_state::Move{
@@ -334,7 +339,7 @@ namespace flux {
     }
 
     void Compositor::begin_resize(Window* window, uint32_t edges) {
-        if (m_seat->pointer_state.button_count == 0 || window->is_maximized()) {
+        if (m_seat->pointer_state.button_count == 0 || window->is_maximized() || window->is_fullscreen()) {
             return;
         }
         const wlr_box& geo_box = window->geometry();
@@ -617,9 +622,14 @@ namespace flux {
         configure(false);
 
         for (const auto& win : m_windows) {
-            if (win->is_maximized() && window_output(win.get()) == output) {
-                win->set_pending_position(usable_area.x, usable_area.y);
-                win->set_size(usable_area.width, usable_area.height);
+            if (window_output(win.get()) == output) {
+                if (win->is_fullscreen()) {
+                    win->set_pending_position(full_area.x, full_area.y);
+                    win->set_size(full_area.width, full_area.height);
+                } else if (win->is_maximized()) {
+                    win->set_pending_position(usable_area.x, usable_area.y);
+                    win->set_size(usable_area.width, usable_area.height);
+                }
             }
         }
     }
@@ -672,7 +682,8 @@ namespace flux {
                 const uint32_t modifiers = keyboard ? wlr_keyboard_get_modifiers(keyboard) : 0;
                 const bool mod_down = (modifiers & WLR_MODIFIER_LOGO) != 0;
 
-                if (window != nullptr && mod_down && !exclusive_layer() && !window->is_maximized()) {
+                if (window != nullptr && mod_down && !exclusive_layer() && !window->is_maximized() &&
+                    !window->is_fullscreen()) {
                     if (event->button == btn_left || event->button == btn_right) {
                         wlr_seat_pointer_clear_focus(m_seat);
                         wlr_seat_pointer_notify_button(m_seat, event->time_msec, event->button, event->state);

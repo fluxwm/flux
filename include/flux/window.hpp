@@ -35,6 +35,7 @@ namespace flux {
         [[nodiscard]] std::string_view title() const noexcept { return m_title; }
         [[nodiscard]] std::string_view app_id() const noexcept { return m_app_id; }
         [[nodiscard]] bool is_maximized() const noexcept { return m_maximized; }
+        [[nodiscard]] bool is_fullscreen() const noexcept { return m_fullscreen; }
 
         void set_activated(bool activated) noexcept { wlr_xdg_toplevel_set_activated(m_xdg_toplevel, activated); }
         void set_size(int width, int height) noexcept { wlr_xdg_toplevel_set_size(m_xdg_toplevel, width, height); }
@@ -52,6 +53,8 @@ namespace flux {
         }
         void set_maximized(bool maximize);
         void toggle_maximize() { set_maximized(!m_maximized); }
+        void set_fullscreen(bool fullscreen);
+        void toggle_fullscreen() { set_fullscreen(!m_fullscreen); }
         void raise_to_top() noexcept { wlr_scene_node_raise_to_top(&m_scene_tree->node); }
         void close() noexcept { wlr_xdg_toplevel_send_close(m_xdg_toplevel); }
 
@@ -74,6 +77,7 @@ namespace flux {
         int m_pending_y = 0;
         bool m_has_pending_position = false;
         bool m_maximized = false;
+        bool m_fullscreen = false;
         wlr_box m_saved_geometry{};
         std::string m_title;
         std::string m_app_id;

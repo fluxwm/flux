@@ -83,6 +83,9 @@ namespace flux {
             if (iequals(action_name, "maximize-window")) {
                 return action::MaximizeWindow{};
             }
+            if (iequals(action_name, "fullscreen-window")) {
+                return action::FullscreenWindow{};
+            }
             if (iequals(action_name, "spawn")) {
                 const auto& raw_args = action_node.args();
                 if (raw_args.empty() || raw_args[0].type() != kdl::Type::String) {
