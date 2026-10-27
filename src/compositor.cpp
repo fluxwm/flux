@@ -420,14 +420,10 @@ namespace flux {
         }
 
         const wlr_box& box = output->usable_area();
-        const wlr_box& geo = window->geometry();
-        const int width = geo.width > 0 ? geo.width : window->surface()->current.width;
-        const int height = geo.height > 0 ? geo.height : window->surface()->current.height;
+        const int center_x = box.x + std::max(0, (box.width - window->width()) / 2);
+        const int center_y = box.y + std::max(0, (box.height - window->height()) / 2);
 
-        const int center_x = box.x + std::max(0, (box.width - width) / 2);
-        const int center_y = box.y + std::max(0, (box.height - height) / 2);
-
-        window->set_position(center_x - geo.x, center_y - geo.y);
+        window->set_position(center_x, center_y);
     }
 
     void Compositor::map_window(Window* window) {
@@ -660,11 +656,10 @@ namespace flux {
                         if (event->button == btn_left) {
                             begin_move(window);
                         } else {
-                            const wlr_box& geo = window->geometry();
-                            const int width = geo.width > 0 ? geo.width : window->surface()->current.width;
-                            const int height = geo.height > 0 ? geo.height : window->surface()->current.height;
-                            const double rx = m_cursor->x - (window->x() + geo.x);
-                            const double ry = m_cursor->y - (window->y() + geo.y);
+                            const int width = window->width();
+                            const int height = window->height();
+                            const double rx = m_cursor->x - window->x();
+                            const double ry = m_cursor->y - window->y();
 
                             uint32_t edges = 0;
                             if (rx < width / 3.0) {

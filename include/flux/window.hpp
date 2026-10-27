@@ -24,6 +24,14 @@ namespace flux {
         [[nodiscard]] const wlr_box& geometry() const noexcept { return m_xdg_toplevel->base->geometry; }
         [[nodiscard]] int x() const noexcept { return m_scene_tree->node.x; }
         [[nodiscard]] int y() const noexcept { return m_scene_tree->node.y; }
+        [[nodiscard]] int width() const noexcept {
+            const auto& geo = geometry();
+            return geo.width > 0 ? geo.width : (surface() ? surface()->current.width : 0);
+        }
+        [[nodiscard]] int height() const noexcept {
+            const auto& geo = geometry();
+            return geo.height > 0 ? geo.height : (surface() ? surface()->current.height : 0);
+        }
         [[nodiscard]] std::string_view title() const noexcept { return m_title; }
         [[nodiscard]] std::string_view app_id() const noexcept { return m_app_id; }
 
