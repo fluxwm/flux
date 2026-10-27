@@ -45,6 +45,7 @@ namespace flux {
         [[nodiscard]] wlr_scene_tree* layer_tree(zwlr_layer_shell_v1_layer layer) const noexcept;
         [[nodiscard]] Output* output_from_wlr(wlr_output* wlr_out) const noexcept;
         [[nodiscard]] Output* focused_output() const noexcept;
+        [[nodiscard]] Output* window_output(const Window* window) const noexcept;
         [[nodiscard]] Layer* exclusive_layer() const noexcept;
 
         // Window management & interactions

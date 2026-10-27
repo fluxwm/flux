@@ -243,6 +243,10 @@ namespace flux {
                         Window* next_window = m_focus_stack[1];
                         focus_window(next_window);
                     }
+                } else if constexpr (std::is_same_v<T, action::MaximizeWindow>) {
+                    if (!m_focus_stack.empty()) {
+                        m_focus_stack.front()->toggle_maximize();
+                    }
                 } else if constexpr (std::is_same_v<T, action::Spawn>) {
                     spawn(act);
                 }
@@ -318,7 +322,7 @@ namespace flux {
     }
 
     void Compositor::begin_move(Window* window) {
-        if (m_seat->pointer_state.button_count == 0) {
+        if (m_seat->pointer_state.button_count == 0 || window->is_maximized()) {
             return;
         }
         m_cursor_state = cursor_state::Move{
@@ -330,7 +334,7 @@ namespace flux {
     }
 
     void Compositor::begin_resize(Window* window, uint32_t edges) {
-        if (m_seat->pointer_state.button_count == 0) {
+        if (m_seat->pointer_state.button_count == 0 || window->is_maximized()) {
             return;
         }
         const wlr_box& geo_box = window->geometry();
@@ -407,6 +411,19 @@ namespace flux {
         }
         Output* out = output_from_wlr(wlr_out);
         return out ? out : (m_outputs.empty() ? nullptr : m_outputs.front().get());
+    }
+
+    Output* Compositor::window_output(const Window* window) const noexcept {
+        if (!window || !m_output_layout) {
+            return focused_output();
+        }
+
+        const double center_x = window->x() + (window->width() / 2.0);
+        const double center_y = window->y() + (window->height() / 2.0);
+
+        wlr_output* wlr_out = wlr_output_layout_output_at(m_output_layout, center_x, center_y);
+        Output* out = output_from_wlr(wlr_out);
+        return out ? out : focused_output();
     }
 
     void Compositor::center_window(Window* window) {
@@ -598,6 +615,13 @@ namespace flux {
         configure(true);
         output->set_usable_area(usable_area);
         configure(false);
+
+        for (const auto& win : m_windows) {
+            if (win->is_maximized() && window_output(win.get()) == output) {
+                win->set_pending_position(usable_area.x, usable_area.y);
+                win->set_size(usable_area.width, usable_area.height);
+            }
+        }
     }
 
     void Compositor::focus_layer(Layer* layer) {
@@ -648,7 +672,7 @@ namespace flux {
                 const uint32_t modifiers = keyboard ? wlr_keyboard_get_modifiers(keyboard) : 0;
                 const bool mod_down = (modifiers & WLR_MODIFIER_LOGO) != 0;
 
-                if (window != nullptr && mod_down && !exclusive_layer()) {
+                if (window != nullptr && mod_down && !exclusive_layer() && !window->is_maximized()) {
                     if (event->button == btn_left || event->button == btn_right) {
                         wlr_seat_pointer_clear_focus(m_seat);
                         wlr_seat_pointer_notify_button(m_seat, event->time_msec, event->button, event->state);

@@ -15,6 +15,7 @@ namespace flux {
         struct Quit {};
         struct CloseWindow {};
         struct CycleWindow {};
+        struct MaximizeWindow {};
 
         struct Spawn {
             std::string program;
@@ -22,7 +23,8 @@ namespace flux {
         };
     }
 
-    using Action = std::variant<action::Quit, action::CloseWindow, action::CycleWindow, action::Spawn>;
+    using Action =
+        std::variant<action::Quit, action::CloseWindow, action::CycleWindow, action::MaximizeWindow, action::Spawn>;
 
     struct Keybind {
         uint32_t modifiers = 0;

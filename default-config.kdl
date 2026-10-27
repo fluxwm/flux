@@ -8,5 +8,7 @@ binds {
 
     Super+Shift+Q       { close-window; }
     Alt+Tab             { cycle-window; }
+    Super+Shift+F       { maximize-window; }
+
     Ctrl+Alt+Delete     { quit; }
 }
