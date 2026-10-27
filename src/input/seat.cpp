@@ -40,11 +40,12 @@ namespace flux::input {
             return;
         }
         wlr_keyboard* keyboard = wlr_seat_get_keyboard(m_wlr_seat);
-        if (!keyboard) {
-            return;
+        if (keyboard) {
+            wlr_seat_keyboard_notify_enter(m_wlr_seat, surface, keyboard->keycodes, keyboard->num_keycodes,
+                                           &keyboard->modifiers);
+        } else {
+            wlr_seat_keyboard_notify_enter(m_wlr_seat, surface, nullptr, 0, nullptr);
         }
-        wlr_seat_keyboard_notify_enter(m_wlr_seat, surface, keyboard->keycodes, keyboard->num_keycodes,
-                                       &keyboard->modifiers);
     }
 
 }

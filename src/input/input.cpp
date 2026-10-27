@@ -24,6 +24,13 @@ namespace flux {
                 break;
         }
         update_capabilities();
+        if (device->type == WLR_INPUT_DEVICE_KEYBOARD) {
+            if (wlr_surface* focused = m_seat->focused_surface()) {
+                m_seat->notify_keyboard_enter(focused);
+            } else {
+                m_compositor.refocus();
+            }
+        }
     }
 
     void Input::update_capabilities() {
@@ -41,7 +48,7 @@ namespace flux {
         auto it = std::ranges::find_if(m_keyboards, [keyboard](const auto& kb) { return kb.get() == keyboard; });
         if (it != m_keyboards.end()) {
             it = m_keyboards.erase(it);
-            m_seat->set_keyboard(it != m_keyboards.end() ? (*it)->raw() : nullptr);
+            m_seat->set_keyboard(!m_keyboards.empty() ? m_keyboards.back()->raw() : nullptr);
         }
         update_capabilities();
     }
