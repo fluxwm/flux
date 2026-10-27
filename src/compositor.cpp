@@ -232,9 +232,21 @@ namespace flux {
         }
         argv.push_back(nullptr);
 
-        if (fork() == 0) {
+        const pid_t pid = fork();
+        if (pid < 0) {
+            wlr_log(WLR_ERROR, "failed to fork process '%s'", action.program.c_str());
+            return;
+        }
+
+        if (pid == 0) {
             setsid();
             signal(SIGCHLD, SIG_DFL);
+            signal(SIGINT, SIG_DFL);
+            signal(SIGTERM, SIG_DFL);
+
+            sigset_t set;
+            sigemptyset(&set);
+            sigprocmask(SIG_SETMASK, &set, nullptr);
 
             const int dev_null = open("/dev/null", O_RDWR | O_CLOEXEC);
             if (dev_null >= 0) {
