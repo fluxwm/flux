@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.2.0](https://github.com/fluxwm/flux/compare/v0.1.0...v0.2.0) (2026-10-27)
+
+
+### Features
+
+* add ext-data-control-v1 protocol support ([559da63](https://github.com/fluxwm/flux/commit/559da63cf2dcf2dc3312082e6b4f9065d05df4d8))
+* add window fullscreen support ([fac2256](https://github.com/fluxwm/flux/commit/fac225685152efc9ca25b58742d9820d7c08c22e))
+* add window maximization support ([64e1055](https://github.com/fluxwm/flux/commit/64e1055500120330a7408b1808354349d1ed0b10))
+* add wlr-data-control-unstable-v1 protocol support for backward compatibility ([cffbebe](https://github.com/fluxwm/flux/commit/cffbebe4d2330b60c52bd01063ed7d301aea5221))
+* add wlr-gamma-control-unstable-v1 protocol support ([3590354](https://github.com/fluxwm/flux/commit/3590354fa3965fb2274c1c09b82833dc4176a777))
+
+
+### Refactoring
+
+* deduplicate window dimension logic ([05f780b](https://github.com/fluxwm/flux/commit/05f780baf183929dd9021c45890b52a48694f14f))
+* extract input subsystem from compositor ([eedbd69](https://github.com/fluxwm/flux/commit/eedbd692818f8a0c5d04403995dca74de344e1da))
+* remove redundant in-memory protocol and scene null checks ([30903a7](https://github.com/fluxwm/flux/commit/30903a7bf4a1f2a6d042bb35fbc4177210007b98))
+
+
+### Continuous Integration
+
+* publish releases immediately instead of drafting ([de2dee1](https://github.com/fluxwm/flux/commit/de2dee1f972a93be05c75f2c7938b3e20e1f04c3))
+
 ## [0.1.0](https://github.com/fluxwm/flux/compare/v0.1.0...v0.1.0) (2026-10-26)
 
 
