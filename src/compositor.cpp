@@ -345,7 +345,7 @@ namespace flux {
     }
 
     Output* Compositor::window_output(const Window* window) const noexcept {
-        if (!window || !m_output_layout) {
+        if (!window || !m_output_layout || !window->surface() || !window->surface()->mapped) {
             return focused_output();
         }
 
@@ -375,7 +375,9 @@ namespace flux {
     }
 
     void Compositor::map_window(Window* window) {
-        center_window(window);
+        if (!window->is_fullscreen() && !window->is_maximized()) {
+            center_window(window);
+        }
         if (!std::ranges::contains(m_focus_stack, window)) {
             m_focus_stack.insert(m_focus_stack.begin(), window);
         }
