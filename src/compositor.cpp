@@ -118,6 +118,8 @@ namespace flux {
         wlr_data_device_manager_create(m_display);
         wlr_ext_data_control_manager_v1_create(m_display, 1);
         wlr_data_control_manager_v1_create(m_display);
+        wlr_ext_image_copy_capture_manager_v1_create(m_display, 1);
+        wlr_ext_output_image_capture_source_manager_v1_create(m_display, 1);
 
         m_output_layout = wlr_output_layout_create(m_display);
         wlr_xdg_output_manager_v1_create(m_display, m_output_layout);
