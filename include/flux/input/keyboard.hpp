@@ -6,12 +6,14 @@
 #include <vector>
 
 namespace flux {
+    class Input;
+}
 
-    class Compositor;
+namespace flux::input {
 
     class Keyboard {
     public:
-        Keyboard(Compositor& compositor, wlr_input_device* device);
+        Keyboard(Input& input, wlr_input_device* device);
         ~Keyboard() = default;
 
         Keyboard(const Keyboard&) = delete;
@@ -24,7 +26,7 @@ namespace flux {
         void on_key(wlr_keyboard_key_event* event);
         void on_destroy();
 
-        Compositor& m_compositor;
+        Input& m_input;
         wlr_keyboard* m_wlr_keyboard = nullptr;
         std::vector<uint32_t> m_consumed_keycodes;
 

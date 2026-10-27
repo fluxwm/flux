@@ -43,7 +43,11 @@ add_executable(flux
         src/main.cpp
         src/compositor.cpp
         src/output.cpp
-        src/keyboard.cpp
+        src/input/input.cpp
+        src/input/seat.cpp
+        src/input/cursor.cpp
+        src/input/keyboard.cpp
+        src/input/pointer.cpp
         src/window.cpp
         src/popup.cpp
         src/layer.cpp
