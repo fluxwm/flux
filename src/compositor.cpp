@@ -290,6 +290,16 @@ namespace flux {
             return;
         }
 
+        for (Window* w : m_focus_stack) {
+            if (w != window && w->is_fullscreen() && window_output(w) == window_output(window)) {
+                wlr_scene_node_reparent(&w->scene_tree()->node, m_scene_windows);
+            }
+        }
+
+        if (window->is_fullscreen()) {
+            wlr_scene_node_reparent(&window->scene_tree()->node, m_scene_fullscreen);
+        }
+
         window->raise_to_top();
         std::erase(m_focus_stack, window);
         m_focus_stack.insert(m_focus_stack.begin(), window);
