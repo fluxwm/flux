@@ -84,17 +84,12 @@ namespace flux {
     }
 
     void Window::set_maximized(bool maximize) {
-        if (m_maximized == maximize) {
+        if (m_fullscreen || m_maximized == maximize) {
             wlr_xdg_surface_schedule_configure(m_xdg_toplevel->base);
             return;
         }
 
         m_maximized = maximize;
-
-        if (m_fullscreen) {
-            wlr_xdg_surface_schedule_configure(m_xdg_toplevel->base);
-            return;
-        }
 
         if (m_maximized) {
             if (width() > 0 && height() > 0) {
@@ -166,6 +161,7 @@ namespace flux {
             }
 
             wlr_scene_node_reparent(&m_scene_tree->node, m_compositor.scene_fullscreen());
+            wlr_xdg_toplevel_set_maximized(m_xdg_toplevel, false);
             wlr_xdg_toplevel_set_fullscreen(m_xdg_toplevel, true);
         } else {
             wlr_scene_node_reparent(&m_scene_tree->node, m_compositor.scene_windows());
