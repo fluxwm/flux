@@ -93,7 +93,7 @@ namespace flux {
             return false;
         }
 
-        wlr_compositor_create(m_display, 5, m_renderer);
+        wlr_compositor_create(m_display, 6, m_renderer);
         wlr_subcompositor_create(m_display);
         wlr_data_device_manager_create(m_display);
         wlr_ext_data_control_manager_v1_create(m_display, 1);
