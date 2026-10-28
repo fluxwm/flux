@@ -16,6 +16,7 @@ namespace flux {
 
         [[nodiscard]] wlr_scene_tree* windows() const noexcept { return m_scene_windows; }
         [[nodiscard]] wlr_scene_tree* fullscreen() const noexcept { return m_scene_fullscreen; }
+        [[nodiscard]] wlr_scene_tree* popups() const noexcept { return m_scene_popups; }
         [[nodiscard]] wlr_scene_tree* layer_tree(zwlr_layer_shell_v1_layer layer) const noexcept;
 
         wlr_scene_output* attach_output(wlr_output* output, wlr_output_layout_output* layout_output);
@@ -34,6 +35,7 @@ namespace flux {
         wlr_scene_tree* m_scene_top = nullptr;
         wlr_scene_tree* m_scene_fullscreen = nullptr;
         wlr_scene_tree* m_scene_overlay = nullptr;
+        wlr_scene_tree* m_scene_popups = nullptr;
         wlr_scene_output_layout* m_scene_layout = nullptr;
     };
 

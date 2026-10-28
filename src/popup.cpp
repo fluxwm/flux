@@ -22,7 +22,12 @@ namespace flux {
                    layer_parent && layer_parent->data) {
             auto* ls = static_cast<Layer*>(layer_parent->data);
             if (ls->scene_layer()) {
-                parent_tree = ls->scene_layer()->tree;
+                int lx = 0;
+                int ly = 0;
+                wlr_scene_node_coords(&ls->scene_layer()->tree->node, &lx, &ly);
+                m_wrapper_tree = wlr_scene_tree_create(m_compositor.scene().popups());
+                wlr_scene_node_set_position(&m_wrapper_tree->node, lx, ly);
+                parent_tree = m_wrapper_tree;
             }
         }
 
@@ -36,6 +41,12 @@ namespace flux {
 
         m_listeners.listen(&xdg_popup->base->surface->events.commit, this, &Popup::on_commit);
         m_listeners.listen(&xdg_popup->events.reposition, this, &Popup::on_reposition);
+    }
+
+    Popup::~Popup() {
+        if (m_wrapper_tree) {
+            wlr_scene_node_destroy(&m_wrapper_tree->node);
+        }
     }
 
     void Popup::unconstrain() {
@@ -59,6 +70,10 @@ namespace flux {
             int root_lx = 0;
             int root_ly = 0;
             wlr_scene_node_coords(&root_tree->node, &root_lx, &root_ly);
+
+            if (m_wrapper_tree) {
+                wlr_scene_node_set_position(&m_wrapper_tree->node, root_lx, root_ly);
+            }
 
             if (!output) {
                 wlr_output* wlr_out = wlr_output_layout_output_at(m_compositor.output_layout(), root_lx, root_ly);
