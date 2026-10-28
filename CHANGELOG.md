@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.3.0](https://github.com/fluxwm/flux/compare/v0.2.0...v0.3.0) (2026-10-28)
+
+
+### Features
+
+* add ext-image-copy-capture-v1 protocol support ([758151a](https://github.com/fluxwm/flux/commit/758151a2f59300e8d7c4432dcaae4ae631252123))
+* add inotify config watcher for automatic reloading ([f45c05e](https://github.com/fluxwm/flux/commit/f45c05e5f58303a32afcf52382d2f988e81e8480))
+* add wlr-export-dmabuf-unstable-v1 protocol support ([a1016ee](https://github.com/fluxwm/flux/commit/a1016ee9db0297595a75ef04df1db211b669550d))
+* add wlr-screencopy-unstable-v1 protocol support for backward compatibility ([d79937f](https://github.com/fluxwm/flux/commit/d79937f348006b43ef4c9f131248780e4188da7d))
+* support executing multiple actions in a keybind block ([b8d4098](https://github.com/fluxwm/flux/commit/b8d40989f7796e338fa57f885919658e1d09c0b7))
+
+
+### Bug Fixes
+
+* correct maximize and fullscreen configure lifecycle and geometry ([ac4fc72](https://github.com/fluxwm/flux/commit/ac4fc724d9f1d89f7a57cb300fbe48ef2cf2b7eb))
+* demote unfocused fullscreen windows on focus change ([78f0b5b](https://github.com/fluxwm/flux/commit/78f0b5b23cc21ae60199204c6edce9c0d2db1ac6))
+* ensure keyboard focus on device attach and preserve active keyboard on removal ([3d72f9f](https://github.com/fluxwm/flux/commit/3d72f9f99d0f34c6379df820c9d012c95f47a541))
+* ignore maximize requests while fullscreen and synchronize toplevel state ([eb63863](https://github.com/fluxwm/flux/commit/eb63863afd880d20c7b2c6f1199c662a9e7a4012))
+* prevent crash and duplicate popup creation for layer-shell surfaces ([3041313](https://github.com/fluxwm/flux/commit/30413135124ec46f3469e06cb9dc3c42446e9de8))
+* reset signal mask and handle fork failure in spawn ([55b36f1](https://github.com/fluxwm/flux/commit/55b36f11dedbe5ffa5cf7e23bff60029f4afb328))
+* resolve owning window for subsurfaces in window_at ([f450999](https://github.com/fluxwm/flux/commit/f4509999adf318b6e232deb5c3f508527b391a61))
+
 ## [0.2.0](https://github.com/fluxwm/flux/compare/v0.1.0...v0.2.0) (2026-10-27)
 
 
