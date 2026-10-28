@@ -441,6 +441,30 @@ namespace flux {
 
         if (is_nested && m_outputs.empty()) {
             quit();
+            return;
+        }
+
+        for (const auto& remaining : m_outputs) {
+            arrange_layers(remaining.get());
+        }
+
+        if (Output* target = focused_output()) {
+            const wlr_box& usable = target->usable_area();
+            const wlr_box full = target->layout_box();
+
+            for (const auto& win : m_windows) {
+                const double cx = win->x() + (win->width() / 2.0);
+                const double cy = win->y() + (win->height() / 2.0);
+                if (!wlr_output_layout_output_at(m_output_layout, cx, cy)) {
+                    if (win->is_fullscreen()) {
+                        win->set_position(full.x, full.y);
+                    } else if (win->is_maximized()) {
+                        win->set_position(usable.x, usable.y);
+                    } else {
+                        center_window(win.get());
+                    }
+                }
+            }
         }
     }
 

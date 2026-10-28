@@ -42,6 +42,9 @@ namespace flux {
         [[nodiscard]] Output* focused_output() const noexcept;
         [[nodiscard]] Output* window_output(const Window* window) const noexcept;
         [[nodiscard]] Layer* exclusive_layer() const noexcept;
+        [[nodiscard]] Window* focused_window() const noexcept {
+            return m_focus_stack.empty() ? nullptr : m_focus_stack.front();
+        }
 
         // Window management & interactions
         bool handle_keybinding(uint32_t modifiers, xkb_keysym_t sym);

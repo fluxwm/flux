@@ -2,6 +2,8 @@
 #include "flux/compositor.hpp"
 #include "flux/output.hpp"
 
+#include <algorithm>
+
 namespace flux {
 
     Window::Window(Compositor& compositor, wlr_xdg_toplevel* xdg_toplevel)
@@ -51,12 +53,7 @@ namespace flux {
                    !m_xdg_toplevel->current.fullscreen &&
                    (m_saved_geometry.width <= 0 || m_saved_geometry.height <= 0) && width() > 0 && height() > 0) {
             m_compositor.center_window(this);
-            m_saved_geometry = wlr_box{
-                .x = x(),
-                .y = y(),
-                .width = width(),
-                .height = height(),
-            };
+            save_geometry();
         }
         apply_pending_position();
     }
@@ -92,14 +89,7 @@ namespace flux {
         m_maximized = maximize;
 
         if (m_maximized) {
-            if (width() > 0 && height() > 0) {
-                m_saved_geometry = wlr_box{
-                    .x = x(),
-                    .y = y(),
-                    .width = width(),
-                    .height = height(),
-                };
-            }
+            save_geometry();
 
             Output* out = m_compositor.window_output(this);
             if (out) {
@@ -110,18 +100,17 @@ namespace flux {
             wlr_xdg_toplevel_set_maximized(m_xdg_toplevel, true);
         } else {
             wlr_xdg_toplevel_set_maximized(m_xdg_toplevel, false);
-            if (m_saved_geometry.width > 0 && m_saved_geometry.height > 0) {
-                set_pending_position(m_saved_geometry.x, m_saved_geometry.y);
-                wlr_xdg_toplevel_set_size(m_xdg_toplevel, m_saved_geometry.width, m_saved_geometry.height);
-            } else {
-                wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
-            }
+            restore_saved_geometry();
         }
     }
 
     void Window::on_request_fullscreen() {
         if (m_xdg_toplevel->base->initialized) {
-            set_fullscreen(m_xdg_toplevel->requested.fullscreen);
+            const bool wants_fullscreen = m_xdg_toplevel->requested.fullscreen;
+            set_fullscreen(wants_fullscreen);
+            if (wants_fullscreen && surface() && surface()->mapped && m_compositor.focused_window() != this) {
+                m_compositor.focus_window(this);
+            }
         }
     }
 
@@ -135,14 +124,7 @@ namespace flux {
 
         if (m_fullscreen) {
             if (!m_maximized) {
-                if (width() > 0 && height() > 0) {
-                    m_saved_geometry = wlr_box{
-                        .x = x(),
-                        .y = y(),
-                        .width = width(),
-                        .height = height(),
-                    };
-                }
+                save_geometry();
             }
 
             Output* out = nullptr;
@@ -159,7 +141,9 @@ namespace flux {
                 set_size(output_box.width, output_box.height);
             }
 
-            wlr_scene_node_reparent(&m_scene_tree->node, m_compositor.scene().fullscreen());
+            if (m_compositor.focused_window() == this) {
+                wlr_scene_node_reparent(&m_scene_tree->node, m_compositor.scene().fullscreen());
+            }
             wlr_xdg_toplevel_set_maximized(m_xdg_toplevel, false);
             wlr_xdg_toplevel_set_fullscreen(m_xdg_toplevel, true);
         } else {
@@ -175,16 +159,42 @@ namespace flux {
                 }
                 wlr_xdg_toplevel_set_maximized(m_xdg_toplevel, true);
             } else {
-                if (m_saved_geometry.width > 0 && m_saved_geometry.height > 0) {
-                    set_pending_position(m_saved_geometry.x, m_saved_geometry.y);
-                    set_size(m_saved_geometry.width, m_saved_geometry.height);
-                } else {
-                    set_size(0, 0);
-                }
+                restore_saved_geometry();
             }
 
             raise_to_top();
         }
+    }
+
+    void Window::save_geometry() noexcept {
+        if (width() > 0 && height() > 0) {
+            m_saved_geometry = wlr_box{
+                .x = x(),
+                .y = y(),
+                .width = width(),
+                .height = height(),
+            };
+        }
+    }
+
+    void Window::restore_saved_geometry() {
+        if (m_saved_geometry.width <= 0 || m_saved_geometry.height <= 0) {
+            set_size(0, 0);
+            return;
+        }
+
+        const double cx = m_saved_geometry.x + (m_saved_geometry.width / 2.0);
+        const double cy = m_saved_geometry.y + (m_saved_geometry.height / 2.0);
+        if (!wlr_output_layout_output_at(m_compositor.output_layout(), cx, cy)) {
+            if (Output* out = m_compositor.focused_output()) {
+                const auto& area = out->usable_area();
+                m_saved_geometry.x = area.x + std::max(0, (area.width - m_saved_geometry.width) / 2);
+                m_saved_geometry.y = area.y + std::max(0, (area.height - m_saved_geometry.height) / 2);
+            }
+        }
+
+        set_pending_position(m_saved_geometry.x, m_saved_geometry.y);
+        set_size(m_saved_geometry.width, m_saved_geometry.height);
     }
 
     void Window::on_set_title() {
