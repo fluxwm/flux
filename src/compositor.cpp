@@ -270,6 +270,9 @@ namespace flux {
 
         if (!window) {
             focus_surface(nullptr);
+            if (m_input) {
+                m_input->cursor().update_focus();
+            }
             return;
         }
 
@@ -288,6 +291,9 @@ namespace flux {
         m_focus_stack.insert(m_focus_stack.begin(), window);
         window->set_activated(true);
         focus_surface(window->surface());
+        if (m_input) {
+            m_input->cursor().update_focus();
+        }
     }
 
     void Compositor::begin_move(Window* window) {
@@ -400,6 +406,9 @@ namespace flux {
             if (auto* ls = wlr_layer_surface_v1_try_from_wlr_surface(root);
                 ls && ls->surface->mapped &&
                 ls->current.keyboard_interactive != ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE) {
+                if (m_input) {
+                    m_input->cursor().update_focus();
+                }
                 return;
             }
         }
@@ -520,6 +529,10 @@ namespace flux {
                 }
             }
         }
+
+        if (m_input) {
+            m_input->cursor().update_focus();
+        }
     }
 
     void Compositor::focus_layer(Layer* layer) {
@@ -530,6 +543,9 @@ namespace flux {
             wlr_scene_node_raise_to_top(&layer->scene_layer()->tree->node);
         }
         focus_surface(layer->surface());
+        if (m_input) {
+            m_input->cursor().update_focus();
+        }
     }
 
 }

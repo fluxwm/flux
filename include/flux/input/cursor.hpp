@@ -34,6 +34,7 @@ namespace flux::input {
         void begin_move(Window* window);
         void begin_resize(Window* window, uint32_t edges);
         void reset_mode();
+        void update_focus();
 
     private:
         struct Passthrough {};

@@ -8,6 +8,7 @@
 #include <linux/input-event-codes.h>
 
 #include <algorithm>
+#include <chrono>
 #include <limits>
 
 namespace flux::input {
@@ -96,7 +97,7 @@ namespace flux::input {
         }
         m_state = Passthrough{};
         set_xcursor("default");
-        process_motion(0);
+        update_focus();
     }
 
     void Cursor::on_motion(wlr_pointer_motion_event* event) {
@@ -269,6 +270,16 @@ namespace flux::input {
             set_xcursor("default");
             m_input.seat().clear_pointer_focus();
         }
+    }
+
+    void Cursor::update_focus() {
+        if (!is_passthrough()) {
+            return;
+        }
+        const auto now = std::chrono::steady_clock::now().time_since_epoch();
+        const auto time_msec =
+            static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(now).count());
+        process_motion(time_msec);
     }
 
 }
