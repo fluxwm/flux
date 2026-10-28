@@ -103,6 +103,7 @@ namespace flux {
         wlr_screencopy_manager_v1_create(m_display);
         wlr_export_dmabuf_manager_v1_create(m_display);
         wlr_viewporter_create(m_display);
+        wlr_presentation_create(m_display, m_backend, 2);
 
         m_output_layout = wlr_output_layout_create(m_display);
         wlr_xdg_output_manager_v1_create(m_display, m_output_layout);
