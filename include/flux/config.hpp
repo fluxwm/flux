@@ -1,10 +1,11 @@
 #pragma once
 
-#include <xkbcommon/xkbcommon.h>
+#include "flux/wlroots.hpp"
 
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
 #include <variant>
 #include <vector>
@@ -33,11 +34,31 @@ namespace flux {
         std::vector<Action> actions;
     };
 
-    struct Config {
-        std::vector<Action> autostart;
-        std::vector<Keybind> keybinds;
+    class Config {
+    public:
+        explicit Config(wl_event_loop* event_loop, std::optional<std::filesystem::path> custom_path = std::nullopt);
+        ~Config();
 
-        static std::optional<Config> load(const std::filesystem::path& path);
+        Config(const Config&) = delete;
+        Config& operator=(const Config&) = delete;
+
+        [[nodiscard]] std::span<const Action> autostart() const noexcept { return m_autostart; }
+        [[nodiscard]] std::span<const Keybind> keybinds() const noexcept { return m_keybinds; }
+        [[nodiscard]] const std::filesystem::path& path() const noexcept { return m_path; }
+
+        bool reload();
+
+    private:
+        static std::filesystem::path resolve_path(const std::optional<std::filesystem::path>& custom_path);
+        void setup_watcher(wl_event_loop* event_loop);
+
+        std::filesystem::path m_path;
+        std::filesystem::path m_real_filename;
+        int m_inotify_fd = -1;
+        wl_event_source* m_inotify_source = nullptr;
+
+        std::vector<Action> m_autostart;
+        std::vector<Keybind> m_keybinds;
     };
 
 }

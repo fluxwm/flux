@@ -1,16 +1,19 @@
 #include "flux/config.hpp"
-#include "flux/wlroots.hpp"
 
 #include <kdlpp.h>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <optional>
 #include <ranges>
 #include <string>
 #include <string_view>
+#include <sys/inotify.h>
+#include <unistd.h>
 #include <utility>
 #include <vector>
 
@@ -113,7 +116,7 @@ namespace flux {
             return std::nullopt;
         }
 
-        void parse_binds(Config& config, const kdl::Node& binds_node) {
+        void parse_binds(std::vector<Keybind>& keybinds, const kdl::Node& binds_node) {
             for (const auto& bind_node : binds_node.children()) {
                 std::string combo(node_name(bind_node));
                 uint32_t modifiers = 0;
@@ -138,7 +141,7 @@ namespace flux {
                 }
 
                 if (!actions.empty()) {
-                    config.keybinds.push_back(Keybind{
+                    keybinds.push_back(Keybind{
                         .modifiers = modifiers,
                         .keysym = keysym,
                         .actions = std::move(actions),
@@ -147,7 +150,7 @@ namespace flux {
             }
         }
 
-        void parse_autostart(Config& config, const kdl::Node& autostart_node) {
+        void parse_autostart(std::vector<Action>& autostart, const kdl::Node& autostart_node) {
             for (const auto& action_node : autostart_node.children()) {
                 auto action_opt = parse_action(action_node);
                 if (!action_opt) {
@@ -156,22 +159,117 @@ namespace flux {
                     continue;
                 }
 
-                config.autostart.push_back(std::move(*action_opt));
+                autostart.push_back(std::move(*action_opt));
             }
         }
 
     }
 
-    std::optional<Config> Config::load(const std::filesystem::path& path) {
-        if (!std::filesystem::exists(path)) {
-            wlr_log(WLR_ERROR, "config file does not exist: %s", path.c_str());
-            return std::nullopt;
+    Config::Config(wl_event_loop* event_loop, std::optional<std::filesystem::path> custom_path)
+        : m_path(resolve_path(custom_path)) {
+        if (custom_path.has_value() || (!m_path.empty() && std::filesystem::exists(m_path))) {
+            reload();
+        }
+        setup_watcher(event_loop);
+    }
+
+    Config::~Config() {
+        if (m_inotify_source) {
+            wl_event_source_remove(m_inotify_source);
+        }
+        if (m_inotify_fd >= 0) {
+            close(m_inotify_fd);
+        }
+    }
+
+    std::filesystem::path Config::resolve_path(const std::optional<std::filesystem::path>& custom_path) {
+        std::filesystem::path path;
+        if (custom_path.has_value()) {
+            path = *custom_path;
+        } else if (const char* xdg_config = std::getenv("XDG_CONFIG_HOME"); xdg_config && *xdg_config != '\0') {
+            path = std::filesystem::path(xdg_config) / "flux" / "config.kdl";
+        } else if (const char* home = std::getenv("HOME"); home && *home != '\0') {
+            path = std::filesystem::path(home) / ".config" / "flux" / "config.kdl";
         }
 
-        std::ifstream file(path, std::ios::binary);
+        if (!path.empty()) {
+            path = std::filesystem::absolute(path);
+        }
+        return path;
+    }
+
+    void Config::setup_watcher(wl_event_loop* event_loop) {
+        if (!event_loop || m_path.empty()) {
+            return;
+        }
+
+        const auto parent_dir = m_path.parent_path();
+        if (parent_dir.empty() || !std::filesystem::exists(parent_dir)) {
+            return;
+        }
+
+        m_inotify_fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+        if (m_inotify_fd < 0) {
+            return;
+        }
+
+        if (inotify_add_watch(m_inotify_fd, parent_dir.c_str(), IN_CLOSE_WRITE | IN_MOVED_TO) < 0) {
+            close(m_inotify_fd);
+            m_inotify_fd = -1;
+            return;
+        }
+
+        std::error_code ec;
+        const auto real_path = std::filesystem::canonical(m_path, ec);
+        if (!ec && real_path != m_path) {
+            if (real_path.filename() != m_path.filename()) {
+                m_real_filename = real_path.filename();
+            }
+            if (real_path.has_parent_path() && real_path.parent_path() != parent_dir) {
+                inotify_add_watch(m_inotify_fd, real_path.parent_path().c_str(), IN_CLOSE_WRITE | IN_MOVED_TO);
+            }
+        }
+
+        auto on_inotify = [](int fd, uint32_t, void* data) {
+            auto* self = static_cast<Config*>(data);
+            const auto target_filename = self->m_path.filename();
+            alignas(inotify_event) std::array<char, 4096> buf{};
+            bool should_reload = false;
+
+            while (true) {
+                const ssize_t len = read(fd, buf.data(), buf.size());
+                if (len <= 0) {
+                    break;
+                }
+                for (ssize_t i = 0; i + static_cast<ssize_t>(sizeof(inotify_event)) <= len;) {
+                    const auto* ev = reinterpret_cast<const inotify_event*>(&buf[static_cast<size_t>(i)]);
+                    if (ev->len > 0 && (target_filename == ev->name ||
+                                        (!self->m_real_filename.empty() && self->m_real_filename == ev->name))) {
+                        should_reload = true;
+                    }
+                    i += static_cast<ssize_t>(sizeof(inotify_event)) + ev->len;
+                }
+            }
+
+            if (should_reload) {
+                self->reload();
+            }
+            return 0;
+        };
+
+        m_inotify_source = wl_event_loop_add_fd(event_loop, m_inotify_fd, WL_EVENT_READABLE, on_inotify, this);
+    }
+
+    bool Config::reload() {
+        if (m_path.empty() || !std::filesystem::exists(m_path)) {
+            wlr_log(WLR_ERROR, "config file does not exist: %s", m_path.c_str());
+            return false;
+        }
+
+        std::ifstream file(m_path, std::ios::binary);
         if (!file.is_open()) {
-            wlr_log(WLR_ERROR, "failed to open config file: %s", path.c_str());
-            return std::nullopt;
+            wlr_log(WLR_ERROR, "failed to open config file: %s", m_path.c_str());
+            return false;
         }
 
         std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
@@ -181,26 +279,29 @@ namespace flux {
         try {
             doc = kdl::parse(u8view);
         } catch (const kdl::ParseError& e) {
-            wlr_log(WLR_ERROR, "kdl parse error in '%s': %s", path.c_str(), e.what());
-            return std::nullopt;
+            wlr_log(WLR_ERROR, "kdl parse error in '%s': %s", m_path.c_str(), e.what());
+            return false;
         } catch (const std::exception& e) {
-            wlr_log(WLR_ERROR, "error reading kdl config '%s': %s", path.c_str(), e.what());
-            return std::nullopt;
+            wlr_log(WLR_ERROR, "error reading kdl config '%s': %s", m_path.c_str(), e.what());
+            return false;
         }
 
-        Config config;
+        std::vector<Action> autostart;
+        std::vector<Keybind> keybinds;
 
         for (const auto& node : doc.nodes()) {
             std::string_view name = node_name(node);
             if (iequals(name, "autostart")) {
-                parse_autostart(config, node);
+                parse_autostart(autostart, node);
             } else if (iequals(name, "binds")) {
-                parse_binds(config, node);
+                parse_binds(keybinds, node);
             }
         }
 
-        wlr_log(WLR_INFO, "loaded config from '%s'", path.c_str());
-        return config;
+        m_autostart = std::move(autostart);
+        m_keybinds = std::move(keybinds);
+        wlr_log(WLR_INFO, "loaded config from '%s'", m_path.c_str());
+        return true;
     }
 
 }

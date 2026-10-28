@@ -11,8 +11,6 @@
 #include <csignal>
 #include <fcntl.h>
 #include <ranges>
-#include <string>
-#include <sys/inotify.h>
 #include <unistd.h>
 #include <vector>
 
@@ -25,12 +23,7 @@ namespace flux {
             wl_display_destroy_clients(m_display);
         }
 
-        if (m_inotify_source) {
-            wl_event_source_remove(m_inotify_source);
-        }
-        if (m_inotify_fd >= 0) {
-            close(m_inotify_fd);
-        }
+        m_config.reset();
 
         m_listeners.clear();
 
@@ -64,30 +57,6 @@ namespace flux {
     bool Compositor::init(std::optional<std::filesystem::path> config_path) {
         signal(SIGCHLD, SIG_IGN);
 
-        if (config_path.has_value()) {
-            m_config_path = *config_path;
-        } else {
-            const char* xdg_config = std::getenv("XDG_CONFIG_HOME");
-            if (xdg_config && *xdg_config != '\0') {
-                m_config_path = std::filesystem::path(xdg_config) / "flux" / "config.kdl";
-            } else {
-                const char* home = std::getenv("HOME");
-                if (home && *home != '\0') {
-                    m_config_path = std::filesystem::path(home) / ".config" / "flux" / "config.kdl";
-                }
-            }
-        }
-
-        if (!m_config_path.empty()) {
-            m_config_path = std::filesystem::absolute(m_config_path);
-        }
-        if (!m_config_path.empty() && std::filesystem::exists(m_config_path)) {
-            auto cfg = Config::load(m_config_path);
-            if (cfg) {
-                m_config = std::move(*cfg);
-            }
-        }
-
         m_display = wl_display_create();
         if (!m_display) {
             wlr_log(WLR_ERROR, "failed to create wl_display");
@@ -103,7 +72,7 @@ namespace flux {
             wl_event_loop_add_signal(event_loop, sig, on_signal, this);
         }
 
-        setup_config_watcher(event_loop);
+        m_config = std::make_unique<Config>(event_loop, config_path);
 
         m_backend = wlr_backend_autocreate(event_loop, &m_session);
         if (!m_backend) {
@@ -175,78 +144,13 @@ namespace flux {
     }
 
     void Compositor::run() {
-        for (const auto& action : m_config.autostart) {
-            execute_action(action);
+        if (m_config) {
+            for (const auto& action : m_config->autostart()) {
+                execute_action(action);
+            }
         }
 
         wl_display_run(m_display);
-    }
-
-    void Compositor::setup_config_watcher(wl_event_loop* event_loop) {
-        if (m_config_path.empty()) {
-            return;
-        }
-
-        const auto parent_dir = m_config_path.parent_path();
-        if (parent_dir.empty() || !std::filesystem::exists(parent_dir)) {
-            return;
-        }
-
-        m_inotify_fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
-        if (m_inotify_fd < 0) {
-            return;
-        }
-
-        if (inotify_add_watch(m_inotify_fd, parent_dir.c_str(), IN_CLOSE_WRITE | IN_MOVED_TO) < 0) {
-            close(m_inotify_fd);
-            m_inotify_fd = -1;
-            return;
-        }
-
-        std::error_code ec;
-        const auto real_path = std::filesystem::canonical(m_config_path, ec);
-        if (!ec && real_path.has_parent_path()) {
-            m_real_config_filename = real_path.filename();
-            inotify_add_watch(m_inotify_fd, real_path.parent_path().c_str(), IN_CLOSE_WRITE | IN_MOVED_TO);
-        }
-
-        auto on_inotify = [](int fd, uint32_t, void* data) {
-            auto* self = static_cast<Compositor*>(data);
-            alignas(inotify_event) std::array<char, 4096> buf{};
-            bool should_reload = false;
-
-            while (true) {
-                const ssize_t len = read(fd, buf.data(), buf.size());
-                if (len <= 0) {
-                    break;
-                }
-                for (ssize_t i = 0; i + static_cast<ssize_t>(sizeof(inotify_event)) <= len;) {
-                    const auto* ev = reinterpret_cast<const inotify_event*>(&buf[static_cast<size_t>(i)]);
-                    if (ev->len > 0 &&
-                        (self->m_config_path.filename() == ev->name ||
-                         (!self->m_real_config_filename.empty() && self->m_real_config_filename == ev->name))) {
-                        should_reload = true;
-                    }
-                    i += static_cast<ssize_t>(sizeof(inotify_event)) + ev->len;
-                }
-            }
-
-            if (should_reload) {
-                self->reload_config();
-            }
-            return 0;
-        };
-
-        m_inotify_source = wl_event_loop_add_fd(event_loop, m_inotify_fd, WL_EVENT_READABLE, on_inotify, this);
-    }
-
-    void Compositor::reload_config() {
-        if (m_config_path.empty()) {
-            return;
-        }
-        if (auto cfg = Config::load(m_config_path)) {
-            m_config = std::move(*cfg);
-        }
     }
 
     void Compositor::quit() noexcept {
@@ -263,11 +167,15 @@ namespace flux {
             return false;
         }
 
+        if (!m_config) {
+            return false;
+        }
+
         constexpr uint32_t clean_mask = WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT | WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT;
         const uint32_t clean_mods = modifiers & clean_mask;
         const xkb_keysym_t lower_sym = xkb_keysym_to_lower(sym);
 
-        for (const auto& bind : m_config.keybinds) {
+        for (const auto& bind : m_config->keybinds()) {
             if (bind.modifiers == clean_mods && xkb_keysym_to_lower(bind.keysym) == lower_sym) {
                 for (const auto& action : bind.actions) {
                     execute_action(action);
