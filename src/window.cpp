@@ -154,8 +154,7 @@ namespace flux {
             }
 
             if (out) {
-                wlr_box output_box{};
-                wlr_output_layout_get_box(m_compositor.output_layout(), out->raw(), &output_box);
+                const wlr_box output_box = out->layout_box();
                 set_pending_position(output_box.x, output_box.y);
                 set_size(output_box.width, output_box.height);
             }

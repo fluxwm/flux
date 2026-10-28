@@ -41,7 +41,7 @@ namespace flux {
     void Popup::unconstrain() {
         wlr_surface* root_surface = root_popup_parent(m_xdg_popup->base->surface);
         wlr_scene_tree* root_tree = nullptr;
-        wlr_output* output = nullptr;
+        Output* output = nullptr;
 
         if (wlr_xdg_surface* toplevel = wlr_xdg_surface_try_from_wlr_surface(root_surface);
             toplevel && toplevel->data) {
@@ -51,7 +51,7 @@ namespace flux {
             auto* ls = static_cast<Layer*>(layer_raw->data);
             if (ls->scene_layer()) {
                 root_tree = ls->scene_layer()->tree;
-                output = layer_raw->output;
+                output = ls->output();
             }
         }
 
@@ -61,17 +61,15 @@ namespace flux {
             wlr_scene_node_coords(&root_tree->node, &root_lx, &root_ly);
 
             if (!output) {
-                output = wlr_output_layout_output_at(m_compositor.output_layout(), root_lx, root_ly);
-                if (!output) {
-                    Output* focused = m_compositor.focused_output();
-                    output = focused ? focused->raw() : nullptr;
-                }
+                wlr_output* wlr_out = wlr_output_layout_output_at(m_compositor.output_layout(), root_lx, root_ly);
+                output = m_compositor.output_from_wlr(wlr_out);
+            }
+            if (!output) {
+                output = m_compositor.focused_output();
             }
 
             if (output) {
-                wlr_box output_box{};
-                wlr_output_layout_get_box(m_compositor.output_layout(), output, &output_box);
-
+                const wlr_box output_box = output->layout_box();
                 const wlr_box toplevel_space_box{
                     .x = output_box.x - root_lx,
                     .y = output_box.y - root_ly,

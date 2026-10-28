@@ -58,4 +58,14 @@ namespace flux {
         m_compositor.remove_output(this);
     }
 
+    bool Output::is_nested() const noexcept {
+        return wlr_output_is_wl(m_wlr_output) || wlr_output_is_x11(m_wlr_output);
+    }
+
+    wlr_box Output::layout_box() const noexcept {
+        wlr_box box{};
+        wlr_output_layout_get_box(m_compositor.output_layout(), m_wlr_output, &box);
+        return box;
+    }
+
 }

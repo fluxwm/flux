@@ -24,12 +24,12 @@ namespace flux {
     }
 
     Output* Layer::output() const noexcept {
-        return m_layer_surface ? m_compositor.output_from_wlr(m_layer_surface->output) : nullptr;
+        return m_compositor.output_from_wlr(m_layer_surface->output);
     }
 
     void Layer::on_commit() {
         if (m_layer_surface->current.committed & WLR_LAYER_SURFACE_V1_STATE_LAYER) {
-            wlr_scene_tree* new_parent = m_compositor.scene().layer_tree(m_layer_surface->current.layer);
+            wlr_scene_tree* new_parent = m_compositor.scene().layer_tree(layer());
             wlr_scene_node_reparent(&m_scene_layer->tree->node, new_parent);
         }
 

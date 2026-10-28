@@ -119,7 +119,7 @@ namespace flux::input {
                     m_input.compositor().scene().window_at(m_wlr_cursor->x, m_wlr_cursor->y, &surface, &sx, &sy);
 
                 if (auto* excl = m_input.compositor().exclusive_layer()) {
-                    if (surface && root_popup_parent(surface) == excl->raw()->surface) {
+                    if (surface && root_popup_parent(surface) == excl->surface()) {
                         m_input.compositor().focus_surface(surface);
                     }
                 } else if (window != nullptr) {
@@ -226,11 +226,10 @@ namespace flux::input {
             return size;
         };
 
-        const auto* toplevel = state.window->raw();
-        int new_w = clamp_dim(new_left, new_right, std::max(1, toplevel->current.min_width),
-                              toplevel->current.max_width, state.resize_edges & WLR_EDGE_LEFT);
-        int new_h = clamp_dim(new_top, new_bottom, std::max(1, toplevel->current.min_height),
-                              toplevel->current.max_height, state.resize_edges & WLR_EDGE_TOP);
+        int new_w = clamp_dim(new_left, new_right, std::max(1, state.window->min_width()), state.window->max_width(),
+                              state.resize_edges & WLR_EDGE_LEFT);
+        int new_h = clamp_dim(new_top, new_bottom, std::max(1, state.window->min_height()), state.window->max_height(),
+                              state.resize_edges & WLR_EDGE_TOP);
 
         const wlr_box& geo_box = state.window->geometry();
         if (state.resize_edges & (WLR_EDGE_TOP | WLR_EDGE_LEFT)) {

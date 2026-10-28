@@ -19,6 +19,11 @@ namespace flux {
         [[nodiscard]] const wlr_box& usable_area() const noexcept { return m_usable_area; }
         void set_usable_area(const wlr_box& area) noexcept { m_usable_area = area; }
 
+        [[nodiscard]] bool matches(const wlr_output* wlr_out) const noexcept { return m_wlr_output == wlr_out; }
+        [[nodiscard]] bool is_enabled() const noexcept { return m_wlr_output->enabled; }
+        [[nodiscard]] bool is_nested() const noexcept;
+        [[nodiscard]] wlr_box layout_box() const noexcept;
+
     private:
         void on_frame();
         void on_request_state(const wlr_output_event_request_state* event);

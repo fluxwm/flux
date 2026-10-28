@@ -15,8 +15,6 @@ namespace flux {
         Popup(const Popup&) = delete;
         Popup& operator=(const Popup&) = delete;
 
-        [[nodiscard]] wlr_xdg_popup* raw() const noexcept { return m_xdg_popup; }
-
     private:
         void unconstrain();
         void on_commit();

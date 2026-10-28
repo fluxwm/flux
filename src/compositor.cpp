@@ -306,7 +306,7 @@ namespace flux {
         if (!wlr_out) {
             return nullptr;
         }
-        auto it = std::ranges::find_if(m_outputs, [wlr_out](const auto& o) { return o->raw() == wlr_out; });
+        auto it = std::ranges::find_if(m_outputs, [wlr_out](const auto& o) { return o->matches(wlr_out); });
         return it != m_outputs.end() ? it->get() : nullptr;
     }
 
@@ -379,9 +379,7 @@ namespace flux {
 
         for (auto layer : layers) {
             for (const auto& ls : std::views::reverse(m_layers)) {
-                auto* raw = ls->raw();
-                if (raw && raw->surface->mapped && raw->current.layer == layer &&
-                    raw->current.keyboard_interactive == ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE) {
+                if (ls->is_mapped() && ls->layer() == layer && ls->is_exclusive()) {
                     return ls.get();
                 }
             }
@@ -419,11 +417,11 @@ namespace flux {
     }
 
     void Compositor::remove_output(Output* output) {
-        const bool is_nested = wlr_output_is_wl(output->raw()) || wlr_output_is_x11(output->raw());
+        const bool is_nested = output && output->is_nested();
 
         std::vector<wlr_layer_surface_v1*> to_destroy;
         for (const auto& ls : m_layers) {
-            if (ls->raw() && ls->raw()->output == output->raw()) {
+            if (ls->output() == output) {
                 to_destroy.push_back(ls->raw());
             }
         }
@@ -445,7 +443,7 @@ namespace flux {
         Output* output = layer->output();
         erase_unique_ptr(m_layers, layer);
 
-        if (output && output_from_wlr(output->raw())) {
+        if (output) {
             arrange_layers(output);
         }
         refocus();
@@ -477,21 +475,15 @@ namespace flux {
             layer_surface->output = output->raw();
         }
 
-        auto ls = std::make_unique<Layer>(*this, layer_surface);
-        if (!ls->raw()) {
-            return;
-        }
-        m_layers.push_back(std::move(ls));
+        m_layers.push_back(std::make_unique<Layer>(*this, layer_surface));
     }
 
     void Compositor::arrange_layers(Output* output) {
-        if (!output || !output->raw()->enabled) {
+        if (!output || !output->is_enabled()) {
             return;
         }
 
-        wlr_box output_box{};
-        wlr_output_layout_get_box(m_output_layout, output->raw(), &output_box);
-
+        wlr_box output_box = output->layout_box();
         wlr_box full_area = output_box;
         wlr_box usable_area = output_box;
 
@@ -505,8 +497,8 @@ namespace flux {
         auto configure = [&](bool exclusive) {
             for (auto layer : layers) {
                 for (const auto& ls : m_layers) {
-                    if (ls->output() == output && ls->scene_layer() && ls->raw()->initialized &&
-                        ls->raw()->current.layer == layer && (ls->raw()->current.exclusive_zone > 0) == exclusive) {
+                    if (ls->output() == output && ls->scene_layer() && ls->is_initialized() && ls->layer() == layer &&
+                        (ls->exclusive_zone() > 0) == exclusive) {
                         wlr_scene_layer_surface_v1_configure(ls->scene_layer(), &full_area, &usable_area);
                     }
                 }
@@ -531,13 +523,13 @@ namespace flux {
     }
 
     void Compositor::focus_layer(Layer* layer) {
-        if (!layer || !layer->raw()->surface->mapped) {
+        if (!layer || !layer->is_mapped()) {
             return;
         }
         if (layer->scene_layer()) {
             wlr_scene_node_raise_to_top(&layer->scene_layer()->tree->node);
         }
-        focus_surface(layer->raw()->surface);
+        focus_surface(layer->surface());
     }
 
 }

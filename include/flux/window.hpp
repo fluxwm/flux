@@ -18,7 +18,10 @@ namespace flux {
         Window(const Window&) = delete;
         Window& operator=(const Window&) = delete;
 
-        [[nodiscard]] wlr_xdg_toplevel* raw() const noexcept { return m_xdg_toplevel; }
+        [[nodiscard]] int min_width() const noexcept { return m_xdg_toplevel->current.min_width; }
+        [[nodiscard]] int max_width() const noexcept { return m_xdg_toplevel->current.max_width; }
+        [[nodiscard]] int min_height() const noexcept { return m_xdg_toplevel->current.min_height; }
+        [[nodiscard]] int max_height() const noexcept { return m_xdg_toplevel->current.max_height; }
         [[nodiscard]] wlr_scene_tree* scene_tree() const noexcept { return m_scene_tree; }
         [[nodiscard]] wlr_surface* surface() const noexcept { return m_xdg_toplevel->base->surface; }
         [[nodiscard]] const wlr_box& geometry() const noexcept { return m_xdg_toplevel->base->geometry; }
