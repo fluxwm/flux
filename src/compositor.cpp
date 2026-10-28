@@ -148,7 +148,7 @@ namespace flux {
     }
 
     bool Compositor::handle_keybinding(uint32_t modifiers, xkb_keysym_t sym) {
-        if (sym >= XKB_KEY_XF86Switch_VT_1 && sym <= XKB_KEY_XF86Switch_VT_12) {
+        if (m_session && sym >= XKB_KEY_XF86Switch_VT_1 && sym <= XKB_KEY_XF86Switch_VT_12) {
             wlr_session_change_vt(m_session, sym - XKB_KEY_XF86Switch_VT_1 + 1);
             return true;
         }
