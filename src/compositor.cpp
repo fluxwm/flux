@@ -188,8 +188,8 @@ namespace flux {
                     }
                 } else if constexpr (std::is_same_v<T, action::CycleWindow>) {
                     if (m_focus_stack.size() >= 2) {
-                        Window* next_window = m_focus_stack[1];
-                        focus_window(next_window);
+                        std::ranges::rotate(m_focus_stack, m_focus_stack.begin() + 1);
+                        focus_window(m_focus_stack.front());
                     }
                 } else if constexpr (std::is_same_v<T, action::MaximizeWindow>) {
                     if (!m_focus_stack.empty()) {
