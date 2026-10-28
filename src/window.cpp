@@ -6,7 +6,7 @@ namespace flux {
 
     Window::Window(Compositor& compositor, wlr_xdg_toplevel* xdg_toplevel)
         : m_compositor(compositor), m_xdg_toplevel(xdg_toplevel) {
-        m_scene_tree = wlr_scene_xdg_surface_create(m_compositor.scene_windows(), xdg_toplevel->base);
+        m_scene_tree = wlr_scene_xdg_surface_create(m_compositor.scene().windows(), xdg_toplevel->base);
         m_scene_tree->node.data = this;
         xdg_toplevel->base->data = m_scene_tree;
 
@@ -160,11 +160,11 @@ namespace flux {
                 set_size(output_box.width, output_box.height);
             }
 
-            wlr_scene_node_reparent(&m_scene_tree->node, m_compositor.scene_fullscreen());
+            wlr_scene_node_reparent(&m_scene_tree->node, m_compositor.scene().fullscreen());
             wlr_xdg_toplevel_set_maximized(m_xdg_toplevel, false);
             wlr_xdg_toplevel_set_fullscreen(m_xdg_toplevel, true);
         } else {
-            wlr_scene_node_reparent(&m_scene_tree->node, m_compositor.scene_windows());
+            wlr_scene_node_reparent(&m_scene_tree->node, m_compositor.scene().windows());
             wlr_xdg_toplevel_set_fullscreen(m_xdg_toplevel, false);
 
             if (m_maximized) {

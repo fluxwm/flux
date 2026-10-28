@@ -115,7 +115,8 @@ namespace flux::input {
                 double sx = 0.0;
                 double sy = 0.0;
                 wlr_surface* surface = nullptr;
-                Window* window = m_input.compositor().window_at(m_wlr_cursor->x, m_wlr_cursor->y, &surface, &sx, &sy);
+                Window* window =
+                    m_input.compositor().scene().window_at(m_wlr_cursor->x, m_wlr_cursor->y, &surface, &sx, &sy);
 
                 if (auto* excl = m_input.compositor().exclusive_layer()) {
                     if (surface && root_popup_parent(surface) == excl->raw()->surface) {
@@ -259,8 +260,7 @@ namespace flux::input {
 
         double sx = 0.0;
         double sy = 0.0;
-        wlr_surface* surface = nullptr;
-        static_cast<void>(m_input.compositor().window_at(m_wlr_cursor->x, m_wlr_cursor->y, &surface, &sx, &sy));
+        wlr_surface* surface = m_input.compositor().scene().surface_at(m_wlr_cursor->x, m_wlr_cursor->y, &sx, &sy);
         if (surface) {
             m_input.seat().notify_enter(surface, sx, sy);
             m_input.seat().notify_motion(time_msec, sx, sy);

@@ -34,9 +34,8 @@ namespace flux {
         m_input.reset();
         m_outputs.clear();
 
-        if (m_scene) {
-            wlr_scene_node_destroy(&m_scene->tree.node);
-        }
+        m_scene.reset();
+
         if (m_output_layout) {
             wlr_output_layout_destroy(m_output_layout);
         }
@@ -109,16 +108,7 @@ namespace flux {
 
         m_listeners.listen(&m_backend->events.new_output, this, &Compositor::on_new_output);
 
-        m_scene = wlr_scene_create();
-        m_scene_background = wlr_scene_tree_create(&m_scene->tree);
-        m_scene_bottom = wlr_scene_tree_create(&m_scene->tree);
-        m_scene_windows = wlr_scene_tree_create(&m_scene->tree);
-        m_scene_top = wlr_scene_tree_create(&m_scene->tree);
-        m_scene_fullscreen = wlr_scene_tree_create(&m_scene->tree);
-        m_scene_overlay = wlr_scene_tree_create(&m_scene->tree);
-        m_scene_layout = wlr_scene_attach_output_layout(m_scene, m_output_layout);
-
-        wlr_scene_set_gamma_control_manager_v1(m_scene, wlr_gamma_control_manager_v1_create(m_display));
+        m_scene = std::make_unique<Scene>(m_display, m_output_layout);
 
         m_xdg_shell = wlr_xdg_shell_create(m_display, 7);
         m_listeners.listen(&m_xdg_shell->events.new_toplevel, this, &Compositor::on_new_window);
@@ -285,12 +275,12 @@ namespace flux {
 
         for (Window* w : m_focus_stack) {
             if (w != window && w->is_fullscreen() && window_output(w) == window_output(window)) {
-                wlr_scene_node_reparent(&w->scene_tree()->node, m_scene_windows);
+                wlr_scene_node_reparent(&w->scene_tree()->node, m_scene->windows());
             }
         }
 
         if (window->is_fullscreen()) {
-            wlr_scene_node_reparent(&window->scene_tree()->node, m_scene_fullscreen);
+            wlr_scene_node_reparent(&window->scene_tree()->node, m_scene->fullscreen());
         }
 
         window->raise_to_top();
@@ -310,20 +300,6 @@ namespace flux {
         if (m_input) {
             m_input->cursor().begin_resize(window, edges);
         }
-    }
-
-    wlr_scene_tree* Compositor::layer_tree(zwlr_layer_shell_v1_layer layer) const noexcept {
-        switch (layer) {
-            case ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND:
-                return m_scene_background;
-            case ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM:
-                return m_scene_bottom;
-            case ZWLR_LAYER_SHELL_V1_LAYER_TOP:
-                return m_scene_top;
-            case ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY:
-                return m_scene_overlay;
-        }
-        return m_scene_top;
     }
 
     Output* Compositor::output_from_wlr(wlr_output* wlr_out) const noexcept {
@@ -562,25 +538,6 @@ namespace flux {
             wlr_scene_node_raise_to_top(&layer->scene_layer()->tree->node);
         }
         focus_surface(layer->raw()->surface);
-    }
-
-    Window* Compositor::window_at(double lx, double ly, wlr_surface** surface, double* sx, double* sy) {
-        wlr_scene_node* node = wlr_scene_node_at(&m_scene->tree.node, lx, ly, sx, sy);
-        if (!node || node->type != WLR_SCENE_NODE_BUFFER) {
-            return nullptr;
-        }
-        wlr_scene_buffer* scene_buffer = wlr_scene_buffer_from_node(node);
-        wlr_scene_surface* scene_surface = wlr_scene_surface_try_from_buffer(scene_buffer);
-        if (!scene_surface) {
-            return nullptr;
-        }
-        *surface = scene_surface->surface;
-
-        wlr_scene_tree* tree = node->parent;
-        while (tree && !tree->node.data) {
-            tree = tree->node.parent;
-        }
-        return tree ? static_cast<Window*>(tree->node.data) : nullptr;
     }
 
 }

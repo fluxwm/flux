@@ -42,6 +42,7 @@ endfunction()
 add_executable(flux
         src/main.cpp
         src/compositor.cpp
+        src/scene.cpp
         src/output.cpp
         src/input/input.cpp
         src/input/seat.cpp

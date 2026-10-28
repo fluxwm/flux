@@ -26,6 +26,7 @@ namespace flux {
 
         Compositor& m_compositor;
         wlr_output* m_wlr_output = nullptr;
+        wlr_scene_output* m_scene_output = nullptr;
         wlr_box m_usable_area{};
 
         ListenerGroup m_listeners;

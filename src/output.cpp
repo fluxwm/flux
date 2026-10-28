@@ -26,8 +26,7 @@ namespace flux {
         m_listeners.listen(&m_wlr_output->events.destroy, this, &Output::on_destroy);
 
         wlr_output_layout_output* l_output = wlr_output_layout_add_auto(m_compositor.output_layout(), m_wlr_output);
-        wlr_scene_output* scene_output = wlr_scene_output_create(m_compositor.scene(), m_wlr_output);
-        wlr_scene_output_layout_add_output(m_compositor.scene_layout(), l_output, scene_output);
+        m_scene_output = m_compositor.scene().attach_output(m_wlr_output, l_output);
 
         if (wlr_output_is_wl(m_wlr_output)) {
             wlr_wl_output_set_title(m_wlr_output, "Flux");
@@ -40,19 +39,13 @@ namespace flux {
     }
 
     void Output::on_frame() {
-        wlr_scene* scene = m_compositor.scene();
-        wlr_scene_output* scene_output = wlr_scene_get_scene_output(scene, m_wlr_output);
-        if (!scene_output) {
-            return;
-        }
-
-        if (!wlr_scene_output_commit(scene_output, nullptr)) {
+        if (!m_scene_output || !wlr_scene_output_commit(m_scene_output, nullptr)) {
             return;
         }
 
         timespec now{};
         clock_gettime(CLOCK_MONOTONIC, &now);
-        wlr_scene_output_send_frame_done(scene_output, &now);
+        wlr_scene_output_send_frame_done(m_scene_output, &now);
     }
 
     void Output::on_request_state(const wlr_output_event_request_state* event) {

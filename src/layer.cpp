@@ -6,7 +6,7 @@ namespace flux {
 
     Layer::Layer(Compositor& compositor, wlr_layer_surface_v1* layer_surface)
         : m_compositor(compositor), m_layer_surface(layer_surface) {
-        wlr_scene_tree* parent = m_compositor.layer_tree(layer_surface->pending.layer);
+        wlr_scene_tree* parent = m_compositor.scene().layer_tree(layer_surface->pending.layer);
         m_scene_layer = wlr_scene_layer_surface_v1_create(parent, layer_surface);
         layer_surface->data = this;
 
@@ -29,7 +29,7 @@ namespace flux {
 
     void Layer::on_commit() {
         if (m_layer_surface->current.committed & WLR_LAYER_SURFACE_V1_STATE_LAYER) {
-            wlr_scene_tree* new_parent = m_compositor.layer_tree(m_layer_surface->current.layer);
+            wlr_scene_tree* new_parent = m_compositor.scene().layer_tree(m_layer_surface->current.layer);
             wlr_scene_node_reparent(&m_scene_layer->tree->node, new_parent);
         }
 
