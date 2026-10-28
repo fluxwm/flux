@@ -66,20 +66,23 @@ namespace flux::input {
         if (!window || m_input.seat().button_count() == 0 || window->is_maximized() || window->is_fullscreen()) {
             return;
         }
-        const wlr_box& geo_box = window->geometry();
+        const int win_w = window->width();
+        const int win_h = window->height();
 
-        const double border_x = (window->x() + geo_box.x) + ((edges & WLR_EDGE_RIGHT) ? geo_box.width : 0);
-        const double border_y = (window->y() + geo_box.y) + ((edges & WLR_EDGE_BOTTOM) ? geo_box.height : 0);
-
-        wlr_box geobox = geo_box;
-        geobox.x += window->x();
-        geobox.y += window->y();
+        const double border_x = window->x() + ((edges & WLR_EDGE_RIGHT) ? win_w : 0);
+        const double border_y = window->y() + ((edges & WLR_EDGE_BOTTOM) ? win_h : 0);
 
         m_state = Resize{
             .window = window,
             .grab_x = m_wlr_cursor->x - border_x,
             .grab_y = m_wlr_cursor->y - border_y,
-            .initial_geometry = geobox,
+            .initial_geometry =
+                wlr_box{
+                    .x = window->x(),
+                    .y = window->y(),
+                    .width = win_w,
+                    .height = win_h,
+                },
             .resize_edges = edges,
         };
 
@@ -231,9 +234,8 @@ namespace flux::input {
         int new_h = clamp_dim(new_top, new_bottom, std::max(1, state.window->min_height()), state.window->max_height(),
                               state.resize_edges & WLR_EDGE_TOP);
 
-        const wlr_box& geo_box = state.window->geometry();
         if (state.resize_edges & (WLR_EDGE_TOP | WLR_EDGE_LEFT)) {
-            state.window->set_pending_position(new_left - geo_box.x, new_top - geo_box.y);
+            state.window->set_pending_position(new_left, new_top);
         }
         state.window->set_size(new_w, new_h);
     }
