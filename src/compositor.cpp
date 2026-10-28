@@ -574,6 +574,9 @@ namespace flux {
     }
 
     void Compositor::create_popup(wlr_xdg_popup* popup) {
+        if (!popup || !popup->parent) {
+            return;
+        }
         m_popups.push_back(std::make_unique<Popup>(*this, popup));
     }
 

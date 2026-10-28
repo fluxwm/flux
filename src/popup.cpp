@@ -9,6 +9,11 @@ namespace flux {
     Popup::Popup(Compositor& compositor, wlr_xdg_popup* xdg_popup) : m_compositor(compositor), m_xdg_popup(xdg_popup) {
         m_listeners.listen(&xdg_popup->events.destroy, this, &Popup::on_destroy);
 
+        if (!xdg_popup->parent) {
+            wlr_log(WLR_ERROR, "popup parent is null");
+            return;
+        }
+
         wlr_scene_tree* parent_tree = nullptr;
         wlr_surface* parent_root = wlr_surface_get_root_surface(xdg_popup->parent);
         if (wlr_xdg_surface* parent = wlr_xdg_surface_try_from_wlr_surface(parent_root); parent && parent->data) {
