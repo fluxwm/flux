@@ -269,7 +269,9 @@ namespace flux {
 
         for (const auto& bind : m_config.keybinds) {
             if (bind.modifiers == clean_mods && xkb_keysym_to_lower(bind.keysym) == lower_sym) {
-                execute_action(bind.action);
+                for (const auto& action : bind.actions) {
+                    execute_action(action);
+                }
                 return true;
             }
         }

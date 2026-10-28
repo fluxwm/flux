@@ -30,7 +30,7 @@ namespace flux {
     struct Keybind {
         uint32_t modifiers = 0;
         xkb_keysym_t keysym = XKB_KEY_NoSymbol;
-        Action action;
+        std::vector<Action> actions;
     };
 
     struct Config {

@@ -124,6 +124,7 @@ namespace flux {
                     continue;
                 }
 
+                std::vector<Action> actions;
                 for (const auto& action_node : bind_node.children()) {
                     auto action_opt = parse_action(action_node);
                     if (!action_opt) {
@@ -133,10 +134,14 @@ namespace flux {
                         continue;
                     }
 
+                    actions.push_back(std::move(*action_opt));
+                }
+
+                if (!actions.empty()) {
                     config.keybinds.push_back(Keybind{
                         .modifiers = modifiers,
                         .keysym = keysym,
-                        .action = std::move(*action_opt),
+                        .actions = std::move(actions),
                     });
                 }
             }
