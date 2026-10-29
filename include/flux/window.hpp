@@ -39,6 +39,11 @@ namespace flux {
         [[nodiscard]] std::string_view app_id() const noexcept { return m_app_id; }
         [[nodiscard]] bool is_maximized() const noexcept { return m_maximized; }
         [[nodiscard]] bool is_fullscreen() const noexcept { return m_fullscreen; }
+        [[nodiscard]] double center_x() const noexcept { return x() + (width() / 2.0); }
+        [[nodiscard]] double center_y() const noexcept { return y() + (height() / 2.0); }
+        [[nodiscard]] wlr_box box() const noexcept {
+            return {.x = x(), .y = y(), .width = width(), .height = height()};
+        }
 
         void set_activated(bool activated) noexcept { wlr_xdg_toplevel_set_activated(m_xdg_toplevel, activated); }
         void set_size(int width, int height) noexcept { wlr_xdg_toplevel_set_size(m_xdg_toplevel, width, height); }
@@ -50,6 +55,10 @@ namespace flux {
             m_pending_x = x;
             m_pending_y = y;
             m_has_pending_position = true;
+        }
+        void set_geometry(const wlr_box& box) noexcept {
+            set_pending_position(box.x, box.y);
+            set_size(box.width, box.height);
         }
         void apply_pending_position() noexcept {
             if (m_has_pending_position) {

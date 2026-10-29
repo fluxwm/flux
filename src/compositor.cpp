@@ -352,10 +352,7 @@ namespace flux {
             return focused_output();
         }
 
-        const double center_x = window->x() + (window->width() / 2.0);
-        const double center_y = window->y() + (window->height() / 2.0);
-
-        wlr_output* wlr_out = wlr_output_layout_output_at(m_output_layout, center_x, center_y);
+        wlr_output* wlr_out = wlr_output_layout_output_at(m_output_layout, window->center_x(), window->center_y());
         Output* out = output_from_wlr(wlr_out);
         return out ? out : focused_output();
     }
@@ -370,11 +367,8 @@ namespace flux {
             return;
         }
 
-        const wlr_box& box = output->usable_area();
-        const int center_x = box.x + std::max(0, (box.width - window->width()) / 2);
-        const int center_y = box.y + std::max(0, (box.height - window->height()) / 2);
-
-        window->set_position(center_x, center_y);
+        const auto centered = center_box(output->usable_area(), window->width(), window->height());
+        window->set_position(centered.x, centered.y);
     }
 
     void Compositor::map_window(Window* window) {
@@ -471,9 +465,7 @@ namespace flux {
             const wlr_box full = target->layout_box();
 
             for (const auto& win : m_windows) {
-                const double cx = win->x() + (win->width() / 2.0);
-                const double cy = win->y() + (win->height() / 2.0);
-                if (!wlr_output_layout_output_at(m_output_layout, cx, cy)) {
+                if (!wlr_output_layout_output_at(m_output_layout, win->center_x(), win->center_y())) {
                     if (win->is_fullscreen()) {
                         win->set_position(full.x, full.y);
                     } else if (win->is_maximized()) {
@@ -574,11 +566,9 @@ namespace flux {
         for (const auto& win : m_windows) {
             if (window_output(win.get()) == output) {
                 if (win->is_fullscreen()) {
-                    win->set_pending_position(full_area.x, full_area.y);
-                    win->set_size(full_area.width, full_area.height);
+                    win->set_geometry(full_area);
                 } else if (win->is_maximized()) {
-                    win->set_pending_position(usable_area.x, usable_area.y);
-                    win->set_size(usable_area.width, usable_area.height);
+                    win->set_geometry(usable_area);
                 }
             }
         }

@@ -1,8 +1,7 @@
 #include "flux/window.hpp"
 #include "flux/compositor.hpp"
 #include "flux/output.hpp"
-
-#include <algorithm>
+#include "flux/util.hpp"
 
 namespace flux {
 
@@ -91,11 +90,8 @@ namespace flux {
         if (m_maximized) {
             save_geometry();
 
-            Output* out = m_compositor.window_output(this);
-            if (out) {
-                const auto& area = out->usable_area();
-                set_pending_position(area.x, area.y);
-                wlr_xdg_toplevel_set_size(m_xdg_toplevel, area.width, area.height);
+            if (Output* out = m_compositor.window_output(this)) {
+                set_geometry(out->usable_area());
             }
             wlr_xdg_toplevel_set_maximized(m_xdg_toplevel, true);
         } else {
@@ -136,9 +132,7 @@ namespace flux {
             }
 
             if (out) {
-                const wlr_box output_box = out->layout_box();
-                set_pending_position(output_box.x, output_box.y);
-                set_size(output_box.width, output_box.height);
+                set_geometry(out->layout_box());
             }
 
             if (m_compositor.focused_window() == this) {
@@ -151,11 +145,8 @@ namespace flux {
             wlr_xdg_toplevel_set_fullscreen(m_xdg_toplevel, false);
 
             if (m_maximized) {
-                Output* out = m_compositor.window_output(this);
-                if (out) {
-                    const auto& area = out->usable_area();
-                    set_pending_position(area.x, area.y);
-                    set_size(area.width, area.height);
+                if (Output* out = m_compositor.window_output(this)) {
+                    set_geometry(out->usable_area());
                 }
                 wlr_xdg_toplevel_set_maximized(m_xdg_toplevel, true);
             } else {
@@ -168,12 +159,7 @@ namespace flux {
 
     void Window::save_geometry() noexcept {
         if (width() > 0 && height() > 0) {
-            m_saved_geometry = wlr_box{
-                .x = x(),
-                .y = y(),
-                .width = width(),
-                .height = height(),
-            };
+            m_saved_geometry = box();
         }
     }
 
@@ -187,14 +173,11 @@ namespace flux {
         const double cy = m_saved_geometry.y + (m_saved_geometry.height / 2.0);
         if (!wlr_output_layout_output_at(m_compositor.output_layout(), cx, cy)) {
             if (Output* out = m_compositor.focused_output()) {
-                const auto& area = out->usable_area();
-                m_saved_geometry.x = area.x + std::max(0, (area.width - m_saved_geometry.width) / 2);
-                m_saved_geometry.y = area.y + std::max(0, (area.height - m_saved_geometry.height) / 2);
+                m_saved_geometry = center_box(out->usable_area(), m_saved_geometry.width, m_saved_geometry.height);
             }
         }
 
-        set_pending_position(m_saved_geometry.x, m_saved_geometry.y);
-        set_size(m_saved_geometry.width, m_saved_geometry.height);
+        set_geometry(m_saved_geometry);
     }
 
     void Window::on_set_title() {

@@ -68,23 +68,15 @@ namespace flux::input {
         if (!window || m_input.seat().button_count() == 0 || window->is_maximized() || window->is_fullscreen()) {
             return;
         }
-        const int win_w = window->width();
-        const int win_h = window->height();
-
-        const double border_x = window->x() + ((edges & WLR_EDGE_RIGHT) ? win_w : 0);
-        const double border_y = window->y() + ((edges & WLR_EDGE_BOTTOM) ? win_h : 0);
+        const wlr_box box = window->box();
+        const double border_x = box.x + ((edges & WLR_EDGE_RIGHT) ? box.width : 0);
+        const double border_y = box.y + ((edges & WLR_EDGE_BOTTOM) ? box.height : 0);
 
         m_state = Resize{
             .window = window,
             .grab_x = m_wlr_cursor->x - border_x,
             .grab_y = m_wlr_cursor->y - border_y,
-            .initial_geometry =
-                wlr_box{
-                    .x = window->x(),
-                    .y = window->y(),
-                    .width = win_w,
-                    .height = win_h,
-                },
+            .initial_geometry = box,
             .resize_edges = edges,
         };
 
