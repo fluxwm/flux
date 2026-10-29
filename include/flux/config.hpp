@@ -16,6 +16,7 @@ namespace flux {
     struct KeyboardConfig {
         int32_t repeat_rate = 25;
         int32_t repeat_delay = 600;
+        bool numlock = false;
     };
 
     namespace action {

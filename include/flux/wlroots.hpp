@@ -16,6 +16,7 @@ extern "C" {
 #include <wlr/backend/session.h>
 #include <wlr/backend/wayland.h>
 #include <wlr/backend/x11.h>
+#include <wlr/interfaces/wlr_keyboard.h>
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_buffer.h>

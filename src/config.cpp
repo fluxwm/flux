@@ -171,6 +171,19 @@ namespace flux {
             }
         }
 
+        std::optional<bool> parse_bool(const kdl::Node& node) {
+            std::string_view name = node_name(node);
+            const auto& args = node.args();
+            if (args.empty()) {
+                return true;
+            }
+            if (args[0].type() == kdl::Type::Bool) {
+                return args[0].as<bool>();
+            }
+            wlr_log(WLR_ERROR, "%.*s requires a boolean or no argument", static_cast<int>(name.size()), name.data());
+            return std::nullopt;
+        }
+
         void parse_keyboard(KeyboardConfig& keyboard, const kdl::Node& keyboard_node) {
             for (const auto& child : keyboard_node.children()) {
                 std::string_view name = node_name(child);
@@ -181,6 +194,10 @@ namespace flux {
                 } else if (iequals(name, "repeat-delay")) {
                     if (auto val = parse_int(child)) {
                         keyboard.repeat_delay = *val;
+                    }
+                } else if (iequals(name, "numlock")) {
+                    if (auto val = parse_bool(child)) {
+                        keyboard.numlock = *val;
                     }
                 } else {
                     wlr_log(WLR_ERROR, "unknown setting '%.*s' in keyboard config", static_cast<int>(name.size()),

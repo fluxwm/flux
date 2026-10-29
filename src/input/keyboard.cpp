@@ -18,6 +18,13 @@ namespace flux::input {
 
         apply_config(config);
 
+        if (config.numlock && m_wlr_keyboard->keymap) {
+            const xkb_mod_index_t idx = xkb_keymap_mod_get_index(m_wlr_keyboard->keymap, XKB_MOD_NAME_NUM);
+            if (idx != XKB_MOD_INVALID) {
+                wlr_keyboard_notify_modifiers(m_wlr_keyboard, 0, 0, 1u << idx, 0);
+            }
+        }
+
         m_listeners.listen(&m_wlr_keyboard->events.modifiers, this, &Keyboard::on_modifiers);
         m_listeners.listen(&m_wlr_keyboard->events.key, this, &Keyboard::on_key);
         m_listeners.listen(&device->events.destroy, this, &Keyboard::on_destroy);
