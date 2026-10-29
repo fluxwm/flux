@@ -43,6 +43,9 @@ namespace flux {
         [[nodiscard]] Output* focused_output() const noexcept;
         [[nodiscard]] Output* window_output(const Window* window) const noexcept;
         [[nodiscard]] Layer* exclusive_layer() const noexcept;
+        [[nodiscard]] wlr_ext_foreign_toplevel_list_v1* foreign_toplevel_list() const noexcept {
+            return m_foreign_toplevel_list;
+        }
         [[nodiscard]] Window* focused_window() const noexcept {
             return m_focus_stack.empty() ? nullptr : m_focus_stack.front();
         }
@@ -81,6 +84,7 @@ namespace flux {
         wlr_renderer* m_renderer = nullptr;
         wlr_allocator* m_allocator = nullptr;
         wlr_output_layout* m_output_layout = nullptr;
+        wlr_ext_foreign_toplevel_list_v1* m_foreign_toplevel_list = nullptr;
 
         std::unique_ptr<Config> m_config;
         std::unique_ptr<Scene> m_scene;

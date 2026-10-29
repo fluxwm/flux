@@ -21,19 +21,35 @@ namespace flux {
         m_listeners.listen(&xdg_toplevel->events.request_fullscreen, this, &Window::on_request_fullscreen);
         m_listeners.listen(&xdg_toplevel->events.set_title, this, &Window::on_set_title);
         m_listeners.listen(&xdg_toplevel->events.set_app_id, this, &Window::on_set_app_id);
+    }
 
-        on_set_title();
-        on_set_app_id();
+    Window::~Window() {
+        if (m_ext_toplevel_handle) {
+            wlr_ext_foreign_toplevel_handle_v1_destroy(m_ext_toplevel_handle);
+        }
+        if (m_scene_tree) {
+            m_scene_tree->node.data = nullptr;
+        }
     }
 
     void Window::on_map() {
-        on_set_title();
-        on_set_app_id();
         wlr_log(WLR_DEBUG, "window mapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
+
+        const wlr_ext_foreign_toplevel_handle_v1_state state{
+            .title = m_title.c_str(),
+            .app_id = m_app_id.c_str(),
+        };
+        m_ext_toplevel_handle = wlr_ext_foreign_toplevel_handle_v1_create(m_compositor.foreign_toplevel_list(), &state);
+
         m_compositor.map_window(this);
     }
 
     void Window::on_unmap() {
+        if (m_ext_toplevel_handle) {
+            wlr_ext_foreign_toplevel_handle_v1_destroy(m_ext_toplevel_handle);
+            m_ext_toplevel_handle = nullptr;
+        }
+
         wlr_log(WLR_DEBUG, "window unmapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
         m_compositor.unmap_window(this);
     }
@@ -180,14 +196,27 @@ namespace flux {
         set_geometry(m_saved_geometry);
     }
 
+    void Window::update_foreign_toplevel() noexcept {
+        if (!m_ext_toplevel_handle) {
+            return;
+        }
+        const wlr_ext_foreign_toplevel_handle_v1_state state{
+            .title = m_title.c_str(),
+            .app_id = m_app_id.c_str(),
+        };
+        wlr_ext_foreign_toplevel_handle_v1_update_state(m_ext_toplevel_handle, &state);
+    }
+
     void Window::on_set_title() {
         m_title = m_xdg_toplevel->title ? m_xdg_toplevel->title : "";
         wlr_log(WLR_DEBUG, "window title updated: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
+        update_foreign_toplevel();
     }
 
     void Window::on_set_app_id() {
         m_app_id = m_xdg_toplevel->app_id ? m_xdg_toplevel->app_id : "";
         wlr_log(WLR_DEBUG, "window app_id updated: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
+        update_foreign_toplevel();
     }
 
 }

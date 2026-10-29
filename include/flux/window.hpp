@@ -13,7 +13,7 @@ namespace flux {
     class Window {
     public:
         Window(Compositor& compositor, wlr_xdg_toplevel* xdg_toplevel);
-        ~Window() = default;
+        ~Window();
 
         Window(const Window&) = delete;
         Window& operator=(const Window&) = delete;
@@ -86,6 +86,7 @@ namespace flux {
         void on_request_fullscreen();
         void on_set_title();
         void on_set_app_id();
+        void update_foreign_toplevel() noexcept;
         void save_geometry() noexcept;
         void restore_saved_geometry();
 
@@ -100,6 +101,7 @@ namespace flux {
         wlr_box m_saved_geometry{};
         std::string m_title;
         std::string m_app_id;
+        wlr_ext_foreign_toplevel_handle_v1* m_ext_toplevel_handle = nullptr;
 
         ListenerGroup m_listeners;
     };
