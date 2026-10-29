@@ -85,7 +85,7 @@ namespace flux {
             return false;
         }
 
-        wlr_renderer_init_wl_display(m_renderer, m_display);
+        wlr_renderer_init_wl_shm(m_renderer, m_display);
 
         m_allocator = wlr_allocator_autocreate(m_backend, m_renderer);
         if (!m_allocator) {
@@ -112,6 +112,13 @@ namespace flux {
         m_listeners.listen(&m_backend->events.new_output, this, &Compositor::on_new_output);
 
         m_scene = std::make_unique<Scene>(m_display, m_output_layout);
+
+        if (wlr_renderer_get_drm_fd(m_renderer) >= 0 &&
+            wlr_renderer_get_texture_formats(m_renderer, WLR_BUFFER_CAP_DMABUF) != nullptr) {
+            if (auto* linux_dmabuf = wlr_linux_dmabuf_v1_create_with_renderer(m_display, 5, m_renderer)) {
+                m_scene->set_linux_dmabuf_v1(linux_dmabuf);
+            }
+        }
 
         m_xdg_shell = wlr_xdg_shell_create(m_display, 7);
         m_listeners.listen(&m_xdg_shell->events.new_toplevel, this, &Compositor::on_new_window);

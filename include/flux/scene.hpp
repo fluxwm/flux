@@ -14,6 +14,12 @@ namespace flux {
         Scene(const Scene&) = delete;
         Scene& operator=(const Scene&) = delete;
 
+        void set_linux_dmabuf_v1(wlr_linux_dmabuf_v1* dmabuf) noexcept {
+            if (m_scene && dmabuf) {
+                wlr_scene_set_linux_dmabuf_v1(m_scene, dmabuf);
+            }
+        }
+
         [[nodiscard]] wlr_scene_tree* windows() const noexcept { return m_scene_windows; }
         [[nodiscard]] wlr_scene_tree* fullscreen() const noexcept { return m_scene_fullscreen; }
         [[nodiscard]] wlr_scene_tree* popups() const noexcept { return m_scene_popups; }
