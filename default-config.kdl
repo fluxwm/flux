@@ -11,6 +11,11 @@ input {
     }
 }
 
+cursor {
+    // theme "default"
+    // size 24
+}
+
 binds {
     Super+Shift+Return  { spawn "kitty"; }
 

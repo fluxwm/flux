@@ -1,5 +1,6 @@
 #pragma once
 
+#include "flux/config.hpp"
 #include "flux/listener.hpp"
 #include "flux/wlroots.hpp"
 
@@ -35,6 +36,7 @@ namespace flux::input {
         void begin_resize(Window* window, uint32_t edges);
         void reset_mode();
         void update_focus();
+        void apply_config(const CursorConfig& config);
 
     private:
         struct Passthrough {};
@@ -68,6 +70,7 @@ namespace flux::input {
         Input& m_input;
         wlr_cursor* m_wlr_cursor = nullptr;
         wlr_xcursor_manager* m_cursor_mgr = nullptr;
+        CursorConfig m_config{};
         State m_state{};
         ListenerGroup m_listeners;
     };

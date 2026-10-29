@@ -19,6 +19,13 @@ namespace flux {
         bool numlock = false;
     };
 
+    struct CursorConfig {
+        std::string theme;
+        uint32_t size = 24;
+
+        bool operator==(const CursorConfig&) const = default;
+    };
+
     namespace action {
         struct Quit {};
         struct CloseWindow {};
@@ -50,6 +57,7 @@ namespace flux {
         Config& operator=(const Config&) = delete;
 
         [[nodiscard]] const KeyboardConfig& keyboard() const noexcept { return m_keyboard; }
+        [[nodiscard]] const CursorConfig& cursor() const noexcept { return m_cursor; }
         [[nodiscard]] std::span<const Action> autostart() const noexcept { return m_autostart; }
         [[nodiscard]] std::span<const Keybind> keybinds() const noexcept { return m_keybinds; }
         [[nodiscard]] const std::filesystem::path& path() const noexcept { return m_path; }
@@ -68,6 +76,7 @@ namespace flux {
         std::function<void()> m_on_reload;
 
         KeyboardConfig m_keyboard;
+        CursorConfig m_cursor;
         std::vector<Action> m_autostart;
         std::vector<Keybind> m_keybinds;
     };

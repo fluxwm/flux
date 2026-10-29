@@ -9,15 +9,14 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <limits>
 
 namespace flux::input {
 
-    Cursor::Cursor(Input& input)
-        : m_input(input), m_wlr_cursor(wlr_cursor_create()), m_cursor_mgr(wlr_xcursor_manager_create(nullptr, 24)) {
+    Cursor::Cursor(Input& input) : m_input(input), m_wlr_cursor(wlr_cursor_create()) {
         wlr_cursor_attach_output_layout(m_wlr_cursor, m_input.compositor().output_layout());
-        wlr_xcursor_manager_load(m_cursor_mgr, 1);
-        set_xcursor("default");
+        apply_config(m_input.compositor().config().cursor());
 
         m_listeners.listen(&m_wlr_cursor->events.motion, this, &Cursor::on_motion);
         m_listeners.listen(&m_wlr_cursor->events.motion_absolute, this, &Cursor::on_motion_absolute);
@@ -80,8 +79,7 @@ namespace flux::input {
             .resize_edges = edges,
         };
 
-        const char* resize_name = wlr_xcursor_get_resize_name(static_cast<wlr_edges>(edges));
-        set_xcursor(resize_name);
+        set_xcursor(wlr_xcursor_get_resize_name(static_cast<wlr_edges>(edges)));
     }
 
     void Cursor::reset_mode() {
@@ -91,6 +89,35 @@ namespace flux::input {
         m_state = Passthrough{};
         set_xcursor("default");
         update_focus();
+    }
+
+    void Cursor::apply_config(const CursorConfig& config) {
+        if (m_cursor_mgr && m_config == config) {
+            return;
+        }
+        m_config = config;
+
+        if (!config.theme.empty()) {
+            setenv("XCURSOR_THEME", config.theme.c_str(), 1);
+        } else {
+            unsetenv("XCURSOR_THEME");
+        }
+        setenv("XCURSOR_SIZE", std::to_string(config.size).c_str(), 1);
+
+        const char* theme = config.theme.empty() ? nullptr : config.theme.c_str();
+        if (m_cursor_mgr) {
+            wlr_xcursor_manager_destroy(m_cursor_mgr);
+        }
+        m_cursor_mgr = wlr_xcursor_manager_create(theme, config.size);
+        wlr_xcursor_manager_load(m_cursor_mgr, 1);
+
+        if (std::holds_alternative<Move>(m_state)) {
+            set_xcursor("grabbing");
+        } else if (const auto* resize = std::get_if<Resize>(&m_state)) {
+            set_xcursor(wlr_xcursor_get_resize_name(static_cast<wlr_edges>(resize->resize_edges)));
+        } else {
+            set_xcursor("default");
+        }
     }
 
     void Cursor::on_motion(wlr_pointer_motion_event* event) {

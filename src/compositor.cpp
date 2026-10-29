@@ -131,7 +131,7 @@ namespace flux {
         m_listeners.listen(&xdg_activation->events.request_activate, this, &Compositor::on_request_activate);
 
         m_input = std::make_unique<Input>(*this);
-        m_config->set_on_reload([this] { m_input->apply_config(m_config->keyboard()); });
+        m_config->set_on_reload([this] { m_input->apply_config(); });
 
         const char* socket = wl_display_add_socket_auto(m_display);
         if (!socket) {

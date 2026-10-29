@@ -13,7 +13,6 @@
 namespace flux {
 
     class Compositor;
-    struct KeyboardConfig;
 
     class Input {
     public:
@@ -32,7 +31,7 @@ namespace flux {
         [[nodiscard]] input::Cursor& cursor() noexcept { return *m_cursor; }
         [[nodiscard]] const input::Cursor& cursor() const noexcept { return *m_cursor; }
 
-        void apply_config(const KeyboardConfig& config);
+        void apply_config();
         void remove_keyboard(input::Keyboard* keyboard);
         void remove_pointer(input::Pointer* pointer);
 

@@ -47,10 +47,12 @@ namespace flux {
         m_seat->set_capabilities(caps);
     }
 
-    void Input::apply_config(const KeyboardConfig& config) {
+    void Input::apply_config() {
+        const auto& cfg = m_compositor.config();
         for (const auto& keyboard : m_keyboards) {
-            keyboard->apply_config(config);
+            keyboard->apply_config(cfg.keyboard());
         }
+        m_cursor->apply_config(cfg.cursor());
     }
 
     void Input::remove_keyboard(input::Keyboard* keyboard) {

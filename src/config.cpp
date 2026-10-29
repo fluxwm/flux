@@ -21,8 +21,12 @@ namespace flux {
 
     namespace {
 
+        std::string_view u8_view(std::u8string_view u8) noexcept {
+            return {reinterpret_cast<const char*>(u8.data()), u8.size()};
+        }
+
         std::string_view node_name(const kdl::Node& node) noexcept {
-            return {reinterpret_cast<const char*>(node.name().data()), node.name().size()};
+            return u8_view(node.name());
         }
 
         bool iequals(std::string_view a, std::string_view b) noexcept {
@@ -95,15 +99,13 @@ namespace flux {
                     return std::nullopt;
                 }
 
-                auto u8_prog = raw_args[0].as<std::u8string>();
-                std::string program(u8_prog.begin(), u8_prog.end());
+                std::string program(u8_view(raw_args[0].as<std::u8string_view>()));
 
                 std::vector<std::string> args;
                 args.reserve(raw_args.size() - 1);
                 for (size_t i = 1; i < raw_args.size(); ++i) {
                     if (raw_args[i].type() == kdl::Type::String) {
-                        auto u8_arg = raw_args[i].as<std::u8string>();
-                        args.emplace_back(u8_arg.begin(), u8_arg.end());
+                        args.emplace_back(u8_view(raw_args[i].as<std::u8string_view>()));
                     }
                 }
 
@@ -171,6 +173,16 @@ namespace flux {
             }
         }
 
+        std::optional<std::string> parse_string(const kdl::Node& node) {
+            std::string_view name = node_name(node);
+            const auto& args = node.args();
+            if (args.empty() || args[0].type() != kdl::Type::String) {
+                wlr_log(WLR_ERROR, "%.*s requires a string argument", static_cast<int>(name.size()), name.data());
+                return std::nullopt;
+            }
+            return std::string(u8_view(args[0].as<std::u8string_view>()));
+        }
+
         std::optional<bool> parse_bool(const kdl::Node& node) {
             std::string_view name = node_name(node);
             const auto& args = node.args();
@@ -213,6 +225,24 @@ namespace flux {
                     parse_keyboard(keyboard, child);
                 } else {
                     wlr_log(WLR_ERROR, "unknown section '%.*s' in input config", static_cast<int>(name.size()),
+                            name.data());
+                }
+            }
+        }
+
+        void parse_cursor(CursorConfig& cursor, const kdl::Node& cursor_node) {
+            for (const auto& child : cursor_node.children()) {
+                std::string_view name = node_name(child);
+                if (iequals(name, "theme")) {
+                    if (auto val = parse_string(child)) {
+                        cursor.theme = std::move(*val);
+                    }
+                } else if (iequals(name, "size")) {
+                    if (auto val = parse_int(child, 1)) {
+                        cursor.size = static_cast<uint32_t>(*val);
+                    }
+                } else {
+                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in cursor config", static_cast<int>(name.size()),
                             name.data());
                 }
             }
@@ -356,15 +386,18 @@ namespace flux {
         }
 
         KeyboardConfig keyboard;
+        CursorConfig cursor;
         std::vector<Action> autostart;
         std::vector<Keybind> keybinds;
 
         for (const auto& node : doc.nodes()) {
             std::string_view name = node_name(node);
-            if (iequals(name, "input")) {
-                parse_input(keyboard, node);
-            } else if (iequals(name, "autostart")) {
+            if (iequals(name, "autostart")) {
                 parse_autostart(autostart, node);
+            } else if (iequals(name, "input")) {
+                parse_input(keyboard, node);
+            } else if (iequals(name, "cursor")) {
+                parse_cursor(cursor, node);
             } else if (iequals(name, "binds")) {
                 parse_binds(keybinds, node);
             } else {
@@ -373,6 +406,7 @@ namespace flux {
         }
 
         m_keyboard = keyboard;
+        m_cursor = std::move(cursor);
         m_autostart = std::move(autostart);
         m_keybinds = std::move(keybinds);
         wlr_log(WLR_INFO, "loaded config from '%s'", m_path.c_str());
