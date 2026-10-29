@@ -122,9 +122,7 @@ namespace flux::input {
                 } else if (window != nullptr) {
                     m_input.compositor().focus_window(window);
                 } else if (surface != nullptr) {
-                    wlr_surface* root = root_popup_parent(surface);
-                    if (auto* ls = wlr_layer_surface_v1_try_from_wlr_surface(root);
-                        ls && ls->current.keyboard_interactive != ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE) {
+                    if (auto* layer = Layer::try_from(root_popup_parent(surface)); layer && layer->is_focusable()) {
                         m_input.compositor().focus_surface(surface);
                     }
                 } else {

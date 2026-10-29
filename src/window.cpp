@@ -104,7 +104,7 @@ namespace flux {
         if (m_xdg_toplevel->base->initialized) {
             const bool wants_fullscreen = m_xdg_toplevel->requested.fullscreen;
             set_fullscreen(wants_fullscreen);
-            if (wants_fullscreen && surface() && surface()->mapped && m_compositor.focused_window() != this) {
+            if (wants_fullscreen && is_mapped() && m_compositor.focused_window() != this) {
                 m_compositor.focus_window(this);
             }
         }

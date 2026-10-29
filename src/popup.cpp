@@ -18,17 +18,13 @@ namespace flux {
         wlr_surface* parent_root = wlr_surface_get_root_surface(xdg_popup->parent);
         if (wlr_xdg_surface* parent = wlr_xdg_surface_try_from_wlr_surface(parent_root); parent && parent->data) {
             parent_tree = static_cast<wlr_scene_tree*>(parent->data);
-        } else if (wlr_layer_surface_v1* layer_parent = wlr_layer_surface_v1_try_from_wlr_surface(parent_root);
-                   layer_parent && layer_parent->data) {
-            auto* ls = static_cast<Layer*>(layer_parent->data);
-            if (ls->scene_layer()) {
-                int lx = 0;
-                int ly = 0;
-                wlr_scene_node_coords(&ls->scene_layer()->tree->node, &lx, &ly);
-                m_wrapper_tree = wlr_scene_tree_create(m_compositor.scene().popups());
-                wlr_scene_node_set_position(&m_wrapper_tree->node, lx, ly);
-                parent_tree = m_wrapper_tree;
-            }
+        } else if (auto* ls = Layer::try_from(parent_root); ls && ls->scene_tree()) {
+            int lx = 0;
+            int ly = 0;
+            wlr_scene_node_coords(&ls->scene_tree()->node, &lx, &ly);
+            m_wrapper_tree = wlr_scene_tree_create(m_compositor.scene().popups());
+            wlr_scene_node_set_position(&m_wrapper_tree->node, lx, ly);
+            parent_tree = m_wrapper_tree;
         }
 
         if (!parent_tree) {
@@ -57,13 +53,9 @@ namespace flux {
         if (wlr_xdg_surface* toplevel = wlr_xdg_surface_try_from_wlr_surface(root_surface);
             toplevel && toplevel->data) {
             root_tree = static_cast<wlr_scene_tree*>(toplevel->data);
-        } else if (wlr_layer_surface_v1* layer_raw = wlr_layer_surface_v1_try_from_wlr_surface(root_surface);
-                   layer_raw && layer_raw->data) {
-            auto* ls = static_cast<Layer*>(layer_raw->data);
-            if (ls->scene_layer()) {
-                root_tree = ls->scene_layer()->tree;
-                output = ls->output();
-            }
+        } else if (auto* ls = Layer::try_from(root_surface); ls && ls->scene_tree()) {
+            root_tree = ls->scene_tree();
+            output = ls->output();
         }
 
         if (root_tree) {

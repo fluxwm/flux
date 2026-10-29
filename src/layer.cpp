@@ -30,7 +30,7 @@ namespace flux {
     void Layer::on_commit() {
         if (m_layer_surface->current.committed & WLR_LAYER_SURFACE_V1_STATE_LAYER) {
             wlr_scene_tree* new_parent = m_compositor.scene().layer_tree(layer());
-            wlr_scene_node_reparent(&m_scene_layer->tree->node, new_parent);
+            wlr_scene_node_reparent(&scene_tree()->node, new_parent);
         }
 
         constexpr uint32_t arrange_mask = WLR_LAYER_SURFACE_V1_STATE_DESIRED_SIZE | WLR_LAYER_SURFACE_V1_STATE_ANCHOR |
@@ -58,7 +58,7 @@ namespace flux {
             m_compositor.arrange_layers(out);
         }
 
-        if (m_layer_surface->current.keyboard_interactive != ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE) {
+        if (is_focusable()) {
             auto* excl = m_compositor.exclusive_layer();
             if (!excl || excl == this) {
                 m_compositor.focus_layer(this);

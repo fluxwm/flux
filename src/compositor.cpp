@@ -348,7 +348,7 @@ namespace flux {
     }
 
     Output* Compositor::window_output(const Window* window) const noexcept {
-        if (!window || !m_output_layout || !window->surface() || !window->surface()->mapped) {
+        if (!window || !m_output_layout || !window->is_mapped()) {
             return focused_output();
         }
 
@@ -414,10 +414,8 @@ namespace flux {
 
         wlr_surface* focused = m_input ? m_input->seat().focused_surface() : nullptr;
         if (focused) {
-            wlr_surface* root = root_popup_parent(focused);
-            if (auto* ls = wlr_layer_surface_v1_try_from_wlr_surface(root);
-                ls && ls->surface->mapped &&
-                ls->current.keyboard_interactive != ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE) {
+            if (auto* layer = Layer::try_from(root_popup_parent(focused));
+                layer && layer->is_mapped() && layer->is_focusable()) {
                 if (m_input) {
                     m_input->cursor().update_focus();
                 }
@@ -505,7 +503,7 @@ namespace flux {
             return;
         }
 
-        auto it = std::ranges::find_if(m_windows, [event](const auto& w) { return w->surface() == event->surface; });
+        auto it = std::ranges::find_if(m_windows, [event](const auto& w) { return w->matches(event->surface); });
         if (it != m_windows.end()) {
             focus_window(it->get());
         }
@@ -582,8 +580,8 @@ namespace flux {
         if (!layer || !layer->is_mapped()) {
             return;
         }
-        if (layer->scene_layer()) {
-            wlr_scene_node_raise_to_top(&layer->scene_layer()->tree->node);
+        if (layer->scene_tree()) {
+            wlr_scene_node_raise_to_top(&layer->scene_tree()->node);
         }
         focus_surface(layer->surface());
         if (m_input) {
