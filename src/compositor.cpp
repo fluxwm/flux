@@ -120,22 +120,18 @@ namespace flux {
             }
         }
 
-        m_xdg_shell = wlr_xdg_shell_create(m_display, 7);
-        m_listeners.listen(&m_xdg_shell->events.new_toplevel, this, &Compositor::on_new_window);
-        m_listeners.listen(&m_xdg_shell->events.new_popup, this, &Compositor::create_popup);
+        auto* xdg_shell = wlr_xdg_shell_create(m_display, 7);
+        m_listeners.listen(&xdg_shell->events.new_toplevel, this, &Compositor::on_new_window);
+        m_listeners.listen(&xdg_shell->events.new_popup, this, &Compositor::create_popup);
 
-        m_layer_shell = wlr_layer_shell_v1_create(m_display, 5);
-        m_listeners.listen(&m_layer_shell->events.new_surface, this, &Compositor::on_new_layer);
+        auto* layer_shell = wlr_layer_shell_v1_create(m_display, 5);
+        m_listeners.listen(&layer_shell->events.new_surface, this, &Compositor::on_new_layer);
 
         auto* xdg_activation = wlr_xdg_activation_v1_create(m_display);
         m_listeners.listen(&xdg_activation->events.request_activate, this, &Compositor::on_request_activate);
 
         m_input = std::make_unique<Input>(*this);
-        m_config->set_on_reload([this] {
-            if (m_input) {
-                m_input->apply_config(m_config->keyboard());
-            }
-        });
+        m_config->set_on_reload([this] { m_input->apply_config(m_config->keyboard()); });
 
         const char* socket = wl_display_add_socket_auto(m_display);
         if (!socket) {
@@ -152,10 +148,8 @@ namespace flux {
     }
 
     void Compositor::run() {
-        if (m_config) {
-            for (const auto& action : m_config->autostart()) {
-                execute_action(action);
-            }
+        for (const auto& action : m_config->autostart()) {
+            execute_action(action);
         }
 
         wl_display_run(m_display);
@@ -172,10 +166,6 @@ namespace flux {
         }
 
         if (exclusive_layer()) {
-            return false;
-        }
-
-        if (!m_config) {
             return false;
         }
 
@@ -264,10 +254,6 @@ namespace flux {
     }
 
     void Compositor::focus_surface(wlr_surface* surface) {
-        if (!m_input) {
-            return;
-        }
-
         wlr_surface* prev_surface = m_input->seat().focused_surface();
         if (prev_surface == surface) {
             return;
@@ -288,9 +274,7 @@ namespace flux {
 
         if (!window) {
             focus_surface(nullptr);
-            if (m_input) {
-                m_input->cursor().update_focus();
-            }
+            m_input->cursor().update_focus();
             return;
         }
 
@@ -309,21 +293,15 @@ namespace flux {
         m_focus_stack.insert(m_focus_stack.begin(), window);
         window->set_activated(true);
         focus_surface(window->surface());
-        if (m_input) {
-            m_input->cursor().update_focus();
-        }
+        m_input->cursor().update_focus();
     }
 
     void Compositor::begin_move(Window* window) {
-        if (m_input) {
-            m_input->cursor().begin_move(window);
-        }
+        m_input->cursor().begin_move(window);
     }
 
     void Compositor::begin_resize(Window* window, uint32_t edges) {
-        if (m_input) {
-            m_input->cursor().begin_resize(window, edges);
-        }
+        m_input->cursor().begin_resize(window, edges);
     }
 
     Output* Compositor::output_from_wlr(wlr_output* wlr_out) const noexcept {
@@ -335,9 +313,6 @@ namespace flux {
     }
 
     Output* Compositor::focused_output() const noexcept {
-        if (!m_output_layout || !m_input) {
-            return m_outputs.empty() ? nullptr : m_outputs.front().get();
-        }
         wlr_output* wlr_out =
             wlr_output_layout_output_at(m_output_layout, m_input->cursor().x(), m_input->cursor().y());
         if (!wlr_out) {
@@ -348,7 +323,7 @@ namespace flux {
     }
 
     Output* Compositor::window_output(const Window* window) const noexcept {
-        if (!window || !m_output_layout || !window->is_mapped()) {
+        if (!window || !window->is_mapped()) {
             return focused_output();
         }
 
@@ -382,7 +357,7 @@ namespace flux {
     }
 
     void Compositor::unmap_window(Window* window) {
-        if (m_input && window == m_input->cursor().grabbed_window()) {
+        if (window == m_input->cursor().grabbed_window()) {
             m_input->cursor().reset_mode();
         }
         std::erase(m_focus_stack, window);
@@ -412,13 +387,10 @@ namespace flux {
             return;
         }
 
-        wlr_surface* focused = m_input ? m_input->seat().focused_surface() : nullptr;
-        if (focused) {
+        if (wlr_surface* focused = m_input->seat().focused_surface()) {
             if (auto* layer = Layer::try_from(root_popup_parent(focused));
                 layer && layer->is_mapped() && layer->is_focusable()) {
-                if (m_input) {
-                    m_input->cursor().update_focus();
-                }
+                m_input->cursor().update_focus();
                 return;
             }
         }
@@ -571,9 +543,7 @@ namespace flux {
             }
         }
 
-        if (m_input) {
-            m_input->cursor().update_focus();
-        }
+        m_input->cursor().update_focus();
     }
 
     void Compositor::focus_layer(Layer* layer) {
@@ -584,9 +554,7 @@ namespace flux {
             wlr_scene_node_raise_to_top(&layer->scene_tree()->node);
         }
         focus_surface(layer->surface());
-        if (m_input) {
-            m_input->cursor().update_focus();
-        }
+        m_input->cursor().update_focus();
     }
 
 }

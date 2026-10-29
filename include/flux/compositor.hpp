@@ -81,8 +81,6 @@ namespace flux {
         wlr_renderer* m_renderer = nullptr;
         wlr_allocator* m_allocator = nullptr;
         wlr_output_layout* m_output_layout = nullptr;
-        wlr_xdg_shell* m_xdg_shell = nullptr;
-        wlr_layer_shell_v1* m_layer_shell = nullptr;
 
         std::unique_ptr<Config> m_config;
         std::unique_ptr<Scene> m_scene;
