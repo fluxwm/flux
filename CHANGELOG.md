@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.4.0](https://github.com/fluxwm/flux/compare/v0.3.0...v0.4.0) (2026-10-29)
+
+
+### Features
+
+* add linux-dmabuf-v1 protocol support with scene feedback ([62e8b0b](https://github.com/fluxwm/flux/commit/62e8b0b7879705252c339448c65bde9a514a12b3))
+* add presentation-time protocol support ([1e1aa4c](https://github.com/fluxwm/flux/commit/1e1aa4c16656de9a9b142506f18ede61a371ff44))
+* add single-pixel-buffer-v1 protocol support ([e7087ce](https://github.com/fluxwm/flux/commit/e7087ce15aa8628ce502d14769121118c3d2dc56))
+* add viewporter protocol support ([0a63eb6](https://github.com/fluxwm/flux/commit/0a63eb6f5f9f235763668daba91ec50387b0991d))
+* bump wl_compositor to version 6 ([c195740](https://github.com/fluxwm/flux/commit/c1957401ef3d0c72095044ae067074bc069711b7))
+
+
+### Bug Fixes
+
+* always send frame done in output frame handler ([ac3a68f](https://github.com/fluxwm/flux/commit/ac3a68fdc468f6805ff5bdc6ced38070ec698f22))
+* correct CSD interactive resize grab offsets and fallback geometry ([b9d5e22](https://github.com/fluxwm/flux/commit/b9d5e220f3d1d5bb581e079ffef3cbaaa5632fee))
+* elevate popups above layer surfaces and map layer popups to global layout ([35aeabd](https://github.com/fluxwm/flux/commit/35aeabd6d7c5071778f01f1becc1f8bb9877fc56))
+* guard VT switching keybindings against null session ([d15b621](https://github.com/fluxwm/flux/commit/d15b62182026c2fc946f08ead946cbb6d3e17c01))
+* refresh cursor focus on window focus and layer geometry transitions ([d8040e0](https://github.com/fluxwm/flux/commit/d8040e0dc224328568c7f5a5da0533d9efc518d8))
+* rotate focus stack on cycle-window action ([3881b29](https://github.com/fluxwm/flux/commit/3881b29a0b9ce4a769a6a3ed392a51bb5d932f58))
+* synchronize fullscreen stacking and preserve window positions across output changes ([d66d631](https://github.com/fluxwm/flux/commit/d66d63199549c1b1c3c624a91b67985ef858b32c))
+
+
+### Refactoring
+
+* add domain query methods and simplify entity wrappers ([e570534](https://github.com/fluxwm/flux/commit/e57053461bb4ddc7b0e1ff8d9dddbb83aa0259bd))
+* extract config path resolution and inotify watcher from compositor ([cb9358c](https://github.com/fluxwm/flux/commit/cb9358c57b64298b81664aa2ab8a33e6ffc5574c))
+* extract scene graph subsystem from compositor ([5cf07c2](https://github.com/fluxwm/flux/commit/5cf07c25f867a8cf2c9e77492ab067da7e294634))
+
 ## [0.3.0](https://github.com/fluxwm/flux/compare/v0.2.0...v0.3.0) (2026-10-28)
 
 
