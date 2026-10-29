@@ -7,19 +7,22 @@
 
 namespace flux {
     class Input;
+    struct KeyboardConfig;
 }
 
 namespace flux::input {
 
     class Keyboard {
     public:
-        Keyboard(Input& input, wlr_input_device* device);
+        Keyboard(Input& input, wlr_input_device* device, const KeyboardConfig& config);
         ~Keyboard() = default;
 
         Keyboard(const Keyboard&) = delete;
         Keyboard& operator=(const Keyboard&) = delete;
 
         [[nodiscard]] wlr_keyboard* raw() const noexcept { return m_wlr_keyboard; }
+
+        void apply_config(const KeyboardConfig& config);
 
     private:
         void on_modifiers();

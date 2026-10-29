@@ -1,5 +1,6 @@
 #include "flux/input.hpp"
 #include "flux/compositor.hpp"
+#include "flux/config.hpp"
 #include "flux/util.hpp"
 
 #include <algorithm>
@@ -14,9 +15,11 @@ namespace flux {
 
     void Input::on_new_input(wlr_input_device* device) {
         switch (device->type) {
-            case WLR_INPUT_DEVICE_KEYBOARD:
-                m_keyboards.push_back(std::make_unique<input::Keyboard>(*this, device));
+            case WLR_INPUT_DEVICE_KEYBOARD: {
+                const auto& kb = m_compositor.config().keyboard();
+                m_keyboards.push_back(std::make_unique<input::Keyboard>(*this, device, kb));
                 break;
+            }
             case WLR_INPUT_DEVICE_POINTER:
                 m_pointers.push_back(std::make_unique<input::Pointer>(*this, device));
                 break;
@@ -42,6 +45,12 @@ namespace flux {
             caps |= WL_SEAT_CAPABILITY_KEYBOARD;
         }
         m_seat->set_capabilities(caps);
+    }
+
+    void Input::apply_config(const KeyboardConfig& config) {
+        for (const auto& keyboard : m_keyboards) {
+            keyboard->apply_config(config);
+        }
     }
 
     void Input::remove_keyboard(input::Keyboard* keyboard) {

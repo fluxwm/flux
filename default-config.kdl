@@ -3,6 +3,13 @@ autostart {
     // spawn "waybar"
 }
 
+input {
+    keyboard {
+        // repeat-rate 25
+        // repeat-delay 600
+    }
+}
+
 binds {
     Super+Shift+Return  { spawn "kitty"; }
 

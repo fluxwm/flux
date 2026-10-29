@@ -131,9 +131,9 @@ namespace flux {
                 for (const auto& action_node : bind_node.children()) {
                     auto action_opt = parse_action(action_node);
                     if (!action_opt) {
-                        std::string aname(node_name(action_node));
-                        wlr_log(WLR_ERROR, "unknown or invalid action '%s' for bind '%s'", aname.c_str(),
-                                combo.c_str());
+                        std::string_view aname = node_name(action_node);
+                        wlr_log(WLR_ERROR, "unknown or invalid action '%.*s' for bind '%s'",
+                                static_cast<int>(aname.size()), aname.data(), combo.c_str());
                         continue;
                     }
 
@@ -150,12 +150,64 @@ namespace flux {
             }
         }
 
+        std::optional<int32_t> parse_int(const kdl::Node& node, int32_t min = 0) {
+            std::string_view name = node_name(node);
+            const auto& args = node.args();
+            if (args.empty() || args[0].type() != kdl::Type::Number) {
+                wlr_log(WLR_ERROR, "%.*s requires an integer argument", static_cast<int>(name.size()), name.data());
+                return std::nullopt;
+            }
+            try {
+                const int32_t val = args[0].as<int32_t>();
+                if (val < min) {
+                    wlr_log(WLR_ERROR, "invalid %.*s '%d' (must be >= %d)", static_cast<int>(name.size()), name.data(),
+                            val, min);
+                    return std::nullopt;
+                }
+                return val;
+            } catch (const std::exception& e) {
+                wlr_log(WLR_ERROR, "failed to parse %.*s: %s", static_cast<int>(name.size()), name.data(), e.what());
+                return std::nullopt;
+            }
+        }
+
+        void parse_keyboard(KeyboardConfig& keyboard, const kdl::Node& keyboard_node) {
+            for (const auto& child : keyboard_node.children()) {
+                std::string_view name = node_name(child);
+                if (iequals(name, "repeat-rate")) {
+                    if (auto val = parse_int(child)) {
+                        keyboard.repeat_rate = *val;
+                    }
+                } else if (iequals(name, "repeat-delay")) {
+                    if (auto val = parse_int(child)) {
+                        keyboard.repeat_delay = *val;
+                    }
+                } else {
+                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in keyboard config", static_cast<int>(name.size()),
+                            name.data());
+                }
+            }
+        }
+
+        void parse_input(KeyboardConfig& keyboard, const kdl::Node& input_node) {
+            for (const auto& child : input_node.children()) {
+                std::string_view name = node_name(child);
+                if (iequals(name, "keyboard")) {
+                    parse_keyboard(keyboard, child);
+                } else {
+                    wlr_log(WLR_ERROR, "unknown section '%.*s' in input config", static_cast<int>(name.size()),
+                            name.data());
+                }
+            }
+        }
+
         void parse_autostart(std::vector<Action>& autostart, const kdl::Node& autostart_node) {
             for (const auto& action_node : autostart_node.children()) {
                 auto action_opt = parse_action(action_node);
                 if (!action_opt) {
-                    std::string aname(node_name(action_node));
-                    wlr_log(WLR_ERROR, "unknown or invalid action '%s' in autostart", aname.c_str());
+                    std::string_view aname = node_name(action_node);
+                    wlr_log(WLR_ERROR, "unknown or invalid action '%.*s' in autostart", static_cast<int>(aname.size()),
+                            aname.data());
                     continue;
                 }
 
@@ -286,21 +338,31 @@ namespace flux {
             return false;
         }
 
+        KeyboardConfig keyboard;
         std::vector<Action> autostart;
         std::vector<Keybind> keybinds;
 
         for (const auto& node : doc.nodes()) {
             std::string_view name = node_name(node);
-            if (iequals(name, "autostart")) {
+            if (iequals(name, "input")) {
+                parse_input(keyboard, node);
+            } else if (iequals(name, "autostart")) {
                 parse_autostart(autostart, node);
             } else if (iequals(name, "binds")) {
                 parse_binds(keybinds, node);
+            } else {
+                wlr_log(WLR_ERROR, "unknown section '%.*s' in config", static_cast<int>(name.size()), name.data());
             }
         }
 
+        m_keyboard = keyboard;
         m_autostart = std::move(autostart);
         m_keybinds = std::move(keybinds);
         wlr_log(WLR_INFO, "loaded config from '%s'", m_path.c_str());
+
+        if (m_on_reload) {
+            m_on_reload();
+        }
         return true;
     }
 

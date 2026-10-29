@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <span>
 #include <string>
@@ -11,6 +12,11 @@
 #include <vector>
 
 namespace flux {
+
+    struct KeyboardConfig {
+        int32_t repeat_rate = 25;
+        int32_t repeat_delay = 600;
+    };
 
     namespace action {
         struct Quit {};
@@ -42,10 +48,12 @@ namespace flux {
         Config(const Config&) = delete;
         Config& operator=(const Config&) = delete;
 
+        [[nodiscard]] const KeyboardConfig& keyboard() const noexcept { return m_keyboard; }
         [[nodiscard]] std::span<const Action> autostart() const noexcept { return m_autostart; }
         [[nodiscard]] std::span<const Keybind> keybinds() const noexcept { return m_keybinds; }
         [[nodiscard]] const std::filesystem::path& path() const noexcept { return m_path; }
 
+        void set_on_reload(std::function<void()> callback) { m_on_reload = std::move(callback); }
         bool reload();
 
     private:
@@ -56,7 +64,9 @@ namespace flux {
         std::filesystem::path m_real_filename;
         int m_inotify_fd = -1;
         wl_event_source* m_inotify_source = nullptr;
+        std::function<void()> m_on_reload;
 
+        KeyboardConfig m_keyboard;
         std::vector<Action> m_autostart;
         std::vector<Keybind> m_keybinds;
     };

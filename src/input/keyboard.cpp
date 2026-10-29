@@ -1,12 +1,13 @@
 #include "flux/input/keyboard.hpp"
 #include "flux/compositor.hpp"
+#include "flux/config.hpp"
 #include "flux/input.hpp"
 
 #include <algorithm>
 
 namespace flux::input {
 
-    Keyboard::Keyboard(Input& input, wlr_input_device* device)
+    Keyboard::Keyboard(Input& input, wlr_input_device* device, const KeyboardConfig& config)
         : m_input(input), m_wlr_keyboard(wlr_keyboard_from_input_device(device)) {
         xkb_context* context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
         xkb_keymap* keymap = xkb_keymap_new_from_names(context, nullptr, XKB_KEYMAP_COMPILE_NO_FLAGS);
@@ -14,13 +15,18 @@ namespace flux::input {
         wlr_keyboard_set_keymap(m_wlr_keyboard, keymap);
         xkb_keymap_unref(keymap);
         xkb_context_unref(context);
-        wlr_keyboard_set_repeat_info(m_wlr_keyboard, 25, 600);
+
+        apply_config(config);
 
         m_listeners.listen(&m_wlr_keyboard->events.modifiers, this, &Keyboard::on_modifiers);
         m_listeners.listen(&m_wlr_keyboard->events.key, this, &Keyboard::on_key);
         m_listeners.listen(&device->events.destroy, this, &Keyboard::on_destroy);
 
         m_input.seat().set_keyboard(m_wlr_keyboard);
+    }
+
+    void Keyboard::apply_config(const KeyboardConfig& config) {
+        wlr_keyboard_set_repeat_info(m_wlr_keyboard, config.repeat_rate, config.repeat_delay);
     }
 
     void Keyboard::on_modifiers() {

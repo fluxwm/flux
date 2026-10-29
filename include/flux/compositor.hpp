@@ -35,6 +35,7 @@ namespace flux {
         [[nodiscard]] wlr_backend* backend() const noexcept { return m_backend; }
         [[nodiscard]] wlr_renderer* renderer() const noexcept { return m_renderer; }
         [[nodiscard]] wlr_allocator* allocator() const noexcept { return m_allocator; }
+        [[nodiscard]] const Config& config() const noexcept { return *m_config; }
         [[nodiscard]] Scene& scene() noexcept { return *m_scene; }
         [[nodiscard]] const Scene& scene() const noexcept { return *m_scene; }
         [[nodiscard]] wlr_output_layout* output_layout() const noexcept { return m_output_layout; }

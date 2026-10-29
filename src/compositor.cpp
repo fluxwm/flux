@@ -23,8 +23,6 @@ namespace flux {
             wl_display_destroy_clients(m_display);
         }
 
-        m_config.reset();
-
         m_listeners.clear();
 
         m_popups.clear();
@@ -32,6 +30,7 @@ namespace flux {
         m_focus_stack.clear();
         m_windows.clear();
         m_input.reset();
+        m_config.reset();
         m_outputs.clear();
 
         m_scene.reset();
@@ -128,6 +127,11 @@ namespace flux {
         m_listeners.listen(&m_layer_shell->events.new_surface, this, &Compositor::on_new_layer);
 
         m_input = std::make_unique<Input>(*this);
+        m_config->set_on_reload([this] {
+            if (m_input) {
+                m_input->apply_config(m_config->keyboard());
+            }
+        });
 
         const char* socket = wl_display_add_socket_auto(m_display);
         if (!socket) {
