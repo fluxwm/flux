@@ -17,6 +17,7 @@ namespace flux::input {
         : m_input(input), m_wlr_cursor(wlr_cursor_create()), m_cursor_mgr(wlr_xcursor_manager_create(nullptr, 24)) {
         wlr_cursor_attach_output_layout(m_wlr_cursor, m_input.compositor().output_layout());
         wlr_xcursor_manager_load(m_cursor_mgr, 1);
+        set_xcursor("default");
 
         m_listeners.listen(&m_wlr_cursor->events.motion, this, &Cursor::on_motion);
         m_listeners.listen(&m_wlr_cursor->events.motion_absolute, this, &Cursor::on_motion_absolute);
@@ -267,7 +268,6 @@ namespace flux::input {
             m_input.seat().notify_enter(surface, sx, sy);
             m_input.seat().notify_motion(time_msec, sx, sy);
         } else {
-            set_xcursor("default");
             m_input.seat().clear_pointer_focus();
         }
     }

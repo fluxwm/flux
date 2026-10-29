@@ -57,6 +57,7 @@ namespace flux::input {
 
     private:
         void on_request_set_cursor(wlr_seat_pointer_request_set_cursor_event* event);
+        void on_request_set_shape(wlr_cursor_shape_manager_v1_request_set_shape_event* event);
         void on_pointer_focus_change(wlr_seat_pointer_focus_change_event* event);
         void on_request_set_selection(wlr_seat_request_set_selection_event* event);
         void clear_keyboard_focus() noexcept { wlr_seat_keyboard_notify_clear_focus(m_wlr_seat); }
