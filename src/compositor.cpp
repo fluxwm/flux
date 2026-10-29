@@ -126,6 +126,9 @@ namespace flux {
         m_layer_shell = wlr_layer_shell_v1_create(m_display, 5);
         m_listeners.listen(&m_layer_shell->events.new_surface, this, &Compositor::on_new_layer);
 
+        auto* xdg_activation = wlr_xdg_activation_v1_create(m_display);
+        m_listeners.listen(&xdg_activation->events.request_activate, this, &Compositor::on_request_activate);
+
         m_input = std::make_unique<Input>(*this);
         m_config->set_on_reload([this] {
             if (m_input) {
@@ -502,6 +505,17 @@ namespace flux {
 
     void Compositor::on_new_window(wlr_xdg_toplevel* toplevel) {
         m_windows.push_back(std::make_unique<Window>(*this, toplevel));
+    }
+
+    void Compositor::on_request_activate(wlr_xdg_activation_v1_request_activate_event* event) {
+        if (!event->surface->mapped) {
+            return;
+        }
+
+        auto it = std::ranges::find_if(m_windows, [event](const auto& w) { return w->surface() == event->surface; });
+        if (it != m_windows.end()) {
+            focus_window(it->get());
+        }
     }
 
     void Compositor::create_popup(wlr_xdg_popup* popup) {

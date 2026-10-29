@@ -71,6 +71,7 @@ namespace flux {
         void on_new_output(wlr_output* output);
         void on_new_window(wlr_xdg_toplevel* toplevel);
         void on_new_layer(wlr_layer_surface_v1* layer_surface);
+        void on_request_activate(wlr_xdg_activation_v1_request_activate_event* event);
         void execute_action(const Action& action);
         void spawn(const action::Spawn& action);
 
