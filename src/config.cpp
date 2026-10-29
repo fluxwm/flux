@@ -75,6 +75,27 @@ namespace flux {
             return keysym != XKB_KEY_NoSymbol;
         }
 
+        std::optional<int32_t> parse_int(const kdl::Node& node, int32_t min = 0) {
+            std::string_view name = node_name(node);
+            const auto& args = node.args();
+            if (args.empty() || args[0].type() != kdl::Type::Number) {
+                wlr_log(WLR_ERROR, "%.*s requires an integer argument", static_cast<int>(name.size()), name.data());
+                return std::nullopt;
+            }
+            try {
+                const int32_t val = args[0].as<int32_t>();
+                if (val < min) {
+                    wlr_log(WLR_ERROR, "invalid %.*s '%d' (must be >= %d)", static_cast<int>(name.size()), name.data(),
+                            val, min);
+                    return std::nullopt;
+                }
+                return val;
+            } catch (const std::exception& e) {
+                wlr_log(WLR_ERROR, "failed to parse %.*s: %s", static_cast<int>(name.size()), name.data(), e.what());
+                return std::nullopt;
+            }
+        }
+
         std::optional<Action> parse_action(const kdl::Node& action_node) {
             std::string_view action_name = node_name(action_node);
 
@@ -92,6 +113,18 @@ namespace flux {
             }
             if (iequals(action_name, "fullscreen-window")) {
                 return action::FullscreenWindow{};
+            }
+            if (iequals(action_name, "focus-workspace")) {
+                if (auto ws = parse_int(action_node, 1)) {
+                    return action::FocusWorkspace{static_cast<uint32_t>(*ws)};
+                }
+                return std::nullopt;
+            }
+            if (iequals(action_name, "move-window-to-workspace")) {
+                if (auto ws = parse_int(action_node, 1)) {
+                    return action::MoveToWorkspace{static_cast<uint32_t>(*ws)};
+                }
+                return std::nullopt;
             }
             if (iequals(action_name, "spawn")) {
                 const auto& raw_args = action_node.args();
@@ -149,27 +182,6 @@ namespace flux {
                         .actions = std::move(actions),
                     });
                 }
-            }
-        }
-
-        std::optional<int32_t> parse_int(const kdl::Node& node, int32_t min = 0) {
-            std::string_view name = node_name(node);
-            const auto& args = node.args();
-            if (args.empty() || args[0].type() != kdl::Type::Number) {
-                wlr_log(WLR_ERROR, "%.*s requires an integer argument", static_cast<int>(name.size()), name.data());
-                return std::nullopt;
-            }
-            try {
-                const int32_t val = args[0].as<int32_t>();
-                if (val < min) {
-                    wlr_log(WLR_ERROR, "invalid %.*s '%d' (must be >= %d)", static_cast<int>(name.size()), name.data(),
-                            val, min);
-                    return std::nullopt;
-                }
-                return val;
-            } catch (const std::exception& e) {
-                wlr_log(WLR_ERROR, "failed to parse %.*s: %s", static_cast<int>(name.size()), name.data(), e.what());
-                return std::nullopt;
             }
         }
 

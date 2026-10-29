@@ -9,6 +9,7 @@
 namespace flux {
 
     class Compositor;
+    class Workspace;
 
     class Window {
     public:
@@ -40,6 +41,7 @@ namespace flux {
         [[nodiscard]] bool is_maximized() const noexcept { return m_maximized; }
         [[nodiscard]] bool is_fullscreen() const noexcept { return m_fullscreen; }
         [[nodiscard]] bool is_mapped() const noexcept { return surface()->mapped; }
+        [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
         [[nodiscard]] bool matches(const wlr_surface* s) const noexcept { return surface() == s; }
         [[nodiscard]] double center_x() const noexcept { return x() + (width() / 2.0); }
         [[nodiscard]] double center_y() const noexcept { return y() + (height() / 2.0); }
@@ -48,6 +50,13 @@ namespace flux {
         }
 
         void set_activated(bool activated) noexcept { wlr_xdg_toplevel_set_activated(m_xdg_toplevel, activated); }
+        void set_workspace(Workspace* ws) noexcept {
+            if (m_workspace != ws) {
+                m_workspace = ws;
+                reparent_to_workspace();
+            }
+        }
+        void reparent_to_workspace() noexcept;
         void set_size(int width, int height) noexcept { wlr_xdg_toplevel_set_size(m_xdg_toplevel, width, height); }
         void set_position(int x, int y) noexcept {
             wlr_scene_node_set_position(&m_scene_tree->node, x, y);
@@ -98,6 +107,7 @@ namespace flux {
         bool m_has_pending_position = false;
         bool m_maximized = false;
         bool m_fullscreen = false;
+        Workspace* m_workspace = nullptr;
         wlr_box m_saved_geometry{};
         std::string m_title;
         std::string m_app_id;

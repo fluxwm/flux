@@ -4,6 +4,7 @@
 #include "flux/listener.hpp"
 #include "flux/scene.hpp"
 #include "flux/wlroots.hpp"
+#include "flux/workspace.hpp"
 
 #include <filesystem>
 #include <memory>
@@ -47,12 +48,15 @@ namespace flux {
             return m_foreign_toplevel_list;
         }
         [[nodiscard]] Window* focused_window() const noexcept {
-            return m_focus_stack.empty() ? nullptr : m_focus_stack.front();
+            return m_current_workspace ? m_current_workspace->focused_window() : nullptr;
         }
+        [[nodiscard]] Workspace& current_workspace() const noexcept { return *m_current_workspace; }
 
         // Window management & interactions
         bool handle_keybinding(uint32_t modifiers, xkb_keysym_t sym);
         void focus_window(Window* window);
+        void focus_workspace(uint32_t id);
+        void move_to_workspace(Window* window, uint32_t id);
         void focus_surface(wlr_surface* surface);
         void center_window(Window* window);
         void begin_move(Window* window);
@@ -71,6 +75,8 @@ namespace flux {
         void remove_layer(Layer* layer);
 
     private:
+        Workspace& workspace(uint32_t id);
+
         void on_new_output(wlr_output* output);
         void on_new_window(wlr_xdg_toplevel* toplevel);
         void on_new_layer(wlr_layer_surface_v1* layer_surface);
@@ -94,7 +100,8 @@ namespace flux {
         std::vector<std::unique_ptr<Window>> m_windows;
         std::vector<std::unique_ptr<Popup>> m_popups;
         std::vector<std::unique_ptr<Layer>> m_layers;
-        std::vector<Window*> m_focus_stack;
+        std::vector<std::unique_ptr<Workspace>> m_workspaces;
+        Workspace* m_current_workspace = nullptr;
 
         ListenerGroup m_listeners;
     };

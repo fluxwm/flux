@@ -27,8 +27,8 @@ namespace flux {
 
         m_popups.clear();
         m_layers.clear();
-        m_focus_stack.clear();
         m_windows.clear();
+        m_workspaces.clear();
         m_input.reset();
         m_config.reset();
         m_outputs.clear();
@@ -113,6 +113,7 @@ namespace flux {
         m_listeners.listen(&m_backend->events.new_output, this, &Compositor::on_new_output);
 
         m_scene = std::make_unique<Scene>(m_display, m_output_layout);
+        m_current_workspace = &workspace(1);
 
         if (wlr_renderer_get_drm_fd(m_renderer) >= 0 &&
             wlr_renderer_get_texture_formats(m_renderer, WLR_BUFFER_CAP_DMABUF) != nullptr) {
@@ -192,21 +193,26 @@ namespace flux {
                 if constexpr (std::is_same_v<T, action::Quit>) {
                     quit();
                 } else if constexpr (std::is_same_v<T, action::CloseWindow>) {
-                    if (!m_focus_stack.empty()) {
-                        m_focus_stack.front()->close();
+                    if (Window* win = focused_window()) {
+                        win->close();
                     }
                 } else if constexpr (std::is_same_v<T, action::CycleWindow>) {
-                    if (m_focus_stack.size() >= 2) {
-                        std::ranges::rotate(m_focus_stack, m_focus_stack.begin() + 1);
-                        focus_window(m_focus_stack.front());
+                    if (Window* next = m_current_workspace->cycle()) {
+                        focus_window(next);
                     }
                 } else if constexpr (std::is_same_v<T, action::MaximizeWindow>) {
-                    if (!m_focus_stack.empty()) {
-                        m_focus_stack.front()->toggle_maximize();
+                    if (Window* win = focused_window()) {
+                        win->toggle_maximize();
                     }
                 } else if constexpr (std::is_same_v<T, action::FullscreenWindow>) {
-                    if (!m_focus_stack.empty()) {
-                        m_focus_stack.front()->toggle_fullscreen();
+                    if (Window* win = focused_window()) {
+                        win->toggle_fullscreen();
+                    }
+                } else if constexpr (std::is_same_v<T, action::FocusWorkspace>) {
+                    focus_workspace(act.workspace);
+                } else if constexpr (std::is_same_v<T, action::MoveToWorkspace>) {
+                    if (Window* win = focused_window()) {
+                        move_to_workspace(win, act.workspace);
                     }
                 } else if constexpr (std::is_same_v<T, action::Spawn>) {
                     spawn(act);
@@ -268,6 +274,58 @@ namespace flux {
         m_input->seat().notify_keyboard_enter(surface);
     }
 
+    Workspace& Compositor::workspace(uint32_t id) {
+        auto it = std::ranges::find_if(m_workspaces, [id](const auto& ws) { return ws->id() == id; });
+        if (it != m_workspaces.end()) {
+            return **it;
+        }
+
+        const bool active = m_current_workspace ? (id == m_current_workspace->id()) : (id == 1);
+        m_workspaces.push_back(std::make_unique<Workspace>(id, *m_scene, active));
+        return *m_workspaces.back();
+    }
+
+    void Compositor::focus_workspace(uint32_t id) {
+        if (id == 0 || (m_current_workspace && m_current_workspace->id() == id)) {
+            return;
+        }
+
+        wlr_log(WLR_DEBUG, "switching from workspace %u to %u", m_current_workspace->id(), id);
+        m_current_workspace->deactivate();
+
+        m_current_workspace = &workspace(id);
+        m_current_workspace->activate();
+
+        if (Window* grabbed = m_input->cursor().grabbed_window();
+            grabbed && grabbed->workspace() != m_current_workspace) {
+            m_input->cursor().reset_mode();
+        }
+
+        focus_window(focused_window());
+    }
+
+    void Compositor::move_to_workspace(Window* window, uint32_t id) {
+        if (!window || id == 0 || (window->workspace() && window->workspace()->id() == id)) {
+            return;
+        }
+
+        wlr_log(WLR_DEBUG, "moving window to workspace %u", id);
+        if (Workspace* old_ws = window->workspace()) {
+            old_ws->remove(window);
+        }
+
+        Workspace& new_ws = workspace(id);
+        new_ws.promote(window);
+        window->set_workspace(&new_ws);
+        window->set_activated(false);
+
+        if (window == m_input->cursor().grabbed_window()) {
+            m_input->cursor().reset_mode();
+        }
+
+        refocus();
+    }
+
     void Compositor::focus_window(Window* window) {
         if (exclusive_layer()) {
             return;
@@ -279,9 +337,17 @@ namespace flux {
             return;
         }
 
-        for (Window* w : m_focus_stack) {
+        Workspace* ws = window->workspace();
+        ws->promote(window);
+
+        if (ws != m_current_workspace) {
+            focus_workspace(ws->id());
+            return;
+        }
+
+        for (Window* w : ws->focus_stack()) {
             if (w != window && w->is_fullscreen() && window_output(w) == window_output(window)) {
-                wlr_scene_node_reparent(&w->scene_tree()->node, m_scene->windows());
+                w->reparent_to_workspace();
             }
         }
 
@@ -290,8 +356,6 @@ namespace flux {
         }
 
         window->raise_to_top();
-        std::erase(m_focus_stack, window);
-        m_focus_stack.insert(m_focus_stack.begin(), window);
         window->set_activated(true);
         focus_surface(window->surface());
         m_input->cursor().update_focus();
@@ -348,12 +412,11 @@ namespace flux {
     }
 
     void Compositor::map_window(Window* window) {
+        window->set_workspace(m_current_workspace);
         if (!window->is_fullscreen() && !window->is_maximized()) {
             center_window(window);
         }
-        if (!std::ranges::contains(m_focus_stack, window)) {
-            m_focus_stack.insert(m_focus_stack.begin(), window);
-        }
+        m_current_workspace->promote(window);
         focus_window(window);
     }
 
@@ -361,7 +424,9 @@ namespace flux {
         if (window == m_input->cursor().grabbed_window()) {
             m_input->cursor().reset_mode();
         }
-        std::erase(m_focus_stack, window);
+        if (Workspace* ws = window->workspace()) {
+            ws->remove(window);
+        }
         refocus();
     }
 
@@ -396,7 +461,7 @@ namespace flux {
             }
         }
 
-        focus_window(m_focus_stack.empty() ? nullptr : m_focus_stack.front());
+        focus_window(focused_window());
     }
 
     void Compositor::remove_window(Window* window) {

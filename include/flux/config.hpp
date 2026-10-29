@@ -37,10 +37,19 @@ namespace flux {
             std::string program;
             std::vector<std::string> args;
         };
+
+        struct FocusWorkspace {
+            uint32_t workspace = 1;
+        };
+
+        struct MoveToWorkspace {
+            uint32_t workspace = 1;
+        };
     }
 
-    using Action = std::variant<action::Quit, action::CloseWindow, action::CycleWindow, action::MaximizeWindow,
-                                action::FullscreenWindow, action::Spawn>;
+    using Action =
+        std::variant<action::Quit, action::CloseWindow, action::CycleWindow, action::MaximizeWindow,
+                     action::FullscreenWindow, action::Spawn, action::FocusWorkspace, action::MoveToWorkspace>;
 
     struct Keybind {
         uint32_t modifiers = 0;

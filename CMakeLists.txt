@@ -50,6 +50,7 @@ add_executable(flux
         src/input/keyboard.cpp
         src/input/pointer.cpp
         src/window.cpp
+        src/workspace.cpp
         src/popup.cpp
         src/layer.cpp
         src/config.cpp

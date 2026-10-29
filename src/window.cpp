@@ -2,12 +2,13 @@
 #include "flux/compositor.hpp"
 #include "flux/output.hpp"
 #include "flux/util.hpp"
+#include "flux/workspace.hpp"
 
 namespace flux {
 
     Window::Window(Compositor& compositor, wlr_xdg_toplevel* xdg_toplevel)
-        : m_compositor(compositor), m_xdg_toplevel(xdg_toplevel) {
-        m_scene_tree = wlr_scene_xdg_surface_create(m_compositor.scene().windows(), xdg_toplevel->base);
+        : m_compositor(compositor), m_xdg_toplevel(xdg_toplevel), m_workspace(&compositor.current_workspace()) {
+        m_scene_tree = wlr_scene_xdg_surface_create(m_workspace->tree(), xdg_toplevel->base);
         m_scene_tree->node.data = this;
         xdg_toplevel->base->data = m_scene_tree;
 
@@ -120,7 +121,8 @@ namespace flux {
         if (m_xdg_toplevel->base->initialized) {
             const bool wants_fullscreen = m_xdg_toplevel->requested.fullscreen;
             set_fullscreen(wants_fullscreen);
-            if (wants_fullscreen && is_mapped() && m_compositor.focused_window() != this) {
+            if (wants_fullscreen && is_mapped() && m_workspace == &m_compositor.current_workspace() &&
+                m_compositor.focused_window() != this) {
                 m_compositor.focus_window(this);
             }
         }
@@ -157,7 +159,7 @@ namespace flux {
             wlr_xdg_toplevel_set_maximized(m_xdg_toplevel, false);
             wlr_xdg_toplevel_set_fullscreen(m_xdg_toplevel, true);
         } else {
-            wlr_scene_node_reparent(&m_scene_tree->node, m_compositor.scene().windows());
+            reparent_to_workspace();
             wlr_xdg_toplevel_set_fullscreen(m_xdg_toplevel, false);
 
             if (m_maximized) {
@@ -170,6 +172,12 @@ namespace flux {
             }
 
             raise_to_top();
+        }
+    }
+
+    void Window::reparent_to_workspace() noexcept {
+        if (m_workspace) {
+            wlr_scene_node_reparent(&m_scene_tree->node, m_workspace->tree());
         }
     }
 
