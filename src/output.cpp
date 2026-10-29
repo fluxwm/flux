@@ -39,9 +39,11 @@ namespace flux {
     }
 
     void Output::on_frame() {
-        if (!m_scene_output || !wlr_scene_output_commit(m_scene_output, nullptr)) {
+        if (!m_scene_output) {
             return;
         }
+
+        wlr_scene_output_commit(m_scene_output, nullptr);
 
         timespec now{};
         clock_gettime(CLOCK_MONOTONIC, &now);
