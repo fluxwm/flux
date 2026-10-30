@@ -81,6 +81,7 @@ namespace flux {
         void on_new_window(wlr_xdg_toplevel* toplevel);
         void on_new_layer(wlr_layer_surface_v1* layer_surface);
         void on_request_activate(wlr_xdg_activation_v1_request_activate_event* event);
+        void on_workspace_commit(wlr_ext_workspace_v1_commit_event* event);
         void execute_action(const Action& action);
         void spawn(const action::Spawn& action);
 
@@ -91,6 +92,7 @@ namespace flux {
         wlr_allocator* m_allocator = nullptr;
         wlr_output_layout* m_output_layout = nullptr;
         wlr_ext_foreign_toplevel_list_v1* m_foreign_toplevel_list = nullptr;
+        wlr_ext_workspace_group_handle_v1* m_workspace_group = nullptr;
 
         std::unique_ptr<Config> m_config;
         std::unique_ptr<Scene> m_scene;

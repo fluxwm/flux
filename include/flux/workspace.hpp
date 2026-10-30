@@ -13,8 +13,8 @@ namespace flux {
 
     class Workspace {
     public:
-        Workspace(uint32_t id, Scene& scene, bool active);
-        ~Workspace() = default;
+        Workspace(uint32_t id, Scene& scene, wlr_ext_workspace_group_handle_v1* group);
+        ~Workspace();
 
         Workspace(const Workspace&) = delete;
         Workspace& operator=(const Workspace&) = delete;
@@ -36,6 +36,7 @@ namespace flux {
     private:
         uint32_t m_id = 1;
         wlr_scene_tree* m_tree = nullptr;
+        wlr_ext_workspace_handle_v1* m_handle = nullptr;
         std::vector<Window*> m_focus_stack;
     };
 

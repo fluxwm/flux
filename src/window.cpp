@@ -176,9 +176,7 @@ namespace flux {
     }
 
     void Window::reparent_to_workspace() noexcept {
-        if (m_workspace) {
-            wlr_scene_node_reparent(&m_scene_tree->node, m_workspace->tree());
-        }
+        wlr_scene_node_reparent(&m_scene_tree->node, m_workspace->tree());
     }
 
     void Window::save_geometry() noexcept {

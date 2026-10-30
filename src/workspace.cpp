@@ -3,16 +3,30 @@
 #include "flux/window.hpp"
 
 #include <algorithm>
+#include <string>
 
 namespace flux {
 
-    Workspace::Workspace(uint32_t id, Scene& scene, bool active)
+    Workspace::Workspace(uint32_t id, Scene& scene, wlr_ext_workspace_group_handle_v1* group)
         : m_id(id), m_tree(wlr_scene_tree_create(scene.windows())) {
-        wlr_scene_node_set_enabled(&m_tree->node, active);
+        wlr_scene_node_set_enabled(&m_tree->node, false);
+
+        const std::string id_str = std::to_string(id);
+        constexpr uint32_t caps = EXT_WORKSPACE_HANDLE_V1_WORKSPACE_CAPABILITIES_ACTIVATE;
+        m_handle = wlr_ext_workspace_handle_v1_create(group->manager, id_str.c_str(), caps);
+        m_handle->data = this;
+        wlr_ext_workspace_handle_v1_set_group(m_handle, group);
+        wlr_ext_workspace_handle_v1_set_name(m_handle, id_str.c_str());
+        wlr_ext_workspace_handle_v1_set_coordinates(m_handle, &m_id, 1);
+    }
+
+    Workspace::~Workspace() {
+        wlr_ext_workspace_handle_v1_destroy(m_handle);
     }
 
     void Workspace::activate() noexcept {
         wlr_scene_node_set_enabled(&m_tree->node, true);
+        wlr_ext_workspace_handle_v1_set_active(m_handle, true);
     }
 
     void Workspace::deactivate() noexcept {
@@ -22,6 +36,7 @@ namespace flux {
             }
         }
         wlr_scene_node_set_enabled(&m_tree->node, false);
+        wlr_ext_workspace_handle_v1_set_active(m_handle, false);
     }
 
     void Workspace::promote(Window* window) {

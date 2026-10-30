@@ -29,6 +29,9 @@ namespace flux {
         m_layers.clear();
         m_windows.clear();
         m_workspaces.clear();
+        if (m_workspace_group) {
+            wlr_ext_workspace_group_handle_v1_destroy(m_workspace_group);
+        }
         m_input.reset();
         m_config.reset();
         m_outputs.clear();
@@ -110,10 +113,18 @@ namespace flux {
         m_output_layout = wlr_output_layout_create(m_display);
         wlr_xdg_output_manager_v1_create(m_display, m_output_layout);
 
+        auto* workspace_mgr = wlr_ext_workspace_manager_v1_create(m_display, 1);
+        m_workspace_group = wlr_ext_workspace_group_handle_v1_create(workspace_mgr, 0);
+        m_listeners.listen(&workspace_mgr->events.commit, this, &Compositor::on_workspace_commit);
+
         m_listeners.listen(&m_backend->events.new_output, this, &Compositor::on_new_output);
 
         m_scene = std::make_unique<Scene>(m_display, m_output_layout);
         m_current_workspace = &workspace(1);
+        m_current_workspace->activate();
+        for (uint32_t i = 2; i <= 9; ++i) {
+            workspace(i);
+        }
 
         if (wlr_renderer_get_drm_fd(m_renderer) >= 0 &&
             wlr_renderer_get_texture_formats(m_renderer, WLR_BUFFER_CAP_DMABUF) != nullptr) {
@@ -280,13 +291,12 @@ namespace flux {
             return **it;
         }
 
-        const bool active = m_current_workspace ? (id == m_current_workspace->id()) : (id == 1);
-        m_workspaces.push_back(std::make_unique<Workspace>(id, *m_scene, active));
+        m_workspaces.push_back(std::make_unique<Workspace>(id, *m_scene, m_workspace_group));
         return *m_workspaces.back();
     }
 
     void Compositor::focus_workspace(uint32_t id) {
-        if (id == 0 || (m_current_workspace && m_current_workspace->id() == id)) {
+        if (exclusive_layer() || id == 0 || m_current_workspace->id() == id) {
             return;
         }
 
@@ -305,14 +315,12 @@ namespace flux {
     }
 
     void Compositor::move_to_workspace(Window* window, uint32_t id) {
-        if (!window || id == 0 || (window->workspace() && window->workspace()->id() == id)) {
+        if (exclusive_layer() || !window || id == 0 || window->workspace()->id() == id) {
             return;
         }
 
         wlr_log(WLR_DEBUG, "moving window to workspace %u", id);
-        if (Workspace* old_ws = window->workspace()) {
-            old_ws->remove(window);
-        }
+        window->workspace()->remove(window);
 
         Workspace& new_ws = workspace(id);
         new_ws.promote(window);
@@ -424,9 +432,7 @@ namespace flux {
         if (window == m_input->cursor().grabbed_window()) {
             m_input->cursor().reset_mode();
         }
-        if (Workspace* ws = window->workspace()) {
-            ws->remove(window);
-        }
+        window->workspace()->remove(window);
         refocus();
     }
 
@@ -475,6 +481,10 @@ namespace flux {
 
     void Compositor::remove_output(Output* output) {
         const bool is_nested = output && output->is_nested();
+
+        if (output) {
+            wlr_ext_workspace_group_handle_v1_output_leave(m_workspace_group, output->raw());
+        }
 
         std::vector<wlr_layer_surface_v1*> to_destroy;
         for (const auto& ls : m_layers) {
@@ -530,6 +540,7 @@ namespace flux {
 
     void Compositor::on_new_output(wlr_output* output) {
         m_outputs.push_back(std::make_unique<Output>(*this, output));
+        wlr_ext_workspace_group_handle_v1_output_enter(m_workspace_group, output);
     }
 
     void Compositor::on_new_window(wlr_xdg_toplevel* toplevel) {
@@ -544,6 +555,20 @@ namespace flux {
         auto it = std::ranges::find_if(m_windows, [event](const auto& w) { return w->matches(event->surface); });
         if (it != m_windows.end()) {
             focus_window(it->get());
+        }
+    }
+
+    void Compositor::on_workspace_commit(wlr_ext_workspace_v1_commit_event* event) {
+        Workspace* to_activate = nullptr;
+        wlr_ext_workspace_v1_request* req = nullptr;
+        wl_list_for_each(req, event->requests, link) {
+            if (req->type == WLR_EXT_WORKSPACE_V1_REQUEST_ACTIVATE && req->activate.workspace) {
+                to_activate = static_cast<Workspace*>(req->activate.workspace->data);
+            }
+        }
+
+        if (to_activate) {
+            focus_workspace(to_activate->id());
         }
     }
 
