@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.3)
-project(flux VERSION 0.4.0 LANGUAGES CXX) # x-release-please-version
+project(flux VERSION 0.5.0 LANGUAGES CXX) # x-release-please-version
 
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

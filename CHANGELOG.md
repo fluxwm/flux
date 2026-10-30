@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.5.0](https://github.com/fluxwm/flux/compare/v0.4.0...v0.5.0) (2026-10-30)
+
+
+### Features
+
+* add cursor theme and size configuration ([6c098a2](https://github.com/fluxwm/flux/commit/6c098a21a9702320fd48d449f6af0d58289fa7da))
+* add cursor-shape-v1 protocol support ([c9d7592](https://github.com/fluxwm/flux/commit/c9d75929054af4792798c6978134327b08156a00))
+* add ext-foreign-toplevel-list-v1 protocol support ([39557c2](https://github.com/fluxwm/flux/commit/39557c2de967303e0bcb14ddffa867afc2d085b3))
+* add ext-workspace-v1 protocol support ([4db36c0](https://github.com/fluxwm/flux/commit/4db36c059d64b3f041c6a31efa1e686be4cc928d))
+* add fractional-scale-v1 protocol support ([d9050c6](https://github.com/fluxwm/flux/commit/d9050c608e95b4a5adcad09b174008cf97635a16))
+* add keyboard numlock configuration ([74ccaf6](https://github.com/fluxwm/flux/commit/74ccaf684db2bbb84386e88298a443033638fc6b))
+* add keyboard repeat rate and delay configuration ([87c29ad](https://github.com/fluxwm/flux/commit/87c29ad1eee1bf8bd4545908ad402827c5ca9ca6))
+* add workspace support ([8140998](https://github.com/fluxwm/flux/commit/81409989eaa2f87348c2f3935f67729e9d1d5241))
+* add xdg-activation-v1 protocol support ([707cc0f](https://github.com/fluxwm/flux/commit/707cc0f5a9d4fff90dc71f43edce7451fa908370))
+
+
+### Refactoring
+
+* add focusability and surface query helpers to Layer and Window ([e3c3f53](https://github.com/fluxwm/flux/commit/e3c3f53dece515c2d9126faf8529476d18aa0c98))
+* deduplicate popup root scene tree resolution ([1e840d5](https://github.com/fluxwm/flux/commit/1e840d528a070b8784e0e9919912b66c6e0ed180))
+* deduplicate window geometry configuration and centering ([2d39186](https://github.com/fluxwm/flux/commit/2d39186b7c163f40d7e908653d3ae050537874fd))
+* remove unused protocol pointers and redundant null checks ([d1d4ddd](https://github.com/fluxwm/flux/commit/d1d4ddd2583898fc61c12876cf9050f5c61b1f49))
+* simplify WlListener and remove virtual IListener interface ([a5d54d4](https://github.com/fluxwm/flux/commit/a5d54d44a90b8c5b8a474a8e691825374ac87ba6))
+
 ## [0.4.0](https://github.com/fluxwm/flux/compare/v0.3.0...v0.4.0) (2026-10-29)
 
 
