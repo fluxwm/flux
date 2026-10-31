@@ -4,6 +4,9 @@
 #include "flux/listener.hpp"
 #include "flux/wlroots.hpp"
 
+#include <optional>
+#include <string>
+
 namespace flux {
     class Input;
 }
@@ -43,6 +46,7 @@ namespace flux::input {
         wlr_cursor* m_wlr_cursor = nullptr;
         wlr_xcursor_manager* m_cursor_mgr = nullptr;
         CursorConfig m_config{};
+        std::optional<std::string> m_env_xcursor_theme;
         ListenerGroup m_listeners;
     };
 

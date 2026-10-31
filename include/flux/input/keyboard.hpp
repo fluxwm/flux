@@ -31,6 +31,7 @@ namespace flux::input {
 
         Input& m_input;
         wlr_keyboard* m_wlr_keyboard = nullptr;
+        bool m_numlock = false;
         std::vector<uint32_t> m_consumed_keycodes;
 
         ListenerGroup m_listeners;

@@ -20,6 +20,9 @@ namespace flux::input {
         [[nodiscard]] wlr_surface* focused_surface() const noexcept {
             return m_wlr_seat ? m_wlr_seat->keyboard_state.focused_surface : nullptr;
         }
+        [[nodiscard]] wlr_surface* focused_pointer_surface() const noexcept {
+            return m_wlr_seat ? m_wlr_seat->pointer_state.focused_surface : nullptr;
+        }
         [[nodiscard]] wlr_keyboard* keyboard() const noexcept {
             return m_wlr_seat ? wlr_seat_get_keyboard(m_wlr_seat) : nullptr;
         }

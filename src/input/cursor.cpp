@@ -11,6 +11,9 @@
 namespace flux::input {
 
     Cursor::Cursor(Input& input) : m_input(input), m_wlr_cursor(wlr_cursor_create()) {
+        if (const char* env_theme = std::getenv("XCURSOR_THEME"); env_theme && *env_theme != '\0') {
+            m_env_xcursor_theme = env_theme;
+        }
         wlr_cursor_attach_output_layout(m_wlr_cursor, m_input.compositor().output_layout());
         apply_config(m_input.compositor().config().cursor());
 
@@ -32,26 +35,29 @@ namespace flux::input {
     }
 
     void Cursor::apply_config(const CursorConfig& config) {
+        const bool is_init = (m_cursor_mgr == nullptr);
         if (m_cursor_mgr && m_config == config) {
             return;
         }
         m_config = config;
 
-        if (!config.theme.empty()) {
-            setenv("XCURSOR_THEME", config.theme.c_str(), 1);
+        const char* theme = !config.theme.empty() ? config.theme.c_str()
+                                                  : (m_env_xcursor_theme ? m_env_xcursor_theme->c_str() : nullptr);
+        if (theme) {
+            setenv("XCURSOR_THEME", theme, 1);
         } else {
             unsetenv("XCURSOR_THEME");
         }
         setenv("XCURSOR_SIZE", std::to_string(config.size).c_str(), 1);
-
-        const char* theme = config.theme.empty() ? nullptr : config.theme.c_str();
         if (m_cursor_mgr) {
             wlr_xcursor_manager_destroy(m_cursor_mgr);
         }
         m_cursor_mgr = wlr_xcursor_manager_create(theme, config.size);
         wlr_xcursor_manager_load(m_cursor_mgr, 1);
 
-        set_xcursor("default");
+        if (is_init || !m_input.seat().focused_pointer_surface()) {
+            set_xcursor("default");
+        }
     }
 
     void Cursor::on_motion(wlr_pointer_motion_event* event) {
@@ -81,6 +87,8 @@ namespace flux::input {
             } else if (surface != nullptr) {
                 if (auto* layer = Layer::try_from(root_popup_parent(surface)); layer && layer->is_focusable()) {
                     m_input.compositor().focus_surface(surface);
+                } else {
+                    m_input.compositor().focus_window(m_input.compositor().focused_window());
                 }
             } else {
                 m_input.compositor().focus_window(nullptr);

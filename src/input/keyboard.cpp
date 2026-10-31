@@ -18,13 +18,6 @@ namespace flux::input {
 
         apply_config(config);
 
-        if (config.numlock && m_wlr_keyboard->keymap) {
-            const xkb_mod_index_t idx = xkb_keymap_mod_get_index(m_wlr_keyboard->keymap, XKB_MOD_NAME_NUM);
-            if (idx != XKB_MOD_INVALID) {
-                wlr_keyboard_notify_modifiers(m_wlr_keyboard, 0, 0, 1u << idx, 0);
-            }
-        }
-
         m_listeners.listen(&m_wlr_keyboard->events.modifiers, this, &Keyboard::on_modifiers);
         m_listeners.listen(&m_wlr_keyboard->events.key, this, &Keyboard::on_key);
         m_listeners.listen(&device->events.destroy, this, &Keyboard::on_destroy);
@@ -34,6 +27,19 @@ namespace flux::input {
 
     void Keyboard::apply_config(const KeyboardConfig& config) {
         wlr_keyboard_set_repeat_info(m_wlr_keyboard, config.repeat_rate, config.repeat_delay);
+
+        if (m_wlr_keyboard->keymap && m_numlock != config.numlock) {
+            m_numlock = config.numlock;
+            const xkb_mod_index_t idx = xkb_keymap_mod_get_index(m_wlr_keyboard->keymap, XKB_MOD_NAME_NUM);
+            if (idx != XKB_MOD_INVALID) {
+                const uint32_t mask = 1u << idx;
+                const uint32_t locked = config.numlock ? (m_wlr_keyboard->modifiers.locked | mask)
+                                                       : (m_wlr_keyboard->modifiers.locked & ~mask);
+                wlr_keyboard_notify_modifiers(m_wlr_keyboard, m_wlr_keyboard->modifiers.depressed,
+                                              m_wlr_keyboard->modifiers.latched, locked,
+                                              m_wlr_keyboard->modifiers.group);
+            }
+        }
     }
 
     void Keyboard::on_modifiers() {
@@ -44,7 +50,7 @@ namespace flux::input {
     void Keyboard::on_key(wlr_keyboard_key_event* event) {
         uint32_t keycode = event->keycode + 8;
         const xkb_keysym_t* syms = nullptr;
-        int nsyms = xkb_state_key_get_syms(m_wlr_keyboard->xkb_state, keycode, &syms);
+        int nsyms = m_wlr_keyboard->xkb_state ? xkb_state_key_get_syms(m_wlr_keyboard->xkb_state, keycode, &syms) : 0;
 
         bool handled = false;
         uint32_t modifiers = wlr_keyboard_get_modifiers(m_wlr_keyboard);
@@ -57,7 +63,7 @@ namespace flux::input {
                 }
             }
 
-            if (!handled && m_wlr_keyboard->keymap) {
+            if (!handled && m_wlr_keyboard->keymap && m_wlr_keyboard->xkb_state) {
                 xkb_layout_index_t layout = xkb_state_key_get_layout(m_wlr_keyboard->xkb_state, keycode);
                 const xkb_keysym_t* raw_syms = nullptr;
                 int n_raw = xkb_keymap_key_get_syms_by_level(m_wlr_keyboard->keymap, keycode, layout, 0, &raw_syms);
