@@ -43,7 +43,6 @@ namespace flux {
         [[nodiscard]] wlr_output_layout* output_layout() const noexcept { return m_output_layout; }
         [[nodiscard]] Output* output_from_wlr(wlr_output* wlr_out) const noexcept;
         [[nodiscard]] Output* focused_output() const noexcept;
-        [[nodiscard]] Output* window_output(const Window* window) const noexcept;
         [[nodiscard]] Layer* exclusive_layer() const noexcept;
         [[nodiscard]] wlr_ext_foreign_toplevel_list_v1* foreign_toplevel_list() const noexcept {
             return m_foreign_toplevel_list;
@@ -60,9 +59,7 @@ namespace flux {
         void focus_workspace(uint32_t id);
         void move_to_workspace(Window* window, uint32_t id);
         void focus_surface(wlr_surface* surface);
-        void center_window(Window* window);
-        void begin_move(Window* window);
-        void begin_resize(Window* window, uint32_t edges);
+        void arrange_workspace(Workspace* ws);
         void refocus();
         void arrange_layers(Output* output);
         void focus_layer(Layer* layer);

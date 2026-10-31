@@ -40,7 +40,13 @@ namespace flux {
     }
 
     void Workspace::promote(Window* window) {
-        if (!window || focused_window() == window) {
+        if (!window) {
+            return;
+        }
+        if (!std::ranges::contains(m_windows, window)) {
+            m_windows.push_back(window);
+        }
+        if (focused_window() == window) {
             return;
         }
         std::erase(m_focus_stack, window);
@@ -49,6 +55,7 @@ namespace flux {
 
     void Workspace::remove(Window* window) noexcept {
         std::erase(m_focus_stack, window);
+        std::erase(m_windows, window);
     }
 
     Window* Workspace::cycle() {

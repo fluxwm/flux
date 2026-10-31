@@ -34,8 +34,6 @@ namespace flux {
         } else if (wlr_output_is_x11(m_wlr_output)) {
             wlr_x11_output_set_title(m_wlr_output, "Flux");
         }
-
-        m_compositor.arrange_layers(this);
     }
 
     void Output::on_frame() {

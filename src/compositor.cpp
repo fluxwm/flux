@@ -308,11 +308,6 @@ namespace flux {
         m_current_workspace = &workspace(id);
         m_current_workspace->activate();
 
-        if (Window* grabbed = m_input->cursor().grabbed_window();
-            grabbed && grabbed->workspace() != m_current_workspace) {
-            m_input->cursor().reset_mode();
-        }
-
         focus_window(focused_window());
     }
 
@@ -324,16 +319,16 @@ namespace flux {
         dismiss_popups(window->scene_tree());
 
         wlr_log(WLR_DEBUG, "moving window to workspace %u", id);
-        window->workspace()->remove(window);
+        Workspace* old_ws = window->workspace();
+        old_ws->remove(window);
 
         Workspace& new_ws = workspace(id);
         new_ws.promote(window);
         window->set_workspace(&new_ws);
         window->set_activated(false);
 
-        if (window == m_input->cursor().grabbed_window()) {
-            m_input->cursor().reset_mode();
-        }
+        arrange_workspace(old_ws);
+        arrange_workspace(&new_ws);
 
         refocus();
     }
@@ -355,10 +350,11 @@ namespace flux {
 
         std::vector<Output*> seen_outputs;
         for (Window* w : m_current_workspace->focus_stack()) {
-            Output* out = window_output(w);
+            Output* out = w->output();
             const bool is_top_on_output = out && !std::ranges::contains(seen_outputs, out);
             if (is_top_on_output) {
                 seen_outputs.push_back(out);
+                w->raise_to_top();
             }
             if (w->is_fullscreen()) {
                 if (is_top_on_output) {
@@ -366,6 +362,9 @@ namespace flux {
                 } else {
                     w->reparent_to_workspace();
                 }
+            }
+            if (!is_top_on_output && (w->is_maximized() || w->is_fullscreen())) {
+                w->lower_to_bottom();
             }
         }
 
@@ -375,18 +374,9 @@ namespace flux {
             return;
         }
 
-        window->raise_to_top();
         window->set_activated(true);
         focus_surface(window->surface());
         m_input->cursor().update_focus();
-    }
-
-    void Compositor::begin_move(Window* window) {
-        m_input->cursor().begin_move(window);
-    }
-
-    void Compositor::begin_resize(Window* window, uint32_t edges) {
-        m_input->cursor().begin_resize(window, edges);
     }
 
     Output* Compositor::output_from_wlr(wlr_output* wlr_out) const noexcept {
@@ -407,45 +397,84 @@ namespace flux {
         return out ? out : (m_outputs.empty() ? nullptr : m_outputs.front().get());
     }
 
-    Output* Compositor::window_output(const Window* window) const noexcept {
-        if (!window || !window->is_mapped()) {
-            return focused_output();
-        }
-
-        wlr_output* wlr_out = wlr_output_layout_output_at(m_output_layout, window->center_x(), window->center_y());
-        Output* out = output_from_wlr(wlr_out);
-        return out ? out : focused_output();
-    }
-
-    void Compositor::center_window(Window* window) {
-        if (!window) {
-            return;
-        }
-
-        Output* output = focused_output();
-        if (!output) {
-            return;
-        }
-
-        const auto centered = center_box(output->usable_area(), window->width(), window->height());
-        window->set_position(centered.x, centered.y);
-    }
-
     void Compositor::map_window(Window* window) {
-        window->set_workspace(m_current_workspace);
-        if (!window->is_fullscreen() && !window->is_maximized()) {
-            center_window(window);
+        if (!window->output()) {
+            window->set_output(focused_output());
         }
+        window->set_workspace(m_current_workspace);
         m_current_workspace->promote(window);
+        arrange_workspace(m_current_workspace);
         focus_window(window);
     }
 
     void Compositor::unmap_window(Window* window) {
-        if (window == m_input->cursor().grabbed_window()) {
-            m_input->cursor().reset_mode();
-        }
-        window->workspace()->remove(window);
+        Workspace* ws = window->workspace();
+        ws->remove(window);
+        arrange_workspace(ws);
         refocus();
+    }
+
+    void Compositor::arrange_workspace(Workspace* ws) {
+        if (!ws) {
+            return;
+        }
+
+        for (const auto& output : m_outputs) {
+            if (!output->is_enabled()) {
+                continue;
+            }
+
+            const wlr_box full = output->layout_box();
+            const wlr_box& usable = output->usable_area();
+
+            std::vector<Window*> tiled;
+            for (Window* w : ws->windows()) {
+                if (w->output() != output.get()) {
+                    continue;
+                }
+                if (w->is_fullscreen()) {
+                    w->set_geometry(full);
+                } else if (w->is_maximized()) {
+                    w->set_geometry(usable);
+                } else {
+                    tiled.push_back(w);
+                }
+            }
+
+            if (tiled.empty()) {
+                continue;
+            }
+
+            if (tiled.size() == 1) {
+                tiled[0]->set_geometry(usable);
+            } else {
+                const int master_width = usable.width / 2;
+                const int stack_width = usable.width - master_width;
+                const int stack_x = usable.x + master_width;
+
+                tiled[0]->set_geometry({
+                    .x = usable.x,
+                    .y = usable.y,
+                    .width = master_width,
+                    .height = usable.height,
+                });
+
+                const size_t stack_count = tiled.size() - 1;
+                const int stack_height = usable.height / static_cast<int>(stack_count);
+
+                for (size_t i = 1; i < tiled.size(); ++i) {
+                    const int y = usable.y + (static_cast<int>(i - 1) * stack_height);
+                    const int height = (i == tiled.size() - 1) ? (usable.y + usable.height - y) : stack_height;
+
+                    tiled[i]->set_geometry({
+                        .x = stack_x,
+                        .y = y,
+                        .width = stack_width,
+                        .height = height,
+                    });
+                }
+            }
+        }
     }
 
     Layer* Compositor::exclusive_layer() const noexcept {
@@ -526,26 +555,18 @@ namespace flux {
             return;
         }
 
+        Output* target = focused_output();
+        for (const auto& win : m_windows) {
+            if (win->output() == output) {
+                win->set_output(target);
+            }
+        }
+
         for (const auto& remaining : m_outputs) {
             arrange_layers(remaining.get());
         }
 
-        if (Output* target = focused_output()) {
-            const wlr_box& usable = target->usable_area();
-            const wlr_box full = target->layout_box();
-
-            for (const auto& win : m_windows) {
-                if (!wlr_output_layout_output_at(m_output_layout, win->center_x(), win->center_y())) {
-                    if (win->is_fullscreen()) {
-                        win->set_position(full.x, full.y);
-                    } else if (win->is_maximized()) {
-                        win->set_position(usable.x, usable.y);
-                    } else {
-                        center_window(win.get());
-                    }
-                }
-            }
-        }
+        refocus();
     }
 
     void Compositor::remove_layer(Layer* layer) {
@@ -564,7 +585,14 @@ namespace flux {
 
     void Compositor::on_new_output(wlr_output* output) {
         m_outputs.push_back(std::make_unique<Output>(*this, output));
+        Output* new_out = m_outputs.back().get();
         wlr_ext_workspace_group_handle_v1_output_enter(m_workspace_group, output);
+        for (const auto& win : m_windows) {
+            if (!win->output()) {
+                win->set_output(new_out);
+            }
+        }
+        arrange_layers(new_out);
     }
 
     void Compositor::on_new_window(wlr_xdg_toplevel* toplevel) {
@@ -648,14 +676,8 @@ namespace flux {
         output->set_usable_area(usable_area);
         configure(false);
 
-        for (const auto& win : m_windows) {
-            if (window_output(win.get()) == output) {
-                if (win->is_fullscreen()) {
-                    win->set_geometry(full_area);
-                } else if (win->is_maximized()) {
-                    win->set_geometry(usable_area);
-                }
-            }
+        for (const auto& ws : m_workspaces) {
+            arrange_workspace(ws.get());
         }
 
         m_input->cursor().update_focus();
@@ -666,7 +688,6 @@ namespace flux {
             return;
         }
         if (layer->is_exclusive()) {
-            m_input->cursor().reset_mode();
             dismiss_popups();
         }
         if (layer->scene_tree()) {

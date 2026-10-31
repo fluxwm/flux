@@ -21,19 +21,19 @@ namespace flux::input {
     }
 
     void Seat::on_request_set_cursor(wlr_seat_pointer_request_set_cursor_event* event) {
-        if (m_wlr_seat->pointer_state.focused_client == event->seat_client && m_input.cursor().is_passthrough()) {
+        if (m_wlr_seat->pointer_state.focused_client == event->seat_client) {
             m_input.cursor().set_surface(event->surface, event->hotspot_x, event->hotspot_y);
         }
     }
 
     void Seat::on_request_set_shape(wlr_cursor_shape_manager_v1_request_set_shape_event* event) {
-        if (m_wlr_seat->pointer_state.focused_client == event->seat_client && m_input.cursor().is_passthrough()) {
+        if (m_wlr_seat->pointer_state.focused_client == event->seat_client) {
             m_input.cursor().set_xcursor(wlr_cursor_shape_v1_name(event->shape));
         }
     }
 
     void Seat::on_pointer_focus_change(wlr_seat_pointer_focus_change_event* event) {
-        if (event->new_surface == nullptr && m_input.cursor().is_passthrough()) {
+        if (event->new_surface == nullptr) {
             m_input.cursor().set_xcursor("default");
         }
     }

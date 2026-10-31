@@ -21,7 +21,7 @@ binds {
 
     Super+Shift+Q       { close-window; }
     Alt+Tab             { cycle-window; }
-    Super+Shift+F       { maximize-window; }
+    Super+M             { maximize-window; }
     F11                 { fullscreen-window; }
 
     Super+1             { focus-workspace 1; }

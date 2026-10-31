@@ -3,14 +3,10 @@
 #include "flux/input.hpp"
 #include "flux/layer.hpp"
 #include "flux/util.hpp"
-#include "flux/window.hpp"
 
-#include <linux/input-event-codes.h>
-
-#include <algorithm>
 #include <chrono>
 #include <cstdlib>
-#include <limits>
+#include <string>
 
 namespace flux::input {
 
@@ -35,66 +31,6 @@ namespace flux::input {
         }
     }
 
-    bool Cursor::is_passthrough() const noexcept {
-        return std::holds_alternative<Passthrough>(m_state);
-    }
-
-    Window* Cursor::grabbed_window() const noexcept {
-        return std::visit(
-            [](const auto& state) -> Window* {
-                using T = std::decay_t<decltype(state)>;
-                if constexpr (!std::is_same_v<T, Passthrough>) {
-                    return state.window;
-                }
-                return nullptr;
-            },
-            m_state);
-    }
-
-    void Cursor::begin_move(Window* window) {
-        if (!window || m_input.compositor().exclusive_layer() || m_input.seat().button_count() == 0 ||
-            window->is_maximized() || window->is_fullscreen()) {
-            return;
-        }
-        m_input.seat().clear_pointer_focus();
-        m_state = Move{
-            .window = window,
-            .grab_x = m_wlr_cursor->x - window->x(),
-            .grab_y = m_wlr_cursor->y - window->y(),
-        };
-        set_xcursor("grabbing");
-    }
-
-    void Cursor::begin_resize(Window* window, uint32_t edges) {
-        if (!window || m_input.compositor().exclusive_layer() || m_input.seat().button_count() == 0 ||
-            window->is_maximized() || window->is_fullscreen()) {
-            return;
-        }
-        m_input.seat().clear_pointer_focus();
-        const wlr_box box = window->box();
-        const double border_x = box.x + ((edges & WLR_EDGE_RIGHT) ? box.width : 0);
-        const double border_y = box.y + ((edges & WLR_EDGE_BOTTOM) ? box.height : 0);
-
-        m_state = Resize{
-            .window = window,
-            .grab_x = m_wlr_cursor->x - border_x,
-            .grab_y = m_wlr_cursor->y - border_y,
-            .initial_geometry = box,
-            .resize_edges = edges,
-        };
-
-        set_xcursor(wlr_xcursor_get_resize_name(static_cast<wlr_edges>(edges)));
-    }
-
-    void Cursor::reset_mode() {
-        if (Window* window = grabbed_window()) {
-            window->apply_pending_position();
-        }
-        m_state = Passthrough{};
-        set_xcursor("default");
-        update_focus();
-    }
-
     void Cursor::apply_config(const CursorConfig& config) {
         if (m_cursor_mgr && m_config == config) {
             return;
@@ -115,13 +51,7 @@ namespace flux::input {
         m_cursor_mgr = wlr_xcursor_manager_create(theme, config.size);
         wlr_xcursor_manager_load(m_cursor_mgr, 1);
 
-        if (std::holds_alternative<Move>(m_state)) {
-            set_xcursor("grabbing");
-        } else if (const auto* resize = std::get_if<Resize>(&m_state)) {
-            set_xcursor(wlr_xcursor_get_resize_name(static_cast<wlr_edges>(resize->resize_edges)));
-        } else {
-            set_xcursor("default");
-        }
+        set_xcursor("default");
     }
 
     void Cursor::on_motion(wlr_pointer_motion_event* event) {
@@ -135,78 +65,28 @@ namespace flux::input {
     }
 
     void Cursor::on_button(wlr_pointer_button_event* event) {
-        constexpr uint32_t btn_left = BTN_LEFT;
-        constexpr uint32_t btn_right = BTN_RIGHT;
+        if (event->state == WL_POINTER_BUTTON_STATE_PRESSED) {
+            double sx = 0.0;
+            double sy = 0.0;
+            wlr_surface* surface = nullptr;
+            Window* window =
+                m_input.compositor().scene().window_at(m_wlr_cursor->x, m_wlr_cursor->y, &surface, &sx, &sy);
 
-        if (is_passthrough()) {
-            if (event->state == WL_POINTER_BUTTON_STATE_PRESSED) {
-                double sx = 0.0;
-                double sy = 0.0;
-                wlr_surface* surface = nullptr;
-                Window* window =
-                    m_input.compositor().scene().window_at(m_wlr_cursor->x, m_wlr_cursor->y, &surface, &sx, &sy);
-
-                if (auto* excl = m_input.compositor().exclusive_layer()) {
-                    if (surface && root_popup_parent(surface) == excl->surface()) {
-                        m_input.compositor().focus_surface(surface);
-                    }
-                } else if (window != nullptr) {
-                    m_input.compositor().focus_window(window);
-                } else if (surface != nullptr) {
-                    if (auto* layer = Layer::try_from(root_popup_parent(surface)); layer && layer->is_focusable()) {
-                        m_input.compositor().focus_surface(surface);
-                    }
-                } else {
-                    m_input.compositor().focus_window(nullptr);
+            if (auto* excl = m_input.compositor().exclusive_layer()) {
+                if (surface && root_popup_parent(surface) == excl->surface()) {
+                    m_input.compositor().focus_surface(surface);
                 }
-
-                wlr_keyboard* keyboard = m_input.seat().keyboard();
-                const uint32_t modifiers = keyboard ? wlr_keyboard_get_modifiers(keyboard) : 0;
-                const bool mod_down = (modifiers & WLR_MODIFIER_LOGO) != 0;
-
-                if (window != nullptr && mod_down && !m_input.compositor().exclusive_layer() &&
-                    !window->is_maximized() && !window->is_fullscreen()) {
-                    if (event->button == btn_left || event->button == btn_right) {
-                        m_input.seat().clear_pointer_focus();
-                        m_input.seat().notify_button(event->time_msec, event->button, event->state);
-
-                        if (event->button == btn_left) {
-                            begin_move(window);
-                        } else {
-                            const int width = window->width();
-                            const int height = window->height();
-                            const double rx = m_wlr_cursor->x - window->x();
-                            const double ry = m_wlr_cursor->y - window->y();
-
-                            uint32_t edges = 0;
-                            if (rx < width / 3.0) {
-                                edges |= WLR_EDGE_LEFT;
-                            } else if (rx > 2.0 * width / 3.0) {
-                                edges |= WLR_EDGE_RIGHT;
-                            }
-                            if (ry < height / 3.0) {
-                                edges |= WLR_EDGE_TOP;
-                            } else if (ry > 2.0 * height / 3.0) {
-                                edges |= WLR_EDGE_BOTTOM;
-                            }
-                            if (edges == 0) {
-                                edges = (rx < width / 2.0 ? WLR_EDGE_LEFT : WLR_EDGE_RIGHT) |
-                                        (ry < height / 2.0 ? WLR_EDGE_TOP : WLR_EDGE_BOTTOM);
-                            }
-
-                            begin_resize(window, edges);
-                        }
-                        return;
-                    }
+            } else if (window != nullptr) {
+                m_input.compositor().focus_window(window);
+            } else if (surface != nullptr) {
+                if (auto* layer = Layer::try_from(root_popup_parent(surface)); layer && layer->is_focusable()) {
+                    m_input.compositor().focus_surface(surface);
                 }
-            }
-            m_input.seat().notify_button(event->time_msec, event->button, event->state);
-        } else {
-            m_input.seat().notify_button(event->time_msec, event->button, event->state);
-            if (m_input.seat().button_count() == 0) {
-                reset_mode();
+            } else {
+                m_input.compositor().focus_window(nullptr);
             }
         }
+        m_input.seat().notify_button(event->time_msec, event->button, event->state);
     }
 
     void Cursor::on_axis(wlr_pointer_axis_event* event) {
@@ -218,70 +98,7 @@ namespace flux::input {
         m_input.seat().notify_frame();
     }
 
-    void Cursor::process_move(const Move& state) {
-        state.window->set_position(m_wlr_cursor->x - state.grab_x, m_wlr_cursor->y - state.grab_y);
-    }
-
-    void Cursor::process_resize(const Resize& state) {
-        const double border_x = m_wlr_cursor->x - state.grab_x;
-        const double border_y = m_wlr_cursor->y - state.grab_y;
-        int new_left = state.initial_geometry.x;
-        int new_right = state.initial_geometry.x + state.initial_geometry.width;
-        int new_top = state.initial_geometry.y;
-        int new_bottom = state.initial_geometry.y + state.initial_geometry.height;
-
-        if (state.resize_edges & WLR_EDGE_TOP) {
-            new_top = std::min(static_cast<int>(border_y), new_bottom - 1);
-        } else if (state.resize_edges & WLR_EDGE_BOTTOM) {
-            new_bottom = std::max(static_cast<int>(border_y), new_top + 1);
-        }
-        if (state.resize_edges & WLR_EDGE_LEFT) {
-            new_left = std::min(static_cast<int>(border_x), new_right - 1);
-        } else if (state.resize_edges & WLR_EDGE_RIGHT) {
-            new_right = std::max(static_cast<int>(border_x), new_left + 1);
-        }
-
-        auto clamp_dim = [](int& start, int& end, int min_val, int max_val, bool from_start) {
-            const int upper = max_val > 0 ? max_val : std::numeric_limits<int>::max();
-            const int size = std::clamp(end - start, min_val, upper);
-            if (from_start) {
-                start = end - size;
-            } else {
-                end = start + size;
-            }
-            return size;
-        };
-
-        int new_w = clamp_dim(new_left, new_right, std::max(1, state.window->min_width()), state.window->max_width(),
-                              state.resize_edges & WLR_EDGE_LEFT);
-        int new_h = clamp_dim(new_top, new_bottom, std::max(1, state.window->min_height()), state.window->max_height(),
-                              state.resize_edges & WLR_EDGE_TOP);
-
-        if (state.resize_edges & (WLR_EDGE_TOP | WLR_EDGE_LEFT)) {
-            state.window->set_pending_position(new_left, new_top);
-        }
-        state.window->set_size(new_w, new_h);
-    }
-
     void Cursor::process_motion(uint32_t time_msec) {
-        bool handled = std::visit(
-            [this](const auto& state) -> bool {
-                using T = std::decay_t<decltype(state)>;
-                if constexpr (std::is_same_v<T, Move>) {
-                    process_move(state);
-                    return true;
-                } else if constexpr (std::is_same_v<T, Resize>) {
-                    process_resize(state);
-                    return true;
-                }
-                return false;
-            },
-            m_state);
-
-        if (handled) {
-            return;
-        }
-
         double sx = 0.0;
         double sy = 0.0;
         wlr_surface* surface = m_input.compositor().scene().surface_at(m_wlr_cursor->x, m_wlr_cursor->y, &sx, &sy);
@@ -300,9 +117,6 @@ namespace flux::input {
     }
 
     void Cursor::update_focus() {
-        if (!is_passthrough()) {
-            return;
-        }
         const auto now = std::chrono::steady_clock::now().time_since_epoch();
         const auto time_msec =
             static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(now).count());

@@ -22,6 +22,7 @@ namespace flux {
         [[nodiscard]] uint32_t id() const noexcept { return m_id; }
         [[nodiscard]] wlr_scene_tree* tree() const noexcept { return m_tree; }
         [[nodiscard]] std::span<Window* const> focus_stack() const noexcept { return m_focus_stack; }
+        [[nodiscard]] std::span<Window* const> windows() const noexcept { return m_windows; }
         [[nodiscard]] Window* focused_window() const noexcept {
             return m_focus_stack.empty() ? nullptr : m_focus_stack.front();
         }
@@ -38,6 +39,7 @@ namespace flux {
         wlr_scene_tree* m_tree = nullptr;
         wlr_ext_workspace_handle_v1* m_handle = nullptr;
         std::vector<Window*> m_focus_stack;
+        std::vector<Window*> m_windows;
     };
 
 }
