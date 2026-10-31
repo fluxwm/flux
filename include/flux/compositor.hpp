@@ -56,6 +56,7 @@ namespace flux {
         // Window management & interactions
         bool handle_keybinding(uint32_t modifiers, xkb_keysym_t sym);
         void focus_window(Window* window);
+        void focus_window_in_direction(Direction direction);
         void focus_workspace(uint32_t id);
         void move_to_workspace(Window* window, uint32_t id);
         void focus_surface(wlr_surface* surface);

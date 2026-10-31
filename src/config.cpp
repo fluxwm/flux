@@ -96,6 +96,39 @@ namespace flux {
             }
         }
 
+        std::optional<std::string> parse_string(const kdl::Node& node) {
+            std::string_view name = node_name(node);
+            const auto& args = node.args();
+            if (args.empty() || args[0].type() != kdl::Type::String) {
+                wlr_log(WLR_ERROR, "%.*s requires a string argument", static_cast<int>(name.size()), name.data());
+                return std::nullopt;
+            }
+            return std::string(u8_view(args[0].as<std::u8string_view>()));
+        }
+
+        std::optional<Direction> parse_direction(const kdl::Node& node) {
+            auto dir = parse_string(node);
+            if (!dir) {
+                return std::nullopt;
+            }
+            if (iequals(*dir, "left")) {
+                return Direction::Left;
+            }
+            if (iequals(*dir, "right")) {
+                return Direction::Right;
+            }
+            if (iequals(*dir, "up")) {
+                return Direction::Up;
+            }
+            if (iequals(*dir, "down")) {
+                return Direction::Down;
+            }
+            std::string_view name = node_name(node);
+            wlr_log(WLR_ERROR, "invalid direction '%s' for %.*s", dir->c_str(), static_cast<int>(name.size()),
+                    name.data());
+            return std::nullopt;
+        }
+
         std::optional<Action> parse_action(const kdl::Node& action_node) {
             std::string_view action_name = node_name(action_node);
 
@@ -113,6 +146,12 @@ namespace flux {
             }
             if (iequals(action_name, "fullscreen-window")) {
                 return action::FullscreenWindow{};
+            }
+            if (iequals(action_name, "focus-window")) {
+                if (auto dir = parse_direction(action_node)) {
+                    return action::FocusWindow{*dir};
+                }
+                return std::nullopt;
             }
             if (iequals(action_name, "focus-workspace")) {
                 if (auto ws = parse_int(action_node, 1)) {
@@ -183,16 +222,6 @@ namespace flux {
                     });
                 }
             }
-        }
-
-        std::optional<std::string> parse_string(const kdl::Node& node) {
-            std::string_view name = node_name(node);
-            const auto& args = node.args();
-            if (args.empty() || args[0].type() != kdl::Type::String) {
-                wlr_log(WLR_ERROR, "%.*s requires a string argument", static_cast<int>(name.size()), name.data());
-                return std::nullopt;
-            }
-            return std::string(u8_view(args[0].as<std::u8string_view>()));
         }
 
         std::optional<bool> parse_bool(const kdl::Node& node) {

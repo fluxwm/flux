@@ -26,12 +26,22 @@ namespace flux {
         bool operator==(const CursorConfig&) const = default;
     };
 
+    enum class Direction : uint8_t {
+        Left = WLR_DIRECTION_LEFT,
+        Right = WLR_DIRECTION_RIGHT,
+        Up = WLR_DIRECTION_UP,
+        Down = WLR_DIRECTION_DOWN,
+    };
+
     namespace action {
         struct Quit {};
         struct CloseWindow {};
         struct CycleWindow {};
         struct MaximizeWindow {};
         struct FullscreenWindow {};
+        struct FocusWindow {
+            Direction direction = Direction::Right;
+        };
 
         struct Spawn {
             std::string program;
@@ -47,9 +57,9 @@ namespace flux {
         };
     }
 
-    using Action =
-        std::variant<action::Quit, action::CloseWindow, action::CycleWindow, action::MaximizeWindow,
-                     action::FullscreenWindow, action::Spawn, action::FocusWorkspace, action::MoveToWorkspace>;
+    using Action = std::variant<action::Quit, action::CloseWindow, action::CycleWindow, action::MaximizeWindow,
+                                action::FullscreenWindow, action::FocusWindow, action::Spawn, action::FocusWorkspace,
+                                action::MoveToWorkspace>;
 
     struct Keybind {
         uint32_t modifiers = 0;

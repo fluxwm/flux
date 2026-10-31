@@ -227,6 +227,8 @@ namespace flux {
                     if (Window* win = focused_window()) {
                         win->toggle_fullscreen();
                     }
+                } else if constexpr (std::is_same_v<T, action::FocusWindow>) {
+                    focus_window_in_direction(act.direction);
                 } else if constexpr (std::is_same_v<T, action::FocusWorkspace>) {
                     focus_workspace(act.workspace);
                 } else if constexpr (std::is_same_v<T, action::MoveToWorkspace>) {
@@ -385,6 +387,84 @@ namespace flux {
         window->set_activated(true);
         focus_surface(window->surface());
         m_input->cursor().update_focus();
+    }
+
+    void Compositor::focus_window_in_direction(Direction direction) {
+        Window* focused = focused_window();
+        if (!focused || !focused->output()) {
+            return;
+        }
+
+        Output* cur_output = focused->output();
+
+        auto focus_adjacent_output = [this, cur_output, direction] {
+            const wlr_box cur_box = cur_output->layout_box();
+            const double ref_lx = cur_box.x + (static_cast<double>(cur_box.width) / 2.0);
+            const double ref_ly = cur_box.y + (static_cast<double>(cur_box.height) / 2.0);
+
+            wlr_output* adj_wlr = wlr_output_layout_adjacent_output(
+                m_output_layout, static_cast<wlr_direction>(direction), cur_output->raw(), ref_lx, ref_ly);
+            Output* adj_out = output_from_wlr(adj_wlr);
+            if (!adj_out || !adj_out->is_enabled()) {
+                return;
+            }
+
+            for (Window* w : m_current_workspace->focus_stack()) {
+                if (w->output() == adj_out) {
+                    focus_window(w);
+                    return;
+                }
+            }
+        };
+
+        if (focused->is_fullscreen() || focused->is_maximized()) {
+            focus_adjacent_output();
+            return;
+        }
+
+        std::vector<Window*> tiled;
+        for (Window* w : m_current_workspace->windows()) {
+            if (w->output() == cur_output && !w->is_fullscreen() && !w->is_maximized()) {
+                tiled.push_back(w);
+            }
+        }
+
+        if (tiled.size() <= 1) {
+            focus_adjacent_output();
+            return;
+        }
+
+        const auto it = std::ranges::find(tiled, focused);
+        const size_t idx = static_cast<size_t>(std::distance(tiled.begin(), it));
+
+        if (idx == 0) {
+            if (direction == Direction::Right) {
+                Window* target = tiled[1];
+                for (Window* w : m_current_workspace->focus_stack()) {
+                    if (w != focused && w->output() == cur_output && !w->is_fullscreen() && !w->is_maximized()) {
+                        target = w;
+                        break;
+                    }
+                }
+                focus_window(target);
+            } else if (direction == Direction::Left) {
+                focus_adjacent_output();
+            } else if (direction == Direction::Down) {
+                focus_window(tiled[1]);
+            } else if (direction == Direction::Up) {
+                focus_window(tiled.back());
+            }
+        } else {
+            if (direction == Direction::Left) {
+                focus_window(tiled[0]);
+            } else if (direction == Direction::Right) {
+                focus_adjacent_output();
+            } else if (direction == Direction::Up) {
+                focus_window(tiled[(idx == 1) ? (tiled.size() - 1) : (idx - 1)]);
+            } else if (direction == Direction::Down) {
+                focus_window(tiled[(idx == tiled.size() - 1) ? 1 : (idx + 1)]);
+            }
+        }
     }
 
     Output* Compositor::output_from_wlr(wlr_output* wlr_out) const noexcept {
