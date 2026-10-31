@@ -43,6 +43,9 @@ namespace flux {
         m_ext_toplevel_handle = wlr_ext_foreign_toplevel_handle_v1_create(m_compositor.foreign_toplevel_list(), &state);
 
         m_compositor.map_window(this);
+        if (!m_fullscreen && !m_maximized) {
+            save_geometry();
+        }
     }
 
     void Window::on_unmap() {
@@ -57,7 +60,9 @@ namespace flux {
 
     void Window::on_commit() {
         if (m_xdg_toplevel->base->initial_commit) {
-            set_activated(true);
+            if (!m_compositor.exclusive_layer()) {
+                set_activated(true);
+            }
             if (m_xdg_toplevel->requested.fullscreen) {
                 set_fullscreen(true);
             } else if (m_xdg_toplevel->requested.maximized) {
@@ -79,15 +84,11 @@ namespace flux {
     }
 
     void Window::on_request_move() {
-        if (!m_maximized && !m_fullscreen) {
-            m_compositor.begin_move(this);
-        }
+        m_compositor.begin_move(this);
     }
 
     void Window::on_request_resize(wlr_xdg_toplevel_resize_event* event) {
-        if (!m_maximized && !m_fullscreen) {
-            m_compositor.begin_resize(this, event->edges);
-        }
+        m_compositor.begin_resize(this, event->edges);
     }
 
     void Window::on_request_maximize() {

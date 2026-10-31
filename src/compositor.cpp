@@ -339,28 +339,36 @@ namespace flux {
             return;
         }
 
+        if (window) {
+            Workspace* ws = window->workspace();
+            ws->promote(window);
+
+            if (ws != m_current_workspace) {
+                focus_workspace(ws->id());
+                return;
+            }
+        }
+
+        std::vector<Output*> seen_outputs;
+        for (Window* w : m_current_workspace->focus_stack()) {
+            Output* out = window_output(w);
+            const bool is_top_on_output = out && !std::ranges::contains(seen_outputs, out);
+            if (is_top_on_output) {
+                seen_outputs.push_back(out);
+            }
+            if (w->is_fullscreen()) {
+                if (is_top_on_output) {
+                    wlr_scene_node_reparent(&w->scene_tree()->node, m_scene->fullscreen());
+                } else {
+                    w->reparent_to_workspace();
+                }
+            }
+        }
+
         if (!window) {
             focus_surface(nullptr);
             m_input->cursor().update_focus();
             return;
-        }
-
-        Workspace* ws = window->workspace();
-        ws->promote(window);
-
-        if (ws != m_current_workspace) {
-            focus_workspace(ws->id());
-            return;
-        }
-
-        for (Window* w : ws->focus_stack()) {
-            if (w != window && w->is_fullscreen() && window_output(w) == window_output(window)) {
-                w->reparent_to_workspace();
-            }
-        }
-
-        if (window->is_fullscreen()) {
-            wlr_scene_node_reparent(&window->scene_tree()->node, m_scene->fullscreen());
         }
 
         window->raise_to_top();
@@ -471,7 +479,9 @@ namespace flux {
     }
 
     void Compositor::remove_window(Window* window) {
-        unmap_window(window);
+        if (window && window->is_mapped()) {
+            unmap_window(window);
+        }
         erase_unique_ptr(m_windows, window);
     }
 
@@ -640,6 +650,9 @@ namespace flux {
     void Compositor::focus_layer(Layer* layer) {
         if (!layer || !layer->is_mapped()) {
             return;
+        }
+        if (layer->is_exclusive()) {
+            m_input->cursor().reset_mode();
         }
         if (layer->scene_tree()) {
             wlr_scene_node_raise_to_top(&layer->scene_tree()->node);
