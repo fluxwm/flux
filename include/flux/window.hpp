@@ -34,6 +34,7 @@ namespace flux {
         [[nodiscard]] std::string_view app_id() const noexcept { return m_app_id; }
         [[nodiscard]] bool is_maximized() const noexcept { return m_maximized; }
         [[nodiscard]] bool is_fullscreen() const noexcept { return m_fullscreen; }
+        [[nodiscard]] bool is_tiled() const noexcept { return !m_fullscreen && !m_maximized; }
         [[nodiscard]] bool is_mapped() const noexcept { return surface()->mapped; }
         [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
         [[nodiscard]] Output* output() const noexcept { return m_output; }

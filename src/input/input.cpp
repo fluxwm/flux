@@ -3,8 +3,6 @@
 #include "flux/config.hpp"
 #include "flux/util.hpp"
 
-#include <algorithm>
-
 namespace flux {
 
     Input::Input(Compositor& compositor)
@@ -56,9 +54,7 @@ namespace flux {
     }
 
     void Input::remove_keyboard(input::Keyboard* keyboard) {
-        auto it = std::ranges::find_if(m_keyboards, [keyboard](const auto& kb) { return kb.get() == keyboard; });
-        if (it != m_keyboards.end()) {
-            it = m_keyboards.erase(it);
+        if (erase_unique_ptr(m_keyboards, keyboard)) {
             m_seat->set_keyboard(!m_keyboards.empty() ? m_keyboards.back()->raw() : nullptr);
         }
         update_capabilities();

@@ -2,7 +2,10 @@
 #include "flux/compositor.hpp"
 #include "flux/output.hpp"
 #include "flux/popup.hpp"
+#include "flux/util.hpp"
 #include "flux/workspace.hpp"
+
+#include <algorithm>
 
 namespace flux {
 
@@ -62,11 +65,14 @@ namespace flux {
             on_request_decoration_mode();
             wlr_xdg_toplevel_set_wm_capabilities(m_xdg_toplevel, WLR_XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN);
             wlr_xdg_toplevel_set_tiled(m_xdg_toplevel, WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
-            if (!m_compositor.exclusive_layer()) {
-                set_activated(true);
-            }
             if (m_xdg_toplevel->requested.fullscreen) {
                 set_fullscreen(true);
+            } else if (m_output && m_output->is_enabled()) {
+                const auto tiled_count =
+                    static_cast<size_t>(std::ranges::count_if(m_workspace->windows(), [this](const Window* w) {
+                        return w->output() == m_output && w->is_tiled();
+                    }));
+                set_geometry(tile_box(m_output->usable_area(), tiled_count, tiled_count + 1));
             } else {
                 wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
             }
@@ -90,7 +96,7 @@ namespace flux {
 
         m_maximized = !m_maximized;
         m_compositor.arrange_workspace(m_workspace);
-        m_compositor.focus_window(m_compositor.focused_window());
+        m_compositor.refocus();
     }
 
     void Window::on_request_fullscreen() {
@@ -120,10 +126,11 @@ namespace flux {
         }
 
         if (is_mapped()) {
+            if (m_fullscreen && m_workspace == &m_compositor.current_workspace()) {
+                m_workspace->promote(this);
+            }
             m_compositor.arrange_workspace(m_workspace);
-            m_compositor.focus_window((m_fullscreen && m_workspace == &m_compositor.current_workspace())
-                                          ? this
-                                          : m_compositor.focused_window());
+            m_compositor.refocus();
         } else if (m_fullscreen && m_output) {
             set_geometry(m_output->layout_box());
         }
@@ -155,7 +162,7 @@ namespace flux {
                 popup->update_position();
             }
         }
-        wlr_xdg_toplevel_set_size(m_xdg_toplevel, box.width, box.height);
+        wlr_xdg_toplevel_set_size(m_xdg_toplevel, std::max(1, box.width), std::max(1, box.height));
     }
 
     void Window::reparent_to_workspace() noexcept {
