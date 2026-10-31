@@ -60,5 +60,6 @@ add_executable(flux
 target_include_directories(flux PRIVATE include "${GEN_PROTO_DIR}")
 target_link_libraries(flux PRIVATE PkgConfig::DEPS kdlpp)
 target_compile_definitions(flux PRIVATE FLUX_VERSION="${PROJECT_VERSION}")
+target_compile_options(flux PRIVATE -Wno-c23-extensions)
 
 generate_protocol(wlr-layer-shell-unstable-v1)

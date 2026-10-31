@@ -21,6 +21,11 @@ namespace flux {
 
     namespace {
 
+        constexpr char default_config_raw[] = {
+#embed "../default-config.kdl"
+        };
+        constexpr std::string_view default_config_kdl{default_config_raw, sizeof(default_config_raw)};
+
         std::string_view u8_view(std::u8string_view u8) noexcept {
             return {reinterpret_cast<const char*>(u8.data()), u8.size()};
         }
@@ -307,8 +312,11 @@ namespace flux {
 
     Config::Config(wl_event_loop* event_loop, std::optional<std::filesystem::path> custom_path)
         : m_path(resolve_path(custom_path)) {
-        if (custom_path.has_value() || (!m_path.empty() && std::filesystem::exists(m_path))) {
-            reload();
+        std::error_code ec;
+        const bool has_file =
+            custom_path.has_value() || std::filesystem::exists(m_path, ec) || generate_default_config();
+        if (!has_file || !reload()) {
+            load_from_string(default_config_kdl, "built-in defaults");
         }
         setup_watcher(event_loop);
     }
@@ -338,27 +346,51 @@ namespace flux {
         return path;
     }
 
-    void Config::setup_watcher(wl_event_loop* event_loop) {
-        if (!event_loop || m_path.empty()) {
+    bool Config::generate_default_config() {
+        if (m_path.empty()) {
+            return false;
+        }
+
+        if (const auto parent_dir = m_path.parent_path(); !parent_dir.empty()) {
+            std::error_code ec;
+            std::filesystem::create_directories(parent_dir, ec);
+            if (ec) {
+                wlr_log(WLR_ERROR, "failed to create config directory '%s': %s", parent_dir.c_str(),
+                        ec.message().c_str());
+                return false;
+            }
+        }
+
+        std::ofstream file(m_path, std::ios::binary);
+        if (!file.is_open()) {
+            wlr_log(WLR_ERROR, "failed to write default config to '%s'", m_path.c_str());
+            return false;
+        }
+
+        file.write(default_config_kdl.data(), static_cast<std::streamsize>(default_config_kdl.size()));
+        if (file.fail()) {
+            wlr_log(WLR_ERROR, "error writing default config to '%s'", m_path.c_str());
+            return false;
+        }
+
+        wlr_log(WLR_INFO, "generated default config at '%s'", m_path.c_str());
+        return true;
+    }
+
+    void Config::update_watches() {
+        if (m_inotify_fd < 0 || m_path.empty()) {
             return;
         }
 
+        constexpr uint32_t watch_mask = IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE;
         const auto parent_dir = m_path.parent_path();
-        if (parent_dir.empty() || !std::filesystem::exists(parent_dir)) {
-            return;
+        if (!parent_dir.empty() && inotify_add_watch(m_inotify_fd, parent_dir.c_str(), watch_mask) < 0) {
+            if (const auto grandparent = parent_dir.parent_path(); !grandparent.empty()) {
+                inotify_add_watch(m_inotify_fd, grandparent.c_str(), watch_mask);
+            }
         }
 
-        m_inotify_fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
-        if (m_inotify_fd < 0) {
-            return;
-        }
-
-        if (inotify_add_watch(m_inotify_fd, parent_dir.c_str(), IN_CLOSE_WRITE | IN_MOVED_TO) < 0) {
-            close(m_inotify_fd);
-            m_inotify_fd = -1;
-            return;
-        }
-
+        m_real_filename.clear();
         std::error_code ec;
         const auto real_path = std::filesystem::canonical(m_path, ec);
         if (!ec && real_path != m_path) {
@@ -369,12 +401,27 @@ namespace flux {
                 inotify_add_watch(m_inotify_fd, real_path.parent_path().c_str(), IN_CLOSE_WRITE | IN_MOVED_TO);
             }
         }
+    }
+
+    void Config::setup_watcher(wl_event_loop* event_loop) {
+        if (!event_loop || m_path.empty()) {
+            return;
+        }
+
+        m_inotify_fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+        if (m_inotify_fd < 0) {
+            return;
+        }
+
+        update_watches();
 
         auto on_inotify = [](int fd, uint32_t, void* data) {
             auto* self = static_cast<Config*>(data);
             const auto target_filename = self->m_path.filename();
+            const auto parent_dirname = self->m_path.parent_path().filename();
             alignas(inotify_event) std::array<char, 4096> buf{};
             bool should_reload = false;
+            bool dir_created = false;
 
             while (true) {
                 const ssize_t len = read(fd, buf.data(), buf.size());
@@ -383,16 +430,27 @@ namespace flux {
                 }
                 for (ssize_t i = 0; i + static_cast<ssize_t>(sizeof(inotify_event)) <= len;) {
                     const auto* ev = reinterpret_cast<const inotify_event*>(&buf[static_cast<size_t>(i)]);
-                    if (ev->len > 0 && (target_filename == ev->name ||
-                                        (!self->m_real_filename.empty() && self->m_real_filename == ev->name))) {
-                        should_reload = true;
+                    if (ev->len > 0) {
+                        const bool is_write_or_move = (ev->mask & (IN_CLOSE_WRITE | IN_MOVED_TO)) != 0;
+                        if (target_filename == ev->name ||
+                            (!self->m_real_filename.empty() && self->m_real_filename == ev->name)) {
+                            std::error_code ec;
+                            if (is_write_or_move || std::filesystem::is_symlink(self->m_path, ec)) {
+                                should_reload = true;
+                            }
+                        } else if ((ev->mask & IN_ISDIR) && parent_dirname == ev->name) {
+                            dir_created = true;
+                        }
                     }
                     i += static_cast<ssize_t>(sizeof(inotify_event)) + ev->len;
                 }
             }
 
-            if (should_reload) {
+            std::error_code ec;
+            if (should_reload || (dir_created && std::filesystem::exists(self->m_path, ec))) {
                 self->reload();
+            } else if (dir_created) {
+                self->update_watches();
             }
             return 0;
         };
@@ -400,29 +458,17 @@ namespace flux {
         m_inotify_source = wl_event_loop_add_fd(event_loop, m_inotify_fd, WL_EVENT_READABLE, on_inotify, this);
     }
 
-    bool Config::reload() {
-        if (m_path.empty() || !std::filesystem::exists(m_path)) {
-            wlr_log(WLR_ERROR, "config file does not exist: %s", m_path.c_str());
-            return false;
-        }
-
-        std::ifstream file(m_path, std::ios::binary);
-        if (!file.is_open()) {
-            wlr_log(WLR_ERROR, "failed to open config file: %s", m_path.c_str());
-            return false;
-        }
-
-        std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    bool Config::load_from_string(std::string_view content, const char* source_name) {
         std::u8string_view u8view(reinterpret_cast<const char8_t*>(content.data()), content.size());
 
         kdl::Document doc;
         try {
             doc = kdl::parse(u8view);
         } catch (const kdl::ParseError& e) {
-            wlr_log(WLR_ERROR, "kdl parse error in '%s': %s", m_path.c_str(), e.what());
+            wlr_log(WLR_ERROR, "kdl parse error in '%s': %s", source_name, e.what());
             return false;
         } catch (const std::exception& e) {
-            wlr_log(WLR_ERROR, "error reading kdl config '%s': %s", m_path.c_str(), e.what());
+            wlr_log(WLR_ERROR, "error reading kdl config '%s': %s", source_name, e.what());
             return false;
         }
 
@@ -450,12 +496,31 @@ namespace flux {
         m_cursor = std::move(cursor);
         m_autostart = std::move(autostart);
         m_keybinds = std::move(keybinds);
-        wlr_log(WLR_INFO, "loaded config from '%s'", m_path.c_str());
+        wlr_log(WLR_INFO, "loaded config from '%s'", source_name);
 
         if (m_on_reload) {
             m_on_reload();
         }
         return true;
+    }
+
+    bool Config::reload() {
+        update_watches();
+
+        std::error_code ec;
+        if (m_path.empty() || !std::filesystem::exists(m_path, ec)) {
+            wlr_log(WLR_ERROR, "config file does not exist: %s", m_path.c_str());
+            return false;
+        }
+
+        std::ifstream file(m_path, std::ios::binary);
+        if (!file.is_open()) {
+            wlr_log(WLR_ERROR, "failed to open config file: %s", m_path.c_str());
+            return false;
+        }
+
+        std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        return load_from_string(content, m_path.c_str());
     }
 
 }

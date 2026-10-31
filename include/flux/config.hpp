@@ -8,6 +8,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -87,6 +88,9 @@ namespace flux {
     private:
         static std::filesystem::path resolve_path(const std::optional<std::filesystem::path>& custom_path);
         void setup_watcher(wl_event_loop* event_loop);
+        void update_watches();
+        bool load_from_string(std::string_view content, const char* source_name);
+        bool generate_default_config();
 
         std::filesystem::path m_path;
         std::filesystem::path m_real_filename;
