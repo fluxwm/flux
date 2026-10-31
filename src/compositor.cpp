@@ -143,6 +143,14 @@ namespace flux {
         auto* xdg_activation = wlr_xdg_activation_v1_create(m_display);
         m_listeners.listen(&xdg_activation->events.request_activate, this, &Compositor::on_request_activate);
 
+        auto* xdg_decoration_mgr = wlr_xdg_decoration_manager_v1_create(m_display);
+        m_listeners.listen(&xdg_decoration_mgr->events.new_toplevel_decoration, [](void* data) {
+            auto* decoration = static_cast<wlr_xdg_toplevel_decoration_v1*>(data);
+            if (auto* window = Window::try_from(decoration->toplevel)) {
+                window->set_decoration(decoration);
+            }
+        });
+
         m_input = std::make_unique<Input>(*this);
         m_config->set_on_reload([this] { m_input->apply_config(); });
 
@@ -604,9 +612,8 @@ namespace flux {
             return;
         }
 
-        auto it = std::ranges::find_if(m_windows, [event](const auto& w) { return w->matches(event->surface); });
-        if (it != m_windows.end()) {
-            focus_window(it->get());
+        if (auto* window = Window::try_from(wlr_xdg_toplevel_try_from_wlr_surface(event->surface))) {
+            focus_window(window);
         }
     }
 

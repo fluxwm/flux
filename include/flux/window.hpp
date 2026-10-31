@@ -20,6 +20,14 @@ namespace flux {
         Window(const Window&) = delete;
         Window& operator=(const Window&) = delete;
 
+        [[nodiscard]] static Window* try_from(wlr_xdg_toplevel* toplevel) noexcept {
+            if (!toplevel || !toplevel->base || !toplevel->base->data) {
+                return nullptr;
+            }
+            auto* tree = static_cast<wlr_scene_tree*>(toplevel->base->data);
+            return static_cast<Window*>(tree->node.data);
+        }
+
         [[nodiscard]] wlr_scene_tree* scene_tree() const noexcept { return m_scene_tree; }
         [[nodiscard]] wlr_surface* surface() const noexcept { return m_xdg_toplevel->base->surface; }
         [[nodiscard]] std::string_view title() const noexcept { return m_title; }
@@ -28,7 +36,6 @@ namespace flux {
         [[nodiscard]] bool is_fullscreen() const noexcept { return m_fullscreen; }
         [[nodiscard]] bool is_mapped() const noexcept { return surface()->mapped; }
         [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
-        [[nodiscard]] bool matches(const wlr_surface* s) const noexcept { return surface() == s; }
         [[nodiscard]] Output* output() const noexcept { return m_output; }
         void set_output(Output* output) noexcept { m_output = output; }
 
@@ -44,6 +51,7 @@ namespace flux {
         void toggle_maximize();
         void set_fullscreen(bool fullscreen);
         void toggle_fullscreen() { set_fullscreen(!m_fullscreen); }
+        void set_decoration(wlr_xdg_toplevel_decoration_v1* decoration);
         void raise_to_top() noexcept { wlr_scene_node_raise_to_top(&m_scene_tree->node); }
         void lower_to_bottom() noexcept { wlr_scene_node_lower_to_bottom(&m_scene_tree->node); }
         void close() noexcept { wlr_xdg_toplevel_send_close(m_xdg_toplevel); }
@@ -55,12 +63,15 @@ namespace flux {
         void on_destroy();
         void on_request_maximize();
         void on_request_fullscreen();
+        void on_request_decoration_mode();
+        void on_destroy_decoration();
         void on_set_title();
         void on_set_app_id();
         void update_foreign_toplevel() noexcept;
 
         Compositor& m_compositor;
         wlr_xdg_toplevel* m_xdg_toplevel = nullptr;
+        wlr_xdg_toplevel_decoration_v1* m_decoration = nullptr;
         wlr_scene_tree* m_scene_tree = nullptr;
         bool m_maximized = false;
         bool m_fullscreen = false;
@@ -71,6 +82,7 @@ namespace flux {
         wlr_ext_foreign_toplevel_handle_v1* m_ext_toplevel_handle = nullptr;
 
         ListenerGroup m_listeners;
+        ListenerGroup m_decoration_listeners;
     };
 
 }

@@ -30,6 +30,9 @@ namespace flux {
         if (m_scene_tree) {
             m_scene_tree->node.data = nullptr;
         }
+        if (m_xdg_toplevel && m_xdg_toplevel->base) {
+            m_xdg_toplevel->base->data = nullptr;
+        }
     }
 
     void Window::on_map() {
@@ -56,6 +59,7 @@ namespace flux {
 
     void Window::on_commit() {
         if (m_xdg_toplevel->base->initial_commit) {
+            on_request_decoration_mode();
             wlr_xdg_toplevel_set_wm_capabilities(m_xdg_toplevel, WLR_XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN);
             wlr_xdg_toplevel_set_tiled(m_xdg_toplevel, WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
             if (!m_compositor.exclusive_layer()) {
@@ -123,6 +127,25 @@ namespace flux {
         } else if (m_fullscreen && m_output) {
             set_geometry(m_output->layout_box());
         }
+    }
+
+    void Window::set_decoration(wlr_xdg_toplevel_decoration_v1* decoration) {
+        m_decoration = decoration;
+        m_decoration_listeners.clear();
+        m_decoration_listeners.listen(&decoration->events.request_mode, this, &Window::on_request_decoration_mode);
+        m_decoration_listeners.listen(&decoration->events.destroy, this, &Window::on_destroy_decoration);
+        on_request_decoration_mode();
+    }
+
+    void Window::on_request_decoration_mode() {
+        if (m_decoration && m_xdg_toplevel->base->initialized) {
+            wlr_xdg_toplevel_decoration_v1_set_mode(m_decoration, WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+        }
+    }
+
+    void Window::on_destroy_decoration() {
+        m_decoration_listeners.clear();
+        m_decoration = nullptr;
     }
 
     void Window::set_geometry(const wlr_box& box) noexcept {
