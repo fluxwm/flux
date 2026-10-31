@@ -8,6 +8,7 @@ namespace flux {
         : m_compositor(compositor), m_layer_surface(layer_surface) {
         wlr_scene_tree* parent = m_compositor.scene().layer_tree(layer_surface->pending.layer);
         m_scene_layer = wlr_scene_layer_surface_v1_create(parent, layer_surface);
+        m_scene_tree = m_scene_layer ? m_scene_layer->tree : nullptr;
         layer_surface->data = this;
 
         m_listeners.listen(&layer_surface->surface->events.commit, this, &Layer::on_commit);
@@ -71,6 +72,7 @@ namespace flux {
             wlr_log(WLR_DEBUG, "layer surface unmapped: namespace '%s'",
                     m_layer_surface->_namespace ? m_layer_surface->_namespace : "");
         }
+        m_compositor.dismiss_popups(m_scene_tree);
         if (Output* out = output()) {
             m_compositor.arrange_layers(out);
         }

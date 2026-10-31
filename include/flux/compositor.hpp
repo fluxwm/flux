@@ -65,6 +65,7 @@ namespace flux {
         void arrange_layers(Output* output);
         void focus_layer(Layer* layer);
         void create_popup(wlr_xdg_popup* popup);
+        void dismiss_popups(wlr_scene_tree* root = nullptr, wlr_scene_tree* except_root = nullptr);
 
         // Collection management
         void map_window(Window* window);
@@ -76,7 +77,7 @@ namespace flux {
 
     private:
         Workspace& workspace(uint32_t id);
-        void dismiss_popups(wlr_scene_tree* root = nullptr);
+        void restack_windows();
 
         void on_new_output(wlr_output* output);
         void on_new_window(wlr_xdg_toplevel* toplevel);

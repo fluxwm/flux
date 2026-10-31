@@ -343,21 +343,7 @@ namespace flux {
         refocus();
     }
 
-    void Compositor::focus_window(Window* window) {
-        if (exclusive_layer()) {
-            return;
-        }
-
-        if (window) {
-            Workspace* ws = window->workspace();
-            ws->promote(window);
-
-            if (ws != m_current_workspace) {
-                focus_workspace(ws->id());
-                return;
-            }
-        }
-
+    void Compositor::restack_windows() {
         std::vector<Output*> seen_outputs;
         for (Window* w : m_current_workspace->focus_stack()) {
             Output* out = w->output();
@@ -373,10 +359,28 @@ namespace flux {
                     w->reparent_to_workspace();
                 }
             }
-            if (!is_top_on_output && (w->is_maximized() || w->is_fullscreen())) {
+            if (!is_top_on_output && !w->is_tiled()) {
                 w->lower_to_bottom();
             }
         }
+    }
+
+    void Compositor::focus_window(Window* window) {
+        if (exclusive_layer()) {
+            return;
+        }
+
+        if (window) {
+            Workspace* ws = window->workspace();
+            ws->promote(window);
+
+            if (ws != m_current_workspace) {
+                focus_workspace(ws->id());
+                return;
+            }
+        }
+
+        restack_windows();
 
         if (!window) {
             focus_surface(nullptr);
@@ -397,7 +401,7 @@ namespace flux {
 
         Output* cur_output = focused->output();
 
-        auto focus_adjacent_output = [this, cur_output, direction] {
+        auto focus_adjacent_output = [this, cur_output, direction] -> bool {
             const wlr_box cur_box = cur_output->layout_box();
             const double ref_lx = cur_box.x + (static_cast<double>(cur_box.width) / 2.0);
             const double ref_ly = cur_box.y + (static_cast<double>(cur_box.height) / 2.0);
@@ -406,25 +410,26 @@ namespace flux {
                 m_output_layout, static_cast<wlr_direction>(direction), cur_output->raw(), ref_lx, ref_ly);
             Output* adj_out = output_from_wlr(adj_wlr);
             if (!adj_out || !adj_out->is_enabled()) {
-                return;
+                return false;
             }
 
             for (Window* w : m_current_workspace->focus_stack()) {
                 if (w->output() == adj_out) {
                     focus_window(w);
-                    return;
+                    return true;
                 }
             }
+            return false;
         };
 
-        if (focused->is_fullscreen() || focused->is_maximized()) {
+        if (!focused->is_tiled()) {
             focus_adjacent_output();
             return;
         }
 
         std::vector<Window*> tiled;
         for (Window* w : m_current_workspace->windows()) {
-            if (w->output() == cur_output && !w->is_fullscreen() && !w->is_maximized()) {
+            if (w->output() == cur_output && w->is_tiled()) {
                 tiled.push_back(w);
             }
         }
@@ -441,7 +446,7 @@ namespace flux {
             if (direction == Direction::Right) {
                 Window* target = tiled[1];
                 for (Window* w : m_current_workspace->focus_stack()) {
-                    if (w != focused && w->output() == cur_output && !w->is_fullscreen() && !w->is_maximized()) {
+                    if (w != focused && w->output() == cur_output && w->is_tiled()) {
                         target = w;
                         break;
                     }
@@ -450,9 +455,13 @@ namespace flux {
             } else if (direction == Direction::Left) {
                 focus_adjacent_output();
             } else if (direction == Direction::Down) {
-                focus_window(tiled[1]);
+                if (!focus_adjacent_output()) {
+                    focus_window(tiled[1]);
+                }
             } else if (direction == Direction::Up) {
-                focus_window(tiled.back());
+                if (!focus_adjacent_output()) {
+                    focus_window(tiled.back());
+                }
             }
         } else {
             if (direction == Direction::Left) {
@@ -460,8 +469,14 @@ namespace flux {
             } else if (direction == Direction::Right) {
                 focus_adjacent_output();
             } else if (direction == Direction::Up) {
+                if (idx == 1 && focus_adjacent_output()) {
+                    return;
+                }
                 focus_window(tiled[(idx == 1) ? (tiled.size() - 1) : (idx - 1)]);
             } else if (direction == Direction::Down) {
+                if (idx == tiled.size() - 1 && focus_adjacent_output()) {
+                    return;
+                }
                 focus_window(tiled[(idx == tiled.size() - 1) ? 1 : (idx + 1)]);
             }
         }
@@ -496,6 +511,7 @@ namespace flux {
     }
 
     void Compositor::unmap_window(Window* window) {
+        dismiss_popups(window->scene_tree());
         Workspace* ws = window->workspace();
         ws->remove(window);
         arrange_workspace(ws);
@@ -529,38 +545,8 @@ namespace flux {
                 }
             }
 
-            if (tiled.empty()) {
-                continue;
-            }
-
-            if (tiled.size() == 1) {
-                tiled[0]->set_geometry(usable);
-            } else {
-                const int master_width = usable.width / 2;
-                const int stack_width = usable.width - master_width;
-                const int stack_x = usable.x + master_width;
-
-                tiled[0]->set_geometry({
-                    .x = usable.x,
-                    .y = usable.y,
-                    .width = master_width,
-                    .height = usable.height,
-                });
-
-                const size_t stack_count = tiled.size() - 1;
-                const int stack_height = usable.height / static_cast<int>(stack_count);
-
-                for (size_t i = 1; i < tiled.size(); ++i) {
-                    const int y = usable.y + (static_cast<int>(i - 1) * stack_height);
-                    const int height = (i == tiled.size() - 1) ? (usable.y + usable.height - y) : stack_height;
-
-                    tiled[i]->set_geometry({
-                        .x = stack_x,
-                        .y = y,
-                        .width = stack_width,
-                        .height = height,
-                    });
-                }
+            for (size_t i = 0; i < tiled.size(); ++i) {
+                tiled[i]->set_geometry(tile_box(usable, i, tiled.size()));
             }
         }
     }
@@ -584,6 +570,7 @@ namespace flux {
 
     void Compositor::refocus() {
         if (auto* excl = exclusive_layer()) {
+            restack_windows();
             focus_layer(excl);
             return;
         }
@@ -591,6 +578,7 @@ namespace flux {
         if (wlr_surface* focused = m_input->seat().focused_surface()) {
             if (auto* layer = Layer::try_from(root_popup_parent(focused));
                 layer && layer->is_mapped() && layer->is_focusable()) {
+                restack_windows();
                 m_input->cursor().update_focus();
                 return;
             }
@@ -600,8 +588,12 @@ namespace flux {
     }
 
     void Compositor::remove_window(Window* window) {
-        if (window && window->is_mapped()) {
-            unmap_window(window);
+        if (window) {
+            if (window->is_mapped()) {
+                unmap_window(window);
+            } else {
+                dismiss_popups(window->scene_tree());
+            }
         }
         erase_unique_ptr(m_windows, window);
     }
@@ -610,9 +602,14 @@ namespace flux {
         erase_unique_ptr(m_popups, popup);
     }
 
-    void Compositor::dismiss_popups(wlr_scene_tree* root) {
+    void Compositor::dismiss_popups(wlr_scene_tree* root, wlr_scene_tree* except_root) {
         while (true) {
-            auto it = std::ranges::find_if(m_popups, [root](const auto& p) { return !root || p->root_tree() == root; });
+            auto it = std::ranges::find_if(m_popups, [root, except_root](const auto& p) {
+                if (except_root && p->root_tree() == except_root) {
+                    return false;
+                }
+                return !root || p->root_tree() == root;
+            });
             if (it == m_popups.end()) {
                 break;
             }
@@ -634,6 +631,14 @@ namespace flux {
             }
         }
         erase_unique_ptr(m_outputs, output);
+
+        Output* target = focused_output();
+        for (const auto& win : m_windows) {
+            if (win->output() == output) {
+                win->set_output(target);
+            }
+        }
+
         for (auto* raw : to_destroy) {
             wlr_layer_surface_v1_destroy(raw);
         }
@@ -641,13 +646,6 @@ namespace flux {
         if (is_nested && m_outputs.empty()) {
             quit();
             return;
-        }
-
-        Output* target = focused_output();
-        for (const auto& win : m_windows) {
-            if (win->output() == output) {
-                win->set_output(target);
-            }
         }
 
         for (const auto& remaining : m_outputs) {
@@ -662,13 +660,17 @@ namespace flux {
             return;
         }
 
+        const bool was_initialized = layer->is_initialized();
+        dismiss_popups(layer->scene_tree());
         Output* output = layer->output();
         erase_unique_ptr(m_layers, layer);
 
-        if (output) {
-            arrange_layers(output);
+        if (was_initialized) {
+            if (output) {
+                arrange_layers(output);
+            }
+            refocus();
         }
-        refocus();
     }
 
     void Compositor::on_new_output(wlr_output* output) {
@@ -680,7 +682,9 @@ namespace flux {
                 win->set_output(new_out);
             }
         }
-        arrange_layers(new_out);
+        for (const auto& out : m_outputs) {
+            arrange_layers(out.get());
+        }
     }
 
     void Compositor::on_new_window(wlr_xdg_toplevel* toplevel) {
@@ -763,6 +767,10 @@ namespace flux {
         output->set_usable_area(usable_area);
         configure(false);
 
+        for (const auto& popup : m_popups) {
+            popup->update_position();
+        }
+
         for (const auto& ws : m_workspaces) {
             arrange_workspace(ws.get());
         }
@@ -775,7 +783,7 @@ namespace flux {
             return;
         }
         if (layer->is_exclusive()) {
-            dismiss_popups();
+            dismiss_popups(nullptr, layer->scene_tree());
         }
         if (layer->scene_tree()) {
             wlr_scene_node_raise_to_top(&layer->scene_tree()->node);

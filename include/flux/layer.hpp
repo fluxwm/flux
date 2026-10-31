@@ -19,9 +19,7 @@ namespace flux {
         [[nodiscard]] wlr_layer_surface_v1* raw() const noexcept { return m_layer_surface; }
         [[nodiscard]] wlr_surface* surface() const noexcept { return m_layer_surface->surface; }
         [[nodiscard]] wlr_scene_layer_surface_v1* scene_layer() const noexcept { return m_scene_layer; }
-        [[nodiscard]] wlr_scene_tree* scene_tree() const noexcept {
-            return m_scene_layer ? m_scene_layer->tree : nullptr;
-        }
+        [[nodiscard]] wlr_scene_tree* scene_tree() const noexcept { return m_scene_tree; }
         [[nodiscard]] Output* output() const noexcept;
         [[nodiscard]] bool is_mapped() const noexcept { return surface()->mapped; }
         [[nodiscard]] bool is_initialized() const noexcept { return m_layer_surface->initialized; }
@@ -52,6 +50,7 @@ namespace flux {
         Compositor& m_compositor;
         wlr_layer_surface_v1* m_layer_surface = nullptr;
         wlr_scene_layer_surface_v1* m_scene_layer = nullptr;
+        wlr_scene_tree* m_scene_tree = nullptr;
 
         ListenerGroup m_listeners;
     };

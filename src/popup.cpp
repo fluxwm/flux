@@ -15,7 +15,6 @@ namespace flux {
             m_root_tree = static_cast<wlr_scene_tree*>(toplevel->data);
         } else if (auto* ls = Layer::try_from(root_surface); ls && ls->scene_tree()) {
             m_root_tree = ls->scene_tree();
-            m_output = ls->output();
         }
 
         if (!m_root_tree) {
@@ -68,11 +67,8 @@ namespace flux {
             wlr_scene_node_set_position(&m_wrapper_tree->node, root_lx, root_ly);
         }
 
-        Output* output = m_output;
-        if (!output) {
-            wlr_output* wlr_out = wlr_output_layout_output_at(m_compositor.output_layout(), root_lx, root_ly);
-            output = m_compositor.output_from_wlr(wlr_out);
-        }
+        wlr_output* wlr_out = wlr_output_layout_output_at(m_compositor.output_layout(), root_lx, root_ly);
+        Output* output = m_compositor.output_from_wlr(wlr_out);
         if (!output) {
             output = m_compositor.focused_output();
         }

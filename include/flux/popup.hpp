@@ -6,7 +6,6 @@
 namespace flux {
 
     class Compositor;
-    class Output;
 
     class Popup {
     public:
@@ -30,7 +29,6 @@ namespace flux {
         wlr_xdg_popup* m_xdg_popup = nullptr;
         wlr_scene_tree* m_root_tree = nullptr;
         wlr_scene_tree* m_wrapper_tree = nullptr;
-        Output* m_output = nullptr;
 
         ListenerGroup m_listeners;
     };
