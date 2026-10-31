@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.6.0](https://github.com/fluxwm/flux/compare/v0.5.0...v0.6.0) (2026-10-31)
+
+
+### Features
+
+* add directional window focus action ([77235e3](https://github.com/fluxwm/flux/commit/77235e365a2bb812510c1c958e6fda728a5ac960))
+* add xdg-decoration-unstable-v1 protocol support ([5de1925](https://github.com/fluxwm/flux/commit/5de19251b67ef71b9a9e7189391489b219baeec3))
+* embed default config and auto-generate on first launch ([1074d39](https://github.com/fluxwm/flux/commit/1074d394498a9fbc255a28e4cbb987b364c66c72))
+* implement master-stack window tiling ([28e28e4](https://github.com/fluxwm/flux/commit/28e28e40701474701783758b5a17cf27e573d7a2))
+
+
+### Bug Fixes
+
+* clear pointer focus on interactive grabs and restrict cursor under exclusive layers ([7bfc76d](https://github.com/fluxwm/flux/commit/7bfc76de9cddc45b2dd02fd65097c6ed4a43f0c9))
+* correct initial tiling geometry and window focus transitions ([1392ee5](https://github.com/fluxwm/flux/commit/1392ee50b01c6632cc0fecec94911a50d01af86b))
+* elevate window popups above top panels and safely dismiss on transitions ([be75644](https://github.com/fluxwm/flux/commit/be75644b77e0401f2fa59764ef1939ad64d28d9f))
+* improve cursor reload, numlock toggle and layer defocus ([4241bb1](https://github.com/fluxwm/flux/commit/4241bb1bc9428d6aa5b911015f8d8867af79a5c9))
+* prevent use-after-free on output removal and correct layer popup lifecycle ([4ef07e2](https://github.com/fluxwm/flux/commit/4ef07e2c330bc4c130304f3cd6d585c7a33e95ba))
+* restore topmost fullscreen window per output and correct window lifecycle ([a6f27c2](https://github.com/fluxwm/flux/commit/a6f27c2ed848f9c6a46da8e03cd1c20031cd28ee))
+
 ## [0.5.0](https://github.com/fluxwm/flux/compare/v0.4.0...v0.5.0) (2026-10-30)
 
 
