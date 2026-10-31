@@ -52,9 +52,11 @@ namespace flux::input {
     }
 
     void Cursor::begin_move(Window* window) {
-        if (!window || m_input.seat().button_count() == 0 || window->is_maximized() || window->is_fullscreen()) {
+        if (!window || m_input.compositor().exclusive_layer() || m_input.seat().button_count() == 0 ||
+            window->is_maximized() || window->is_fullscreen()) {
             return;
         }
+        m_input.seat().clear_pointer_focus();
         m_state = Move{
             .window = window,
             .grab_x = m_wlr_cursor->x - window->x(),
@@ -64,9 +66,11 @@ namespace flux::input {
     }
 
     void Cursor::begin_resize(Window* window, uint32_t edges) {
-        if (!window || m_input.seat().button_count() == 0 || window->is_maximized() || window->is_fullscreen()) {
+        if (!window || m_input.compositor().exclusive_layer() || m_input.seat().button_count() == 0 ||
+            window->is_maximized() || window->is_fullscreen()) {
             return;
         }
+        m_input.seat().clear_pointer_focus();
         const wlr_box box = window->box();
         const double border_x = box.x + ((edges & WLR_EDGE_RIGHT) ? box.width : 0);
         const double border_y = box.y + ((edges & WLR_EDGE_BOTTOM) ? box.height : 0);
@@ -282,6 +286,12 @@ namespace flux::input {
         double sy = 0.0;
         wlr_surface* surface = m_input.compositor().scene().surface_at(m_wlr_cursor->x, m_wlr_cursor->y, &sx, &sy);
         if (surface) {
+            if (auto* excl = m_input.compositor().exclusive_layer()) {
+                if (root_popup_parent(surface) != excl->surface()) {
+                    m_input.seat().clear_pointer_focus();
+                    return;
+                }
+            }
             m_input.seat().notify_enter(surface, sx, sy);
             m_input.seat().notify_motion(time_msec, sx, sy);
         } else {
