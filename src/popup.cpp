@@ -25,10 +25,16 @@ namespace flux {
 
         wlr_scene_tree* parent_tree = nullptr;
         wlr_surface* parent_surface = wlr_surface_get_root_surface(xdg_popup->parent);
-        if (wlr_xdg_surface* parent = wlr_xdg_surface_try_from_wlr_surface(parent_surface); parent && parent->data) {
-            parent_tree = static_cast<wlr_scene_tree*>(parent->data);
+        wlr_xdg_surface* parent_xdg = wlr_xdg_surface_try_from_wlr_surface(parent_surface);
+
+        if (parent_xdg && parent_xdg->role == WLR_XDG_SURFACE_ROLE_POPUP && parent_xdg->data) {
+            parent_tree = static_cast<wlr_scene_tree*>(parent_xdg->data);
         } else {
-            m_wrapper_tree = wlr_scene_tree_create(m_compositor.scene().popups());
+            wlr_scene_tree* target_layer = (parent_xdg && parent_xdg->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL)
+                                               ? m_compositor.scene().window_popups()
+                                               : m_compositor.scene().popups();
+            m_wrapper_tree = wlr_scene_tree_create(target_layer);
+            m_wrapper_tree->node.data = m_root_tree->node.data;
             parent_tree = m_wrapper_tree;
         }
 
@@ -41,6 +47,15 @@ namespace flux {
     Popup::~Popup() {
         if (m_wrapper_tree) {
             wlr_scene_node_destroy(&m_wrapper_tree->node);
+        }
+    }
+
+    void Popup::update_position() noexcept {
+        if (m_wrapper_tree && m_root_tree) {
+            int root_lx = 0;
+            int root_ly = 0;
+            wlr_scene_node_coords(&m_root_tree->node, &root_lx, &root_ly);
+            wlr_scene_node_set_position(&m_wrapper_tree->node, root_lx, root_ly);
         }
     }
 

@@ -1,6 +1,7 @@
 #include "flux/window.hpp"
 #include "flux/compositor.hpp"
 #include "flux/output.hpp"
+#include "flux/popup.hpp"
 #include "flux/util.hpp"
 #include "flux/workspace.hpp"
 
@@ -173,6 +174,16 @@ namespace flux {
             }
 
             raise_to_top();
+        }
+    }
+
+    void Window::set_position(int x, int y) noexcept {
+        wlr_scene_node_set_position(&m_scene_tree->node, x, y);
+        m_has_pending_position = false;
+        for (const auto& popup : m_compositor.popups()) {
+            if (popup->root_tree() == m_scene_tree) {
+                popup->update_position();
+            }
         }
     }
 

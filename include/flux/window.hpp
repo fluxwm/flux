@@ -58,10 +58,7 @@ namespace flux {
         }
         void reparent_to_workspace() noexcept;
         void set_size(int width, int height) noexcept { wlr_xdg_toplevel_set_size(m_xdg_toplevel, width, height); }
-        void set_position(int x, int y) noexcept {
-            wlr_scene_node_set_position(&m_scene_tree->node, x, y);
-            m_has_pending_position = false;
-        }
+        void set_position(int x, int y) noexcept;
         void set_pending_position(int x, int y) noexcept {
             m_pending_x = x;
             m_pending_y = y;

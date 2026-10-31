@@ -10,6 +10,7 @@ namespace flux {
         m_scene_windows = wlr_scene_tree_create(&m_scene->tree);
         m_scene_top = wlr_scene_tree_create(&m_scene->tree);
         m_scene_fullscreen = wlr_scene_tree_create(&m_scene->tree);
+        m_scene_window_popups = wlr_scene_tree_create(&m_scene->tree);
         m_scene_overlay = wlr_scene_tree_create(&m_scene->tree);
         m_scene_popups = wlr_scene_tree_create(&m_scene->tree);
         m_scene_layout = wlr_scene_attach_output_layout(m_scene, output_layout);

@@ -300,6 +300,8 @@ namespace flux {
             return;
         }
 
+        dismiss_popups();
+
         wlr_log(WLR_DEBUG, "switching from workspace %u to %u", m_current_workspace->id(), id);
         m_current_workspace->deactivate();
 
@@ -318,6 +320,8 @@ namespace flux {
         if (exclusive_layer() || !window || id == 0 || window->workspace()->id() == id) {
             return;
         }
+
+        dismiss_popups(window->scene_tree());
 
         wlr_log(WLR_DEBUG, "moving window to workspace %u", id);
         window->workspace()->remove(window);
@@ -489,6 +493,16 @@ namespace flux {
         erase_unique_ptr(m_popups, popup);
     }
 
+    void Compositor::dismiss_popups(wlr_scene_tree* root) {
+        while (true) {
+            auto it = std::ranges::find_if(m_popups, [root](const auto& p) { return !root || p->root_tree() == root; });
+            if (it == m_popups.end()) {
+                break;
+            }
+            wlr_xdg_popup_destroy((*it)->raw());
+        }
+    }
+
     void Compositor::remove_output(Output* output) {
         const bool is_nested = output && output->is_nested();
 
@@ -653,6 +667,7 @@ namespace flux {
         }
         if (layer->is_exclusive()) {
             m_input->cursor().reset_mode();
+            dismiss_popups();
         }
         if (layer->scene_tree()) {
             wlr_scene_node_raise_to_top(&layer->scene_tree()->node);

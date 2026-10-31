@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <span>
 #include <vector>
 
 namespace flux {
@@ -51,6 +52,7 @@ namespace flux {
             return m_current_workspace ? m_current_workspace->focused_window() : nullptr;
         }
         [[nodiscard]] Workspace& current_workspace() const noexcept { return *m_current_workspace; }
+        [[nodiscard]] std::span<const std::unique_ptr<Popup>> popups() const noexcept { return m_popups; }
 
         // Window management & interactions
         bool handle_keybinding(uint32_t modifiers, xkb_keysym_t sym);
@@ -76,6 +78,7 @@ namespace flux {
 
     private:
         Workspace& workspace(uint32_t id);
+        void dismiss_popups(wlr_scene_tree* root = nullptr);
 
         void on_new_output(wlr_output* output);
         void on_new_window(wlr_xdg_toplevel* toplevel);

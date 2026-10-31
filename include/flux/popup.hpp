@@ -16,6 +16,10 @@ namespace flux {
         Popup(const Popup&) = delete;
         Popup& operator=(const Popup&) = delete;
 
+        [[nodiscard]] wlr_xdg_popup* raw() const noexcept { return m_xdg_popup; }
+        [[nodiscard]] wlr_scene_tree* root_tree() const noexcept { return m_root_tree; }
+        void update_position() noexcept;
+
     private:
         void unconstrain();
         void on_commit();
