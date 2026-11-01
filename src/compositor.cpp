@@ -164,11 +164,28 @@ namespace flux {
         }
 
         setenv("WAYLAND_DISPLAY", socket, 1);
+        setenv("XDG_SESSION_TYPE", "wayland", 1);
+        setenv("XDG_CURRENT_DESKTOP", "flux", 1);
+        setenv("XDG_SESSION_DESKTOP", "flux", 1);
         wlr_log(WLR_INFO, "ready on Wayland socket: %s", socket);
         return true;
     }
 
     void Compositor::run() {
+        if (m_session) {
+            spawn({
+                .program = "dbus-update-activation-environment",
+                .args =
+                    {
+                        "--systemd",
+                        "WAYLAND_DISPLAY",
+                        "XDG_CURRENT_DESKTOP",
+                        "XDG_SESSION_TYPE",
+                        "XDG_SESSION_DESKTOP",
+                    },
+            });
+        }
+
         for (const auto& action : m_config->autostart()) {
             execute_action(action);
         }
