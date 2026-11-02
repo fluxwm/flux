@@ -171,13 +171,12 @@ namespace flux {
                 return std::nullopt;
             }
             if (iequals(action_name, "spawn")) {
-                const auto& raw_args = action_node.args();
-                if (raw_args.empty() || raw_args[0].type() != kdl::Type::String) {
+                auto program = parse_string(action_node);
+                if (!program) {
                     return std::nullopt;
                 }
 
-                std::string program(u8_view(raw_args[0].as<std::u8string_view>()));
-
+                const auto& raw_args = action_node.args();
                 std::vector<std::string> args;
                 args.reserve(raw_args.size() - 1);
                 for (size_t i = 1; i < raw_args.size(); ++i) {
@@ -187,9 +186,18 @@ namespace flux {
                 }
 
                 return action::Spawn{
-                    .program = std::move(program),
+                    .program = std::move(*program),
                     .args = std::move(args),
                 };
+            }
+            if (iequals(action_name, "spawn-sh")) {
+                if (auto command = parse_string(action_node)) {
+                    return action::Spawn{
+                        .program = "/bin/sh",
+                        .args = {"-c", std::move(*command)},
+                    };
+                }
+                return std::nullopt;
             }
 
             return std::nullopt;
