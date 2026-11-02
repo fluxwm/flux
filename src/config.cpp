@@ -302,6 +302,36 @@ namespace flux {
             }
         }
 
+        void parse_gaps(GapsConfig& gaps, const kdl::Node& gaps_node) {
+            for (const auto& child : gaps_node.children()) {
+                std::string_view name = node_name(child);
+                if (iequals(name, "inner")) {
+                    if (auto val = parse_int(child)) {
+                        gaps.inner = *val;
+                    }
+                } else if (iequals(name, "outer")) {
+                    if (auto val = parse_int(child)) {
+                        gaps.outer = *val;
+                    }
+                } else {
+                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in gaps config", static_cast<int>(name.size()),
+                            name.data());
+                }
+            }
+        }
+
+        void parse_layout(LayoutConfig& layout, const kdl::Node& layout_node) {
+            for (const auto& child : layout_node.children()) {
+                std::string_view name = node_name(child);
+                if (iequals(name, "gaps")) {
+                    parse_gaps(layout.gaps, child);
+                } else {
+                    wlr_log(WLR_ERROR, "unknown section '%.*s' in layout config", static_cast<int>(name.size()),
+                            name.data());
+                }
+            }
+        }
+
         void parse_autostart(std::vector<Action>& autostart, const kdl::Node& autostart_node) {
             for (const auto& action_node : autostart_node.children()) {
                 auto action_opt = parse_action(action_node);
@@ -482,6 +512,7 @@ namespace flux {
 
         KeyboardConfig keyboard;
         CursorConfig cursor;
+        LayoutConfig layout;
         std::vector<Action> autostart;
         std::vector<Keybind> keybinds;
 
@@ -493,6 +524,8 @@ namespace flux {
                 parse_input(keyboard, node);
             } else if (iequals(name, "cursor")) {
                 parse_cursor(cursor, node);
+            } else if (iequals(name, "layout")) {
+                parse_layout(layout, node);
             } else if (iequals(name, "binds")) {
                 parse_binds(keybinds, node);
             } else {
@@ -502,6 +535,7 @@ namespace flux {
 
         m_keyboard = keyboard;
         m_cursor = std::move(cursor);
+        m_layout = layout;
         m_autostart = std::move(autostart);
         m_keybinds = std::move(keybinds);
         wlr_log(WLR_INFO, "loaded config from '%s'", source_name);

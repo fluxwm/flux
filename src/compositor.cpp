@@ -152,7 +152,13 @@ namespace flux {
         });
 
         m_input = std::make_unique<Input>(*this);
-        m_config->set_on_reload([this] { m_input->apply_config(); });
+        m_config->set_on_reload([this] {
+            m_input->apply_config();
+            for (const auto& ws : m_workspaces) {
+                arrange_workspace(ws.get());
+            }
+            m_input->cursor().update_focus();
+        });
 
         const char* socket = wl_display_add_socket_auto(m_display);
         if (!socket) {
@@ -540,6 +546,7 @@ namespace flux {
             return;
         }
 
+        const auto& gaps = m_config->layout().gaps;
         for (const auto& output : m_outputs) {
             if (!output->is_enabled()) {
                 continue;
@@ -563,7 +570,7 @@ namespace flux {
             }
 
             for (size_t i = 0; i < tiled.size(); ++i) {
-                tiled[i]->set_geometry(tile_box(usable, i, tiled.size()));
+                tiled[i]->set_geometry(tile_box(usable, i, tiled.size(), gaps));
             }
         }
     }

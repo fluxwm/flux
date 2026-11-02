@@ -72,7 +72,8 @@ namespace flux {
                     static_cast<size_t>(std::ranges::count_if(m_workspace->windows(), [this](const Window* w) {
                         return w->output() == m_output && w->is_tiled();
                     }));
-                set_geometry(tile_box(m_output->usable_area(), tiled_count, tiled_count + 1));
+                const auto& gaps = m_compositor.config().layout().gaps;
+                set_geometry(tile_box(m_output->usable_area(), tiled_count, tiled_count + 1, gaps));
             } else {
                 wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
             }

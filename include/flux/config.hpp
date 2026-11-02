@@ -27,6 +27,15 @@ namespace flux {
         bool operator==(const CursorConfig&) const = default;
     };
 
+    struct GapsConfig {
+        int32_t inner = 0;
+        int32_t outer = 0;
+    };
+
+    struct LayoutConfig {
+        GapsConfig gaps{};
+    };
+
     enum class Direction : uint8_t {
         Left = WLR_DIRECTION_LEFT,
         Right = WLR_DIRECTION_RIGHT,
@@ -78,6 +87,7 @@ namespace flux {
 
         [[nodiscard]] const KeyboardConfig& keyboard() const noexcept { return m_keyboard; }
         [[nodiscard]] const CursorConfig& cursor() const noexcept { return m_cursor; }
+        [[nodiscard]] const LayoutConfig& layout() const noexcept { return m_layout; }
         [[nodiscard]] std::span<const Action> autostart() const noexcept { return m_autostart; }
         [[nodiscard]] std::span<const Keybind> keybinds() const noexcept { return m_keybinds; }
         [[nodiscard]] const std::filesystem::path& path() const noexcept { return m_path; }
@@ -100,6 +110,7 @@ namespace flux {
 
         KeyboardConfig m_keyboard;
         CursorConfig m_cursor;
+        LayoutConfig m_layout;
         std::vector<Action> m_autostart;
         std::vector<Keybind> m_keybinds;
     };

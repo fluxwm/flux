@@ -17,6 +17,13 @@ cursor {
     // size 24
 }
 
+layout {
+    gaps {
+        inner 16
+        outer 16
+    }
+}
+
 binds {
     Super+Shift+Return  { spawn "kitty"; }
     Super+D             { spawn "fuzzel"; }
