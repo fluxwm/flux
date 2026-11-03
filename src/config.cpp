@@ -332,6 +332,34 @@ namespace flux {
             }
         }
 
+        void parse_environment(std::vector<EnvironmentVariable>& environment, const kdl::Node& environment_node) {
+            for (const auto& child : environment_node.children()) {
+                std::string_view name = node_name(child);
+                if (name.empty() || name.contains('=')) {
+                    wlr_log(WLR_ERROR, "invalid environment variable name '%.*s'", static_cast<int>(name.size()),
+                            name.data());
+                    continue;
+                }
+
+                const auto& args = child.args();
+                std::optional<std::string> value;
+                if (!args.empty() && args[0].type() != kdl::Type::Null) {
+                    value = parse_string(child);
+                    if (!value) {
+                        continue;
+                    }
+                }
+
+                auto it = std::ranges::find_if(environment,
+                                               [name](const EnvironmentVariable& var) { return var.name == name; });
+                if (it != environment.end()) {
+                    it->value = std::move(value);
+                } else {
+                    environment.push_back(EnvironmentVariable{.name = std::string(name), .value = std::move(value)});
+                }
+            }
+        }
+
         void parse_autostart(std::vector<Action>& autostart, const kdl::Node& autostart_node) {
             for (const auto& action_node : autostart_node.children()) {
                 auto action_opt = parse_action(action_node);
@@ -513,6 +541,7 @@ namespace flux {
         KeyboardConfig keyboard;
         CursorConfig cursor;
         LayoutConfig layout;
+        std::vector<EnvironmentVariable> environment;
         std::vector<Action> autostart;
         std::vector<Keybind> keybinds;
 
@@ -526,6 +555,8 @@ namespace flux {
                 parse_cursor(cursor, node);
             } else if (iequals(name, "layout")) {
                 parse_layout(layout, node);
+            } else if (iequals(name, "environment")) {
+                parse_environment(environment, node);
             } else if (iequals(name, "binds")) {
                 parse_binds(keybinds, node);
             } else {
@@ -536,6 +567,7 @@ namespace flux {
         m_keyboard = keyboard;
         m_cursor = std::move(cursor);
         m_layout = layout;
+        m_environment = std::move(environment);
         m_autostart = std::move(autostart);
         m_keybinds = std::move(keybinds);
         wlr_log(WLR_INFO, "loaded config from '%s'", source_name);

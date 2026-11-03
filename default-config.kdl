@@ -4,6 +4,10 @@ autostart {
     // spawn "mako"
 }
 
+environment {
+    // QT_QPA_PLATFORM "wayland;xcb"
+}
+
 input {
     keyboard {
         // repeat-rate 25

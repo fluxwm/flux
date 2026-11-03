@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <csignal>
+#include <cstdlib>
 #include <fcntl.h>
 #include <ranges>
 #include <unistd.h>
@@ -289,6 +290,14 @@ namespace flux {
             sigset_t set;
             sigemptyset(&set);
             sigprocmask(SIG_SETMASK, &set, nullptr);
+
+            for (const auto& [name, value] : m_config->environment()) {
+                if (value) {
+                    setenv(name.c_str(), value->c_str(), 1);
+                } else {
+                    unsetenv(name.c_str());
+                }
+            }
 
             const int dev_null = open("/dev/null", O_RDWR | O_CLOEXEC);
             if (dev_null >= 0) {

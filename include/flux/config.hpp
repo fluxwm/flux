@@ -36,6 +36,11 @@ namespace flux {
         GapsConfig gaps{};
     };
 
+    struct EnvironmentVariable {
+        std::string name;
+        std::optional<std::string> value;
+    };
+
     enum class Direction : uint8_t {
         Left = WLR_DIRECTION_LEFT,
         Right = WLR_DIRECTION_RIGHT,
@@ -88,6 +93,7 @@ namespace flux {
         [[nodiscard]] const KeyboardConfig& keyboard() const noexcept { return m_keyboard; }
         [[nodiscard]] const CursorConfig& cursor() const noexcept { return m_cursor; }
         [[nodiscard]] const LayoutConfig& layout() const noexcept { return m_layout; }
+        [[nodiscard]] std::span<const EnvironmentVariable> environment() const noexcept { return m_environment; }
         [[nodiscard]] std::span<const Action> autostart() const noexcept { return m_autostart; }
         [[nodiscard]] std::span<const Keybind> keybinds() const noexcept { return m_keybinds; }
         [[nodiscard]] const std::filesystem::path& path() const noexcept { return m_path; }
@@ -111,6 +117,7 @@ namespace flux {
         KeyboardConfig m_keyboard;
         CursorConfig m_cursor;
         LayoutConfig m_layout;
+        std::vector<EnvironmentVariable> m_environment;
         std::vector<Action> m_autostart;
         std::vector<Keybind> m_keybinds;
     };
