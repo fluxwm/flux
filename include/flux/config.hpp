@@ -30,6 +30,7 @@ namespace flux {
     struct GapsConfig {
         int32_t inner = 0;
         int32_t outer = 0;
+        bool smart = false;
     };
 
     struct LayoutConfig {

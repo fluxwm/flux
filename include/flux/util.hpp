@@ -15,10 +15,11 @@ namespace flux {
 
     [[nodiscard]] constexpr wlr_box tile_box(const wlr_box& usable, size_t index, size_t total,
                                              const GapsConfig& gaps) noexcept {
-        const int area_x = usable.x + gaps.outer;
-        const int area_y = usable.y + gaps.outer;
-        const int area_w = std::max(1, usable.width - (2 * gaps.outer));
-        const int area_h = std::max(1, usable.height - (2 * gaps.outer));
+        const int outer = (total <= 1 && gaps.smart) ? 0 : gaps.outer;
+        const int area_x = usable.x + outer;
+        const int area_y = usable.y + outer;
+        const int area_w = std::max(1, usable.width - (2 * outer));
+        const int area_h = std::max(1, usable.height - (2 * outer));
         if (total <= 1) {
             return {.x = area_x, .y = area_y, .width = area_w, .height = area_h};
         }

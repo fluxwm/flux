@@ -25,6 +25,7 @@ layout {
     gaps {
         inner 16
         outer 16
+        // smart
     }
 }
 

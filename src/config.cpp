@@ -313,6 +313,10 @@ namespace flux {
                     if (auto val = parse_int(child)) {
                         gaps.outer = *val;
                     }
+                } else if (iequals(name, "smart")) {
+                    if (auto val = parse_bool(child)) {
+                        gaps.smart = *val;
+                    }
                 } else {
                     wlr_log(WLR_ERROR, "unknown setting '%.*s' in gaps config", static_cast<int>(name.size()),
                             name.data());
