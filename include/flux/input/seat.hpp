@@ -45,6 +45,12 @@ namespace flux::input {
         void notify_motion(uint32_t time_msec, double sx, double sy) noexcept {
             wlr_seat_pointer_notify_motion(m_wlr_seat, time_msec, sx, sy);
         }
+        void notify_relative_motion(uint32_t time_msec, double dx, double dy, double dx_unaccel,
+                                    double dy_unaccel) noexcept {
+            wlr_relative_pointer_manager_v1_send_relative_motion(m_relative_pointer_mgr, m_wlr_seat,
+                                                                 static_cast<uint64_t>(time_msec) * 1000, dx, dy,
+                                                                 dx_unaccel, dy_unaccel);
+        }
         void notify_button(uint32_t time_msec, uint32_t button, wl_pointer_button_state state) noexcept {
             notify_activity();
             wlr_seat_pointer_notify_button(m_wlr_seat, time_msec, button, state);
@@ -80,6 +86,7 @@ namespace flux::input {
         wlr_seat* m_wlr_seat = nullptr;
         wlr_idle_notifier_v1* m_idle_notifier = nullptr;
         wlr_pointer_constraints_v1* m_pointer_constraints = nullptr;
+        wlr_relative_pointer_manager_v1* m_relative_pointer_mgr = nullptr;
         wlr_pointer_constraint_v1* m_active_constraint = nullptr;
         std::vector<std::unique_ptr<IdleInhibitor>> m_idle_inhibitors;
         ListenerGroup m_listeners;

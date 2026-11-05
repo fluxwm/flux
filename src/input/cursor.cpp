@@ -92,6 +92,8 @@ namespace flux::input {
             wlr_cursor_move(m_wlr_cursor, &event->pointer->base, dx, dy);
             process_motion(event->time_msec);
         }
+        m_input.seat().notify_relative_motion(event->time_msec, event->delta_x, event->delta_y, event->unaccel_dx,
+                                              event->unaccel_dy);
     }
 
     void Cursor::on_motion_absolute(wlr_pointer_motion_absolute_event* event) {
