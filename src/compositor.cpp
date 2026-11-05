@@ -111,6 +111,7 @@ namespace flux {
         wlr_presentation_create(m_display, m_backend, 2);
         wlr_single_pixel_buffer_manager_v1_create(m_display);
         wlr_alpha_modifier_v1_create(m_display);
+        wlr_fixes_create(m_display, 1);
         m_foreign_toplevel_list = wlr_ext_foreign_toplevel_list_v1_create(m_display, 1);
 
         m_output_layout = wlr_output_layout_create(m_display);
