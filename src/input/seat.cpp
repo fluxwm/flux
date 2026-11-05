@@ -8,6 +8,8 @@ namespace flux::input {
         m_listeners.listen(&m_wlr_seat->events.request_set_cursor, this, &Seat::on_request_set_cursor);
         m_listeners.listen(&m_wlr_seat->pointer_state.events.focus_change, this, &Seat::on_pointer_focus_change);
         m_listeners.listen(&m_wlr_seat->events.request_set_selection, this, &Seat::on_request_set_selection);
+        m_listeners.listen(&m_wlr_seat->events.request_set_primary_selection, this,
+                           &Seat::on_request_set_primary_selection);
 
         auto* cursor_shape_mgr = wlr_cursor_shape_manager_v1_create(display, 2);
         m_listeners.listen(&cursor_shape_mgr->events.request_set_shape, this, &Seat::on_request_set_shape);
@@ -40,6 +42,10 @@ namespace flux::input {
 
     void Seat::on_request_set_selection(wlr_seat_request_set_selection_event* event) {
         wlr_seat_set_selection(m_wlr_seat, event->source, event->serial);
+    }
+
+    void Seat::on_request_set_primary_selection(wlr_seat_request_set_primary_selection_event* event) {
+        wlr_seat_set_primary_selection(m_wlr_seat, event->source, event->serial);
     }
 
     void Seat::notify_keyboard_enter(wlr_surface* surface) noexcept {
