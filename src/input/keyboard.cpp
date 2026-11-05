@@ -48,6 +48,7 @@ namespace flux::input {
     }
 
     void Keyboard::on_key(wlr_keyboard_key_event* event) {
+        m_input.seat().notify_activity();
         uint32_t keycode = event->keycode + 8;
         const xkb_keysym_t* syms = nullptr;
         int nsyms = m_wlr_keyboard->xkb_state ? xkb_state_key_get_syms(m_wlr_keyboard->xkb_state, keycode, &syms) : 0;

@@ -30,6 +30,8 @@ namespace flux::input {
         void set_capabilities(uint32_t capabilities) noexcept { wlr_seat_set_capabilities(m_wlr_seat, capabilities); }
         void set_keyboard(wlr_keyboard* keyboard) noexcept { wlr_seat_set_keyboard(m_wlr_seat, keyboard); }
 
+        void notify_activity() noexcept { wlr_idle_notifier_v1_notify_activity(m_idle_notifier, m_wlr_seat); }
+
         void notify_key(uint32_t time_msec, uint32_t key, uint32_t state) noexcept {
             wlr_seat_keyboard_notify_key(m_wlr_seat, time_msec, key, state);
         }
@@ -41,11 +43,13 @@ namespace flux::input {
             wlr_seat_pointer_notify_motion(m_wlr_seat, time_msec, sx, sy);
         }
         void notify_button(uint32_t time_msec, uint32_t button, wl_pointer_button_state state) noexcept {
+            notify_activity();
             wlr_seat_pointer_notify_button(m_wlr_seat, time_msec, button, state);
         }
         void notify_axis(uint32_t time_msec, wl_pointer_axis orientation, double value, int32_t value_discrete,
                          wl_pointer_axis_source source,
                          wl_pointer_axis_relative_direction relative_direction) noexcept {
+            notify_activity();
             wlr_seat_pointer_notify_axis(m_wlr_seat, time_msec, orientation, value, value_discrete, source,
                                          relative_direction);
         }
@@ -66,6 +70,7 @@ namespace flux::input {
 
         Input& m_input;
         wlr_seat* m_wlr_seat = nullptr;
+        wlr_idle_notifier_v1* m_idle_notifier = nullptr;
         ListenerGroup m_listeners;
     };
 

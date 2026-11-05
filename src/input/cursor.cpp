@@ -61,11 +61,13 @@ namespace flux::input {
     }
 
     void Cursor::on_motion(wlr_pointer_motion_event* event) {
+        m_input.seat().notify_activity();
         wlr_cursor_move(m_wlr_cursor, &event->pointer->base, event->delta_x, event->delta_y);
         process_motion(event->time_msec);
     }
 
     void Cursor::on_motion_absolute(wlr_pointer_motion_absolute_event* event) {
+        m_input.seat().notify_activity();
         wlr_cursor_warp_absolute(m_wlr_cursor, &event->pointer->base, event->x, event->y);
         process_motion(event->time_msec);
     }
