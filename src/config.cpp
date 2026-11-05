@@ -324,10 +324,31 @@ namespace flux {
             }
         }
 
+        std::optional<Layout> parse_layout_mode(const kdl::Node& node) {
+            auto mode = parse_string(node);
+            if (!mode) {
+                return std::nullopt;
+            }
+            if (iequals(*mode, "master")) {
+                return Layout::Master;
+            }
+            if (iequals(*mode, "monocle")) {
+                return Layout::Monocle;
+            }
+            std::string_view name = node_name(node);
+            wlr_log(WLR_ERROR, "invalid layout mode '%s' for %.*s", mode->c_str(), static_cast<int>(name.size()),
+                    name.data());
+            return std::nullopt;
+        }
+
         void parse_layout(LayoutConfig& layout, const kdl::Node& layout_node) {
             for (const auto& child : layout_node.children()) {
                 std::string_view name = node_name(child);
-                if (iequals(name, "gaps")) {
+                if (iequals(name, "mode")) {
+                    if (auto val = parse_layout_mode(child)) {
+                        layout.mode = *val;
+                    }
+                } else if (iequals(name, "gaps")) {
                     parse_gaps(layout.gaps, child);
                 } else {
                     wlr_log(WLR_ERROR, "unknown section '%.*s' in layout config", static_cast<int>(name.size()),

@@ -22,6 +22,8 @@ cursor {
 }
 
 layout {
+    mode "master"
+
     gaps {
         inner 16
         outer 16

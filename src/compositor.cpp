@@ -474,6 +474,21 @@ namespace flux {
         const auto it = std::ranges::find(tiled, focused);
         const size_t idx = static_cast<size_t>(std::distance(tiled.begin(), it));
 
+        if (m_config->layout().mode == Layout::Monocle) {
+            const bool at_edge = (direction == Direction::Left || direction == Direction::Right) ||
+                                 (direction == Direction::Up && idx == 0) ||
+                                 (direction == Direction::Down && idx == tiled.size() - 1);
+            if (at_edge && focus_adjacent_output()) {
+                return;
+            }
+
+            const size_t next_idx = (direction == Direction::Down || direction == Direction::Right)
+                                        ? ((idx + 1) % tiled.size())
+                                        : ((idx == 0) ? (tiled.size() - 1) : (idx - 1));
+            focus_window(tiled[next_idx]);
+            return;
+        }
+
         if (idx == 0) {
             if (direction == Direction::Right) {
                 Window* target = tiled[1];
@@ -555,7 +570,7 @@ namespace flux {
             return;
         }
 
-        const auto& gaps = m_config->layout().gaps;
+        const auto& layout_cfg = m_config->layout();
         for (const auto& output : m_outputs) {
             if (!output->is_enabled()) {
                 continue;
@@ -579,7 +594,7 @@ namespace flux {
             }
 
             for (size_t i = 0; i < tiled.size(); ++i) {
-                tiled[i]->set_geometry(tile_box(usable, i, tiled.size(), gaps));
+                tiled[i]->set_geometry(tile_box(usable, i, tiled.size(), layout_cfg));
             }
         }
     }

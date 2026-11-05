@@ -14,7 +14,13 @@ namespace flux {
     }
 
     [[nodiscard]] constexpr wlr_box tile_box(const wlr_box& usable, size_t index, size_t total,
-                                             const GapsConfig& gaps) noexcept {
+                                             const LayoutConfig& layout) noexcept {
+        if (layout.mode == Layout::Monocle) {
+            total = 1;
+        }
+
+        const auto& gaps = layout.gaps;
+
         const int outer = (total <= 1 && gaps.smart) ? 0 : gaps.outer;
         const int area_x = usable.x + outer;
         const int area_y = usable.y + outer;

@@ -27,6 +27,11 @@ namespace flux {
         bool operator==(const CursorConfig&) const = default;
     };
 
+    enum class Layout : uint8_t {
+        Master,
+        Monocle,
+    };
+
     struct GapsConfig {
         int32_t inner = 0;
         int32_t outer = 0;
@@ -34,6 +39,7 @@ namespace flux {
     };
 
     struct LayoutConfig {
+        Layout mode = Layout::Master;
         GapsConfig gaps{};
     };
 
