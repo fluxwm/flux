@@ -1,8 +1,16 @@
 #include "flux/input/seat.hpp"
 #include "flux/compositor.hpp"
 #include "flux/input.hpp"
+#include "flux/util.hpp"
+
+#include <algorithm>
 
 namespace flux::input {
+
+    struct IdleInhibitor {
+        wlr_surface* surface = nullptr;
+        ListenerGroup listeners;
+    };
 
     Seat::Seat(Input& input, wl_display* display, const char* name)
         : m_input(input), m_wlr_seat(wlr_seat_create(display, name)),
@@ -15,9 +23,13 @@ namespace flux::input {
 
         auto* cursor_shape_mgr = wlr_cursor_shape_manager_v1_create(display, 2);
         m_listeners.listen(&cursor_shape_mgr->events.request_set_shape, this, &Seat::on_request_set_shape);
+
+        auto* idle_inhibit_mgr = wlr_idle_inhibit_v1_create(display);
+        m_listeners.listen(&idle_inhibit_mgr->events.new_inhibitor, this, &Seat::on_new_idle_inhibitor);
     }
 
     Seat::~Seat() {
+        m_idle_inhibitors.clear();
         m_listeners.clear();
         if (m_wlr_seat) {
             wlr_seat_destroy(m_wlr_seat);
@@ -66,6 +78,25 @@ namespace flux::input {
         } else {
             wlr_seat_keyboard_notify_enter(m_wlr_seat, surface, nullptr, 0, nullptr);
         }
+    }
+
+    void Seat::on_new_idle_inhibitor(wlr_idle_inhibitor_v1* inhibitor) {
+        auto* surface = inhibitor->surface;
+        auto& inh = m_idle_inhibitors.emplace_back(std::make_unique<IdleInhibitor>(surface));
+        auto* ptr = inh.get();
+        ptr->listeners.listen(&inhibitor->events.destroy, [this, ptr](void*) {
+            erase_unique_ptr(m_idle_inhibitors, ptr);
+            update_idle_inhibit();
+        });
+        ptr->listeners.listen(&surface->events.map, this, &Seat::update_idle_inhibit);
+        ptr->listeners.listen(&surface->events.unmap, this, &Seat::update_idle_inhibit);
+        update_idle_inhibit();
+    }
+
+    void Seat::update_idle_inhibit() {
+        const bool inhibited =
+            std::ranges::any_of(m_idle_inhibitors, [](const auto& inh) { return inh->surface->mapped; });
+        wlr_idle_notifier_v1_set_inhibited(m_idle_notifier, inhibited);
     }
 
 }

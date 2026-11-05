@@ -9,6 +9,8 @@ namespace flux {
 
 namespace flux::input {
 
+    struct IdleInhibitor;
+
     class Seat {
     public:
         Seat(Input& input, wl_display* display, const char* name = "seat0");
@@ -66,11 +68,14 @@ namespace flux::input {
         void on_pointer_focus_change(wlr_seat_pointer_focus_change_event* event);
         void on_request_set_selection(wlr_seat_request_set_selection_event* event);
         void on_request_set_primary_selection(wlr_seat_request_set_primary_selection_event* event);
+        void on_new_idle_inhibitor(wlr_idle_inhibitor_v1* inhibitor);
+        void update_idle_inhibit();
         void clear_keyboard_focus() noexcept { wlr_seat_keyboard_notify_clear_focus(m_wlr_seat); }
 
         Input& m_input;
         wlr_seat* m_wlr_seat = nullptr;
         wlr_idle_notifier_v1* m_idle_notifier = nullptr;
+        std::vector<std::unique_ptr<IdleInhibitor>> m_idle_inhibitors;
         ListenerGroup m_listeners;
     };
 
