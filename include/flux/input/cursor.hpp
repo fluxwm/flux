@@ -29,6 +29,7 @@ namespace flux::input {
         void set_surface(wlr_surface* surface, int32_t hotspot_x, int32_t hotspot_y) noexcept {
             wlr_cursor_set_surface(m_wlr_cursor, surface, hotspot_x, hotspot_y);
         }
+        void warp(double lx, double ly) noexcept { wlr_cursor_warp(m_wlr_cursor, nullptr, lx, ly); }
 
         void update_focus();
         void apply_config(const CursorConfig& config);
@@ -40,6 +41,7 @@ namespace flux::input {
         void on_axis(wlr_pointer_axis_event* event);
         void on_frame();
 
+        bool apply_constraint(double& dx, double& dy) const;
         void process_motion(uint32_t time_msec);
 
         Input& m_input;

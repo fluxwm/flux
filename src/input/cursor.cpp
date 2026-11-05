@@ -60,16 +60,51 @@ namespace flux::input {
         }
     }
 
+    bool Cursor::apply_constraint(double& dx, double& dy) const {
+        auto* constraint = m_input.seat().active_constraint();
+        if (!constraint) {
+            return true;
+        }
+        if (constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED) {
+            return false;
+        }
+        double sx = 0.0;
+        double sy = 0.0;
+        if (m_input.compositor().scene().surface_at(m_wlr_cursor->x, m_wlr_cursor->y, &sx, &sy) !=
+            constraint->surface) {
+            return true;
+        }
+        double confined_x = 0.0;
+        double confined_y = 0.0;
+        if (!wlr_region_confine(&constraint->region, sx, sy, sx + dx, sy + dy, &confined_x, &confined_y)) {
+            return false;
+        }
+        dx = confined_x - sx;
+        dy = confined_y - sy;
+        return true;
+    }
+
     void Cursor::on_motion(wlr_pointer_motion_event* event) {
         m_input.seat().notify_activity();
-        wlr_cursor_move(m_wlr_cursor, &event->pointer->base, event->delta_x, event->delta_y);
-        process_motion(event->time_msec);
+        double dx = event->delta_x;
+        double dy = event->delta_y;
+        if (apply_constraint(dx, dy)) {
+            wlr_cursor_move(m_wlr_cursor, &event->pointer->base, dx, dy);
+            process_motion(event->time_msec);
+        }
     }
 
     void Cursor::on_motion_absolute(wlr_pointer_motion_absolute_event* event) {
         m_input.seat().notify_activity();
-        wlr_cursor_warp_absolute(m_wlr_cursor, &event->pointer->base, event->x, event->y);
-        process_motion(event->time_msec);
+        double lx = 0.0;
+        double ly = 0.0;
+        wlr_cursor_absolute_to_layout_coords(m_wlr_cursor, &event->pointer->base, event->x, event->y, &lx, &ly);
+        double dx = lx - m_wlr_cursor->x;
+        double dy = ly - m_wlr_cursor->y;
+        if (apply_constraint(dx, dy)) {
+            wlr_cursor_move(m_wlr_cursor, &event->pointer->base, dx, dy);
+            process_motion(event->time_msec);
+        }
     }
 
     void Cursor::on_button(wlr_pointer_button_event* event) {
@@ -109,6 +144,13 @@ namespace flux::input {
     }
 
     void Cursor::process_motion(uint32_t time_msec) {
+        if (!m_input.compositor().exclusive_layer()) {
+            if (auto* constraint = m_input.seat().active_constraint();
+                constraint && constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED) {
+                return;
+            }
+        }
+
         double sx = 0.0;
         double sy = 0.0;
         wlr_surface* surface = m_input.compositor().scene().surface_at(m_wlr_cursor->x, m_wlr_cursor->y, &sx, &sy);

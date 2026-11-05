@@ -28,6 +28,7 @@ namespace flux::input {
         [[nodiscard]] wlr_keyboard* keyboard() const noexcept {
             return m_wlr_seat ? wlr_seat_get_keyboard(m_wlr_seat) : nullptr;
         }
+        [[nodiscard]] wlr_pointer_constraint_v1* active_constraint() const noexcept { return m_active_constraint; }
 
         void set_capabilities(uint32_t capabilities) noexcept { wlr_seat_set_capabilities(m_wlr_seat, capabilities); }
         void set_keyboard(wlr_keyboard* keyboard) noexcept { wlr_seat_set_keyboard(m_wlr_seat, keyboard); }
@@ -70,13 +71,19 @@ namespace flux::input {
         void on_request_set_primary_selection(wlr_seat_request_set_primary_selection_event* event);
         void on_new_idle_inhibitor(wlr_idle_inhibitor_v1* inhibitor);
         void update_idle_inhibit();
+        void update_pointer_constraint();
+        void set_active_constraint(wlr_pointer_constraint_v1* constraint);
+        void on_destroy_constraint();
         void clear_keyboard_focus() noexcept { wlr_seat_keyboard_notify_clear_focus(m_wlr_seat); }
 
         Input& m_input;
         wlr_seat* m_wlr_seat = nullptr;
         wlr_idle_notifier_v1* m_idle_notifier = nullptr;
+        wlr_pointer_constraints_v1* m_pointer_constraints = nullptr;
+        wlr_pointer_constraint_v1* m_active_constraint = nullptr;
         std::vector<std::unique_ptr<IdleInhibitor>> m_idle_inhibitors;
         ListenerGroup m_listeners;
+        ListenerGroup m_constraint_listeners;
     };
 
 }

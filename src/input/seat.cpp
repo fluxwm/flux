@@ -1,11 +1,41 @@
 #include "flux/input/seat.hpp"
 #include "flux/compositor.hpp"
 #include "flux/input.hpp"
+#include "flux/layer.hpp"
 #include "flux/util.hpp"
+#include "flux/window.hpp"
 
 #include <algorithm>
 
 namespace flux::input {
+
+    namespace {
+        void warp_to_hint(Input& input, const wlr_pointer_constraint_v1* constraint) {
+            if (!constraint || constraint->type != WLR_POINTER_CONSTRAINT_V1_LOCKED ||
+                !constraint->current.cursor_hint.enabled ||
+                constraint->surface != constraint->seat->pointer_state.focused_surface) {
+                return;
+            }
+            const double sx = constraint->current.cursor_hint.x;
+            const double sy = constraint->current.cursor_hint.y;
+            int lx = 0;
+            int ly = 0;
+            bool found = false;
+            if (auto* toplevel = wlr_xdg_toplevel_try_from_wlr_surface(constraint->surface)) {
+                if (auto* win = Window::try_from(toplevel)) {
+                    found = wlr_scene_node_coords(&win->scene_tree()->node, &lx, &ly);
+                }
+            } else if (auto* layer = Layer::try_from(constraint->surface)) {
+                if (layer->scene_tree()) {
+                    found = wlr_scene_node_coords(&layer->scene_tree()->node, &lx, &ly);
+                }
+            }
+            if (found) {
+                input.cursor().warp(lx + sx, ly + sy);
+                wlr_seat_pointer_warp(constraint->seat, sx, sy);
+            }
+        }
+    }
 
     struct IdleInhibitor {
         wlr_surface* surface = nullptr;
@@ -14,7 +44,8 @@ namespace flux::input {
 
     Seat::Seat(Input& input, wl_display* display, const char* name)
         : m_input(input), m_wlr_seat(wlr_seat_create(display, name)),
-          m_idle_notifier(wlr_idle_notifier_v1_create(display)) {
+          m_idle_notifier(wlr_idle_notifier_v1_create(display)),
+          m_pointer_constraints(wlr_pointer_constraints_v1_create(display)) {
         m_listeners.listen(&m_wlr_seat->events.request_set_cursor, this, &Seat::on_request_set_cursor);
         m_listeners.listen(&m_wlr_seat->pointer_state.events.focus_change, this, &Seat::on_pointer_focus_change);
         m_listeners.listen(&m_wlr_seat->events.request_set_selection, this, &Seat::on_request_set_selection);
@@ -26,9 +57,12 @@ namespace flux::input {
 
         auto* idle_inhibit_mgr = wlr_idle_inhibit_v1_create(display);
         m_listeners.listen(&idle_inhibit_mgr->events.new_inhibitor, this, &Seat::on_new_idle_inhibitor);
+
+        m_listeners.listen(&m_pointer_constraints->events.new_constraint, this, &Seat::update_pointer_constraint);
     }
 
     Seat::~Seat() {
+        m_constraint_listeners.clear();
         m_idle_inhibitors.clear();
         m_listeners.clear();
         if (m_wlr_seat) {
@@ -52,6 +86,7 @@ namespace flux::input {
         if (event->new_surface == nullptr) {
             m_input.cursor().set_xcursor("default");
         }
+        update_pointer_constraint();
     }
 
     void Seat::on_request_set_selection(wlr_seat_request_set_selection_event* event) {
@@ -68,6 +103,7 @@ namespace flux::input {
 
     void Seat::notify_keyboard_enter(wlr_surface* surface) noexcept {
         if (!surface) {
+            set_active_constraint(nullptr);
             clear_keyboard_focus();
             return;
         }
@@ -78,6 +114,7 @@ namespace flux::input {
         } else {
             wlr_seat_keyboard_notify_enter(m_wlr_seat, surface, nullptr, 0, nullptr);
         }
+        update_pointer_constraint();
     }
 
     void Seat::on_new_idle_inhibitor(wlr_idle_inhibitor_v1* inhibitor) {
@@ -97,6 +134,38 @@ namespace flux::input {
         const bool inhibited =
             std::ranges::any_of(m_idle_inhibitors, [](const auto& inh) { return inh->surface->mapped; });
         wlr_idle_notifier_v1_set_inhibited(m_idle_notifier, inhibited);
+    }
+
+    void Seat::update_pointer_constraint() {
+        wlr_surface* surface = focused_pointer_surface();
+        auto* constraint =
+            (surface && surface == focused_surface())
+                ? wlr_pointer_constraints_v1_constraint_for_surface(m_pointer_constraints, surface, m_wlr_seat)
+                : nullptr;
+        set_active_constraint(constraint);
+    }
+
+    void Seat::set_active_constraint(wlr_pointer_constraint_v1* constraint) {
+        if (m_active_constraint == constraint) {
+            return;
+        }
+        m_constraint_listeners.clear();
+        if (m_active_constraint) {
+            warp_to_hint(m_input, m_active_constraint);
+            wlr_pointer_constraint_v1_send_deactivated(m_active_constraint);
+        }
+        m_active_constraint = constraint;
+        if (m_active_constraint) {
+            m_constraint_listeners.listen(&m_active_constraint->events.destroy, this, &Seat::on_destroy_constraint);
+            wlr_pointer_constraint_v1_send_activated(m_active_constraint);
+        }
+    }
+
+    void Seat::on_destroy_constraint() {
+        auto* constraint = m_active_constraint;
+        m_active_constraint = nullptr;
+        m_constraint_listeners.clear();
+        warp_to_hint(m_input, constraint);
     }
 
 }
