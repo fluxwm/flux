@@ -272,13 +272,17 @@ namespace flux {
             }
         }
 
-        void parse_input(KeyboardConfig& keyboard, const kdl::Node& input_node) {
+        void parse_input(KeyboardConfig& keyboard, bool& middle_click_paste, const kdl::Node& input_node) {
             for (const auto& child : input_node.children()) {
                 std::string_view name = node_name(child);
                 if (iequals(name, "keyboard")) {
                     parse_keyboard(keyboard, child);
+                } else if (iequals(name, "middle-click-paste")) {
+                    if (auto val = parse_bool(child)) {
+                        middle_click_paste = *val;
+                    }
                 } else {
-                    wlr_log(WLR_ERROR, "unknown section '%.*s' in input config", static_cast<int>(name.size()),
+                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in input config", static_cast<int>(name.size()),
                             name.data());
                 }
             }
@@ -563,6 +567,7 @@ namespace flux {
             return false;
         }
 
+        bool middle_click_paste = true;
         KeyboardConfig keyboard;
         CursorConfig cursor;
         LayoutConfig layout;
@@ -575,7 +580,7 @@ namespace flux {
             if (iequals(name, "autostart")) {
                 parse_autostart(autostart, node);
             } else if (iequals(name, "input")) {
-                parse_input(keyboard, node);
+                parse_input(keyboard, middle_click_paste, node);
             } else if (iequals(name, "cursor")) {
                 parse_cursor(cursor, node);
             } else if (iequals(name, "layout")) {
@@ -589,6 +594,7 @@ namespace flux {
             }
         }
 
+        m_middle_click_paste = middle_click_paste;
         m_keyboard = keyboard;
         m_cursor = std::move(cursor);
         m_layout = layout;

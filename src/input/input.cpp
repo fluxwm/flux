@@ -47,6 +47,9 @@ namespace flux {
 
     void Input::apply_config() {
         const auto& cfg = m_compositor.config();
+        if (!cfg.middle_click_paste()) {
+            m_seat->clear_primary_selection();
+        }
         for (const auto& keyboard : m_keyboards) {
             keyboard->apply_config(cfg.keyboard());
         }

@@ -97,6 +97,7 @@ namespace flux {
         Config(const Config&) = delete;
         Config& operator=(const Config&) = delete;
 
+        [[nodiscard]] bool middle_click_paste() const noexcept { return m_middle_click_paste; }
         [[nodiscard]] const KeyboardConfig& keyboard() const noexcept { return m_keyboard; }
         [[nodiscard]] const CursorConfig& cursor() const noexcept { return m_cursor; }
         [[nodiscard]] const LayoutConfig& layout() const noexcept { return m_layout; }
@@ -121,6 +122,7 @@ namespace flux {
         wl_event_source* m_inotify_source = nullptr;
         std::function<void()> m_on_reload;
 
+        bool m_middle_click_paste = true;
         KeyboardConfig m_keyboard;
         CursorConfig m_cursor;
         LayoutConfig m_layout;

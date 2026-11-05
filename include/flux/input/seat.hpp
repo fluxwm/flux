@@ -54,6 +54,7 @@ namespace flux::input {
             wlr_seat_pointer_notify_enter(m_wlr_seat, surface, sx, sy);
         }
         void clear_pointer_focus() noexcept { wlr_seat_pointer_clear_focus(m_wlr_seat); }
+        void clear_primary_selection() noexcept { wlr_seat_set_primary_selection(m_wlr_seat, nullptr, 0); }
 
     private:
         void on_request_set_cursor(wlr_seat_pointer_request_set_cursor_event* event);

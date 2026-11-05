@@ -1,4 +1,5 @@
 #include "flux/input/seat.hpp"
+#include "flux/compositor.hpp"
 #include "flux/input.hpp"
 
 namespace flux::input {
@@ -45,7 +46,11 @@ namespace flux::input {
     }
 
     void Seat::on_request_set_primary_selection(wlr_seat_request_set_primary_selection_event* event) {
-        wlr_seat_set_primary_selection(m_wlr_seat, event->source, event->serial);
+        if (m_input.compositor().config().middle_click_paste()) {
+            wlr_seat_set_primary_selection(m_wlr_seat, event->source, event->serial);
+        } else if (event->source) {
+            wlr_primary_selection_source_destroy(event->source);
+        }
     }
 
     void Seat::notify_keyboard_enter(wlr_surface* surface) noexcept {
