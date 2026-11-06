@@ -1,5 +1,6 @@
 #pragma once
 
+#include "flux/config.hpp"
 #include "flux/listener.hpp"
 #include "flux/wlroots.hpp"
 
@@ -7,7 +8,6 @@
 
 namespace flux {
     class Input;
-    struct KeyboardConfig;
 }
 
 namespace flux::input {
@@ -31,6 +31,7 @@ namespace flux::input {
 
         Input& m_input;
         wlr_keyboard* m_wlr_keyboard = nullptr;
+        KeyboardConfig m_config{};
         bool m_numlock = false;
         std::vector<uint32_t> m_consumed_keycodes;
 

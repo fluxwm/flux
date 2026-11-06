@@ -265,6 +265,26 @@ namespace flux {
                     if (auto val = parse_bool(child)) {
                         keyboard.numlock = *val;
                     }
+                } else if (iequals(name, "layout")) {
+                    if (auto val = parse_string(child)) {
+                        keyboard.layout = std::move(*val);
+                    }
+                } else if (iequals(name, "variant")) {
+                    if (auto val = parse_string(child)) {
+                        keyboard.variant = std::move(*val);
+                    }
+                } else if (iequals(name, "options") || iequals(name, "option")) {
+                    if (auto val = parse_string(child)) {
+                        keyboard.options = std::move(*val);
+                    }
+                } else if (iequals(name, "model")) {
+                    if (auto val = parse_string(child)) {
+                        keyboard.model = std::move(*val);
+                    }
+                } else if (iequals(name, "rules") || iequals(name, "rule")) {
+                    if (auto val = parse_string(child)) {
+                        keyboard.rules = std::move(*val);
+                    }
                 } else {
                     wlr_log(WLR_ERROR, "unknown setting '%.*s' in keyboard config", static_cast<int>(name.size()),
                             name.data());
@@ -595,7 +615,7 @@ namespace flux {
         }
 
         m_middle_click_paste = middle_click_paste;
-        m_keyboard = keyboard;
+        m_keyboard = std::move(keyboard);
         m_cursor = std::move(cursor);
         m_layout = layout;
         m_environment = std::move(environment);

@@ -9,13 +9,6 @@ namespace flux::input {
 
     Keyboard::Keyboard(Input& input, wlr_input_device* device, const KeyboardConfig& config)
         : m_input(input), m_wlr_keyboard(wlr_keyboard_from_input_device(device)) {
-        xkb_context* context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-        xkb_keymap* keymap = xkb_keymap_new_from_names(context, nullptr, XKB_KEYMAP_COMPILE_NO_FLAGS);
-
-        wlr_keyboard_set_keymap(m_wlr_keyboard, keymap);
-        xkb_keymap_unref(keymap);
-        xkb_context_unref(context);
-
         apply_config(config);
 
         m_listeners.listen(&m_wlr_keyboard->events.modifiers, this, &Keyboard::on_modifiers);
@@ -26,9 +19,49 @@ namespace flux::input {
     }
 
     void Keyboard::apply_config(const KeyboardConfig& config) {
+        if (m_wlr_keyboard->keymap && m_config == config) {
+            return;
+        }
+
         wlr_keyboard_set_repeat_info(m_wlr_keyboard, config.repeat_rate, config.repeat_delay);
 
-        if (m_wlr_keyboard->keymap && m_numlock != config.numlock) {
+        bool keymap_updated = false;
+        if (!m_wlr_keyboard->keymap || m_config.rules != config.rules || m_config.model != config.model ||
+            m_config.layout != config.layout || m_config.variant != config.variant ||
+            m_config.options != config.options) {
+            const xkb_rule_names rules{
+                .rules = config.rules.empty() ? nullptr : config.rules.c_str(),
+                .model = config.model.empty() ? nullptr : config.model.c_str(),
+                .layout = config.layout.empty() ? nullptr : config.layout.c_str(),
+                .variant = config.variant.empty() ? nullptr : config.variant.c_str(),
+                .options = config.options.empty() ? nullptr : config.options.c_str(),
+            };
+
+            if (xkb_context* context = xkb_context_new(XKB_CONTEXT_NO_FLAGS)) {
+                xkb_keymap* keymap = xkb_keymap_new_from_names(context, &rules, XKB_KEYMAP_COMPILE_NO_FLAGS);
+                if (!keymap) {
+                    wlr_log(WLR_ERROR, "failed to compile xkb keymap, falling back to default");
+                    if (xkb_context* fallback_ctx = xkb_context_new(XKB_CONTEXT_NO_ENVIRONMENT_NAMES)) {
+                        keymap = xkb_keymap_new_from_names(fallback_ctx, nullptr, XKB_KEYMAP_COMPILE_NO_FLAGS);
+                        xkb_context_unref(fallback_ctx);
+                    }
+                }
+                if (keymap) {
+                    wlr_keyboard_set_keymap(m_wlr_keyboard, keymap);
+                    xkb_keymap_unref(keymap);
+                    keymap_updated = true;
+                } else {
+                    wlr_log(WLR_ERROR, "failed to compile any valid xkb keymap");
+                }
+                xkb_context_unref(context);
+            } else {
+                wlr_log(WLR_ERROR, "failed to create xkb context");
+            }
+        }
+
+        m_config = config;
+
+        if (m_wlr_keyboard->keymap && (m_numlock != config.numlock || (keymap_updated && config.numlock))) {
             m_numlock = config.numlock;
             const xkb_mod_index_t idx = xkb_keymap_mod_get_index(m_wlr_keyboard->keymap, XKB_MOD_NAME_NUM);
             if (idx != XKB_MOD_INVALID) {

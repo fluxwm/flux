@@ -18,6 +18,13 @@ namespace flux {
         int32_t repeat_rate = 25;
         int32_t repeat_delay = 600;
         bool numlock = false;
+        std::string layout;
+        std::string variant;
+        std::string options;
+        std::string model;
+        std::string rules;
+
+        bool operator==(const KeyboardConfig&) const = default;
     };
 
     struct CursorConfig {

@@ -10,8 +10,15 @@ environment {
 
 input {
     keyboard {
+        // layout "us"
+        // variant ""
+        // options ""
+        // model ""
+        // rules ""
+
         // repeat-rate 25
         // repeat-delay 600
+
         numlock
     }
 }
