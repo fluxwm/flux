@@ -113,6 +113,9 @@ namespace flux {
         wlr_alpha_modifier_v1_create(m_display);
         wlr_fixes_create(m_display, 1);
         m_foreign_toplevel_list = wlr_ext_foreign_toplevel_list_v1_create(m_display, 1);
+        auto* foreign_registry = wlr_xdg_foreign_registry_create(m_display);
+        wlr_xdg_foreign_v1_create(m_display, foreign_registry);
+        wlr_xdg_foreign_v2_create(m_display, foreign_registry);
 
         m_output_layout = wlr_output_layout_create(m_display);
         wlr_xdg_output_manager_v1_create(m_display, m_output_layout);
