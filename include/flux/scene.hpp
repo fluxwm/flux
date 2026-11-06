@@ -40,8 +40,8 @@ namespace flux {
         wlr_scene_tree* m_scene_bottom = nullptr;
         wlr_scene_tree* m_scene_windows = nullptr;
         wlr_scene_tree* m_scene_top = nullptr;
-        wlr_scene_tree* m_scene_window_popups = nullptr;
         wlr_scene_tree* m_scene_fullscreen = nullptr;
+        wlr_scene_tree* m_scene_window_popups = nullptr;
         wlr_scene_tree* m_scene_overlay = nullptr;
         wlr_scene_tree* m_scene_popups = nullptr;
         wlr_scene_output_layout* m_scene_layout = nullptr;
