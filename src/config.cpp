@@ -22,7 +22,7 @@ namespace flux {
     namespace {
 
         constexpr char default_config_raw[] = {
-#embed "../default-config.kdl"
+#embed "../resources/default-config.kdl"
         };
         constexpr std::string_view default_config_kdl{default_config_raw, sizeof(default_config_raw)};
 
