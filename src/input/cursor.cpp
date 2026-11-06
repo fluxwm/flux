@@ -35,7 +35,6 @@ namespace flux::input {
     }
 
     void Cursor::apply_config(const CursorConfig& config) {
-        const bool is_init = (m_cursor_mgr == nullptr);
         if (m_cursor_mgr && m_config == config) {
             return;
         }
@@ -55,7 +54,9 @@ namespace flux::input {
         m_cursor_mgr = wlr_xcursor_manager_create(theme, config.size);
         wlr_xcursor_manager_load(m_cursor_mgr, 1);
 
-        if (is_init || !m_input.seat().focused_pointer_surface()) {
+        if (m_current_shape) {
+            wlr_cursor_set_xcursor(m_wlr_cursor, m_cursor_mgr, m_current_shape);
+        } else if (!m_input.seat().focused_pointer_surface()) {
             set_xcursor("default");
         }
     }
