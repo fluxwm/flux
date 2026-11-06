@@ -187,16 +187,17 @@ namespace flux {
 
     void Compositor::run() {
         if (m_session) {
+            std::vector<std::string> args = {
+                "--systemd", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE", "XDG_SESSION_DESKTOP",
+            };
+            for (const auto& [name, value] : m_config->environment()) {
+                if (value && !std::ranges::contains(args, name)) {
+                    args.push_back(name);
+                }
+            }
             spawn({
                 .program = "dbus-update-activation-environment",
-                .args =
-                    {
-                        "--systemd",
-                        "WAYLAND_DISPLAY",
-                        "XDG_CURRENT_DESKTOP",
-                        "XDG_SESSION_TYPE",
-                        "XDG_SESSION_DESKTOP",
-                    },
+                .args = std::move(args),
             });
         }
 
