@@ -8,9 +8,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(FetchContent)
 set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     ckdl
     SYSTEM
+    EXCLUDE_FROM_ALL
     GIT_REPOSITORY https://github.com/tjol/ckdl.git
     GIT_TAG        c9c33fe64446287215e80705545139d92a48f829
 )
@@ -63,3 +65,9 @@ target_compile_definitions(flux PRIVATE FLUX_VERSION="${PROJECT_VERSION}")
 target_compile_options(flux PRIVATE -Wno-c23-extensions)
 
 generate_protocol(wlr-layer-shell-unstable-v1)
+
+include(GNUInstallDirs)
+
+install(TARGETS flux RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES resources/flux.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/wayland-sessions)
+install(FILES resources/flux-portals.conf DESTINATION ${CMAKE_INSTALL_DATADIR}/xdg-desktop-portal)

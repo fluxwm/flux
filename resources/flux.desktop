@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Flux
+Comment=A dynamic tiling Wayland compositor
+Exec=flux
+Type=Application
+DesktopNames=flux
