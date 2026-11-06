@@ -307,7 +307,7 @@ namespace flux {
                 }
             }
 
-            const int dev_null = open("/dev/null", O_RDWR | O_CLOEXEC);
+            const int dev_null = open("/dev/null", O_RDWR);
             if (dev_null >= 0) {
                 dup2(dev_null, STDIN_FILENO);
                 dup2(dev_null, STDOUT_FILENO);
