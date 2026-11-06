@@ -41,7 +41,23 @@ namespace flux {
             return;
         }
 
-        wlr_scene_output_commit(m_scene_output, nullptr);
+        if (wlr_scene_output_needs_frame(m_scene_output)) {
+            wlr_output_state state;
+            wlr_output_state_init(&state);
+            if (wlr_scene_output_build_state(m_scene_output, &state, nullptr)) {
+                if ((state.committed & WLR_OUTPUT_STATE_BUFFER) && m_compositor.allows_tearing(this)) {
+                    state.tearing_page_flip = true;
+                    if (!wlr_output_test_state(m_wlr_output, &state)) {
+                        state.tearing_page_flip = false;
+                    }
+                }
+                if (!wlr_output_commit_state(m_wlr_output, &state) && state.tearing_page_flip) {
+                    state.tearing_page_flip = false;
+                    wlr_output_commit_state(m_wlr_output, &state);
+                }
+            }
+            wlr_output_state_finish(&state);
+        }
 
         timespec now{};
         clock_gettime(CLOCK_MONOTONIC, &now);

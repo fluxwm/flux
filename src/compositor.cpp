@@ -116,6 +116,7 @@ namespace flux {
         auto* foreign_registry = wlr_xdg_foreign_registry_create(m_display);
         wlr_xdg_foreign_v1_create(m_display, foreign_registry);
         wlr_xdg_foreign_v2_create(m_display, foreign_registry);
+        m_tearing_control_mgr = wlr_tearing_control_manager_v1_create(m_display, 1);
 
         m_output_layout = wlr_output_layout_create(m_display);
         wlr_xdg_output_manager_v1_create(m_display, m_output_layout);
@@ -620,6 +621,21 @@ namespace flux {
         }
 
         return nullptr;
+    }
+
+    bool Compositor::allows_tearing(const Output* output) const noexcept {
+        if (!output || exclusive_layer() || !m_popups.empty()) {
+            return false;
+        }
+
+        for (const Window* w : m_current_workspace->focus_stack()) {
+            if (w->output() == output) {
+                return w->is_fullscreen() &&
+                       wlr_tearing_control_manager_v1_surface_hint_from_surface(m_tearing_control_mgr, w->surface()) ==
+                           WP_TEARING_CONTROL_V1_PRESENTATION_HINT_ASYNC;
+            }
+        }
+        return false;
     }
 
     void Compositor::refocus() {

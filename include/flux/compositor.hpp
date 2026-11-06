@@ -44,6 +44,7 @@ namespace flux {
         [[nodiscard]] Output* output_from_wlr(wlr_output* wlr_out) const noexcept;
         [[nodiscard]] Output* focused_output() const noexcept;
         [[nodiscard]] Layer* exclusive_layer() const noexcept;
+        [[nodiscard]] bool allows_tearing(const Output* output) const noexcept;
         [[nodiscard]] wlr_ext_foreign_toplevel_list_v1* foreign_toplevel_list() const noexcept {
             return m_foreign_toplevel_list;
         }
@@ -95,6 +96,7 @@ namespace flux {
         wlr_output_layout* m_output_layout = nullptr;
         wlr_ext_foreign_toplevel_list_v1* m_foreign_toplevel_list = nullptr;
         wlr_ext_workspace_group_handle_v1* m_workspace_group = nullptr;
+        wlr_tearing_control_manager_v1* m_tearing_control_mgr = nullptr;
 
         std::unique_ptr<Config> m_config;
         std::unique_ptr<Scene> m_scene;
