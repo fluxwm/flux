@@ -19,7 +19,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(ckdl)
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(DEPS REQUIRED IMPORTED_TARGET wlroots-0.20 wayland-server xkbcommon)
+pkg_check_modules(DEPS REQUIRED IMPORTED_TARGET wlroots-0.20 wayland-server xkbcommon libinput)
 
 find_program(WAYLAND_SCANNER NAMES wayland-scanner REQUIRED)
 set(GEN_PROTO_DIR "${CMAKE_CURRENT_BINARY_DIR}/protocols")

@@ -3,6 +3,7 @@
 #define WLR_USE_UNSTABLE
 
 #include <cmath>
+#include <libinput.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wkeyword-macro"
@@ -13,6 +14,7 @@ extern "C" {
 #define namespace _namespace
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
+#include <wlr/backend/libinput.h>
 #include <wlr/backend/session.h>
 #include <wlr/backend/wayland.h>
 #include <wlr/backend/x11.h>

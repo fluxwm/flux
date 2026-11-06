@@ -273,7 +273,7 @@ namespace flux {
                     if (auto val = parse_string(child)) {
                         keyboard.variant = std::move(*val);
                     }
-                } else if (iequals(name, "options") || iequals(name, "option")) {
+                } else if (iequals(name, "options")) {
                     if (auto val = parse_string(child)) {
                         keyboard.options = std::move(*val);
                     }
@@ -281,7 +281,7 @@ namespace flux {
                     if (auto val = parse_string(child)) {
                         keyboard.model = std::move(*val);
                     }
-                } else if (iequals(name, "rules") || iequals(name, "rule")) {
+                } else if (iequals(name, "rules")) {
                     if (auto val = parse_string(child)) {
                         keyboard.rules = std::move(*val);
                     }
@@ -292,11 +292,28 @@ namespace flux {
             }
         }
 
-        void parse_input(KeyboardConfig& keyboard, bool& middle_click_paste, const kdl::Node& input_node) {
+        void parse_touchpad(TouchpadConfig& touchpad, const kdl::Node& touchpad_node) {
+            for (const auto& child : touchpad_node.children()) {
+                std::string_view name = node_name(child);
+                if (iequals(name, "tap-to-click")) {
+                    if (auto val = parse_bool(child)) {
+                        touchpad.tap_to_click = *val;
+                    }
+                } else {
+                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in touchpad config", static_cast<int>(name.size()),
+                            name.data());
+                }
+            }
+        }
+
+        void parse_input(KeyboardConfig& keyboard, TouchpadConfig& touchpad, bool& middle_click_paste,
+                         const kdl::Node& input_node) {
             for (const auto& child : input_node.children()) {
                 std::string_view name = node_name(child);
                 if (iequals(name, "keyboard")) {
                     parse_keyboard(keyboard, child);
+                } else if (iequals(name, "touchpad")) {
+                    parse_touchpad(touchpad, child);
                 } else if (iequals(name, "middle-click-paste")) {
                     if (auto val = parse_bool(child)) {
                         middle_click_paste = *val;
@@ -589,6 +606,7 @@ namespace flux {
 
         bool middle_click_paste = true;
         KeyboardConfig keyboard;
+        TouchpadConfig touchpad;
         CursorConfig cursor;
         LayoutConfig layout;
         std::vector<EnvironmentVariable> environment;
@@ -600,7 +618,7 @@ namespace flux {
             if (iequals(name, "autostart")) {
                 parse_autostart(autostart, node);
             } else if (iequals(name, "input")) {
-                parse_input(keyboard, middle_click_paste, node);
+                parse_input(keyboard, touchpad, middle_click_paste, node);
             } else if (iequals(name, "cursor")) {
                 parse_cursor(cursor, node);
             } else if (iequals(name, "layout")) {
@@ -616,6 +634,7 @@ namespace flux {
 
         m_middle_click_paste = middle_click_paste;
         m_keyboard = std::move(keyboard);
+        m_touchpad = touchpad;
         m_cursor = std::move(cursor);
         m_layout = layout;
         m_environment = std::move(environment);

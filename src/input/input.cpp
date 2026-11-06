@@ -18,9 +18,11 @@ namespace flux {
                 m_keyboards.push_back(std::make_unique<input::Keyboard>(*this, device, kb));
                 break;
             }
-            case WLR_INPUT_DEVICE_POINTER:
-                m_pointers.push_back(std::make_unique<input::Pointer>(*this, device));
+            case WLR_INPUT_DEVICE_POINTER: {
+                const auto& tp = m_compositor.config().touchpad();
+                m_pointers.push_back(std::make_unique<input::Pointer>(*this, device, tp));
                 break;
+            }
             default:
                 break;
         }
@@ -52,6 +54,9 @@ namespace flux {
         }
         for (const auto& keyboard : m_keyboards) {
             keyboard->apply_config(cfg.keyboard());
+        }
+        for (const auto& pointer : m_pointers) {
+            pointer->apply_config(cfg.touchpad());
         }
         m_cursor->apply_config(cfg.cursor());
     }

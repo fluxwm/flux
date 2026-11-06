@@ -55,6 +55,7 @@ jobs:
             wlroots0.20 \
             wayland \
             libxkbcommon \
+            libinput \
             clang \
             python
 
@@ -93,7 +94,8 @@ jobs:
             pkgconf \
             wlroots0.20 \
             wayland \
-            libxkbcommon
+            libxkbcommon \
+            libinput
 
       - name: Configure Git safe directory
         run: git config --global --add safe.directory '*'

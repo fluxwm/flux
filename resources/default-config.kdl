@@ -21,6 +21,10 @@ input {
 
         numlock
     }
+
+    touchpad {
+        tap-to-click
+    }
 }
 
 cursor {
