@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.7.0](https://github.com/fluxwm/flux/compare/v0.6.0...v0.7.0) (2026-11-07)
+
+
+### Features
+
+* add alpha-modifier-v1 protocol support ([2cbae68](https://github.com/fluxwm/flux/commit/2cbae683de9059482303f5eae3cbc8148cf4cfa3))
+* add cmake install targets, session desktop entry, and portals config ([46877dd](https://github.com/fluxwm/flux/commit/46877ddc41cb01b6283186662e1d7d9281720a70))
+* add environment configuration support ([5255774](https://github.com/fluxwm/flux/commit/5255774d763f228e4a2217a1a33e3ffa2e667466))
+* add ext-idle-notify-v1 protocol support ([97be3af](https://github.com/fluxwm/flux/commit/97be3afcd0140ad0d2e047e5cbe931ab2b6c030a))
+* add idle-inhibit-unstable-v1 protocol support ([b9159e9](https://github.com/fluxwm/flux/commit/b9159e9603aa9ebfb55f3c930660e7bc9fa7629d))
+* add middle-click-paste configuration ([2698a6c](https://github.com/fluxwm/flux/commit/2698a6cd746f593dae68c52de89850282372d827))
+* add monocle layout support ([7f2f26f](https://github.com/fluxwm/flux/commit/7f2f26f66b81f9551e2a146d08437f3786b3cf23))
+* add pointer-constraints-unstable-v1 protocol support ([e667f9d](https://github.com/fluxwm/flux/commit/e667f9d2c7a30f19005bded1f759e9afe34a2ef7))
+* add primary-selection-v1 protocol support ([c662f1d](https://github.com/fluxwm/flux/commit/c662f1d655d5f3faeeba63f9f06bb0d3c05e0292))
+* add relative-pointer-unstable-v1 protocol support ([2291358](https://github.com/fluxwm/flux/commit/22913586098e6491447973e9b5e47e467b49e47c))
+* add smart gaps option to layout configuration ([3ffa1bb](https://github.com/fluxwm/flux/commit/3ffa1bb56503aae759fe41cd1c400b82d4775b7d))
+* add tearing-control-v1 protocol support ([f73d333](https://github.com/fluxwm/flux/commit/f73d333016db764996f39f37e18fa8f7f5e5923c))
+* add touchpad natural-scroll configuration ([c306e16](https://github.com/fluxwm/flux/commit/c306e1662e50d62274d07e411a76a89d0871d2a9))
+* add touchpad tap-to-click configuration ([dc285f4](https://github.com/fluxwm/flux/commit/dc285f40122f31104dd6563b9704909d7b7e344c))
+* add wl-fixes protocol support ([9270c80](https://github.com/fluxwm/flux/commit/9270c805c5490cbbec670ef4559981a3751f24e6))
+* add xdg-foreign-unstable-v1 and v2 protocol support ([ceb0f60](https://github.com/fluxwm/flux/commit/ceb0f60153d4b78d6897638d88d57de6fbb09afa))
+* add xkb keymap configuration and fallback safety ([28edfb0](https://github.com/fluxwm/flux/commit/28edfb08b19d73c8024bb6ecf874d28806ffb34f))
+
+
+### Bug Fixes
+
+* avoid O_CLOEXEC when opening /dev/null in spawn ([1f55f00](https://github.com/fluxwm/flux/commit/1f55f00cfde68dc5773c7fbf861336b0bfc9d665))
+* export configured environment variables to dbus and systemd ([0632529](https://github.com/fluxwm/flux/commit/063252918748fc8cac447613c51c4cc6eceddc22))
+* re-apply active cursor shape on config reload ([5956d7f](https://github.com/fluxwm/flux/commit/5956d7f87c8eef8c3ddd3b53d00c966ed7975373))
+
+
+### Refactoring
+
+* align scene tree member declaration order with z-order ([0057e20](https://github.com/fluxwm/flux/commit/0057e2033493dcac34d5b45b71c0228e4b325112))
+* move default config into resources directory ([8eb6457](https://github.com/fluxwm/flux/commit/8eb64570ef5b66839da51c5a03958d5f671b18e4))
+
 ## [0.6.0](https://github.com/fluxwm/flux/compare/v0.5.0...v0.6.0) (2026-11-02)
 
 
