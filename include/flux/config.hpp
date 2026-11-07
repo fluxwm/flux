@@ -29,8 +29,7 @@ namespace flux {
 
     struct TouchpadConfig {
         bool tap_to_click = false;
-
-        bool operator==(const TouchpadConfig&) const = default;
+        bool natural_scroll = false;
     };
 
     struct CursorConfig {

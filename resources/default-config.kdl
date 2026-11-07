@@ -24,6 +24,7 @@ input {
 
     touchpad {
         tap-to-click
+        natural-scroll
     }
 }
 

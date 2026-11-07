@@ -299,6 +299,10 @@ namespace flux {
                     if (auto val = parse_bool(child)) {
                         touchpad.tap_to_click = *val;
                     }
+                } else if (iequals(name, "natural-scroll")) {
+                    if (auto val = parse_bool(child)) {
+                        touchpad.natural_scroll = *val;
+                    }
                 } else {
                     wlr_log(WLR_ERROR, "unknown setting '%.*s' in touchpad config", static_cast<int>(name.size()),
                             name.data());

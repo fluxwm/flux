@@ -22,10 +22,9 @@ namespace flux::input {
         }
 
         if (libinput_device_config_tap_get_finger_count(handle) > 0) {
-            const auto state = config.tap_to_click ? LIBINPUT_CONFIG_TAP_ENABLED : LIBINPUT_CONFIG_TAP_DISABLED;
-            if (libinput_device_config_tap_get_enabled(handle) != state) {
-                libinput_device_config_tap_set_enabled(handle, state);
-            }
+            const auto tap = config.tap_to_click ? LIBINPUT_CONFIG_TAP_ENABLED : LIBINPUT_CONFIG_TAP_DISABLED;
+            libinput_device_config_tap_set_enabled(handle, tap);
+            libinput_device_config_scroll_set_natural_scroll_enabled(handle, config.natural_scroll);
         }
     }
 
