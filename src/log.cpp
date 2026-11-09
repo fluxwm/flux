@@ -18,6 +18,7 @@ namespace flux {
 
         wlr_log_importance s_verbosity = WLR_INFO;
         bool s_use_color = false;
+        const time_zone* s_tz = nullptr;
 
         struct LevelStyle {
             std::string_view name;
@@ -83,13 +84,8 @@ namespace flux {
             }
 
             const auto now = system_clock::now();
-            const auto local_now = [now] {
-                try {
-                    return current_zone()->to_local(now);
-                } catch (...) {
-                    return local_time<system_clock::duration>(now.time_since_epoch());
-                }
-            }();
+            const auto local_now =
+                s_tz ? s_tz->to_local(now) : local_time<system_clock::duration>(now.time_since_epoch());
             const auto time = floor<microseconds>(local_now);
 
             const auto idx = static_cast<size_t>(importance);
@@ -108,6 +104,11 @@ namespace flux {
         s_verbosity = importance;
         const char* no_color = std::getenv("NO_COLOR");
         s_use_color = isatty(STDERR_FILENO) != 0 && (no_color == nullptr || no_color[0] == '\0');
+        try {
+            s_tz = current_zone();
+        } catch (...) {
+            s_tz = nullptr;
+        }
         wlr_log_init(WLR_DEBUG, log_callback);
     }
 
