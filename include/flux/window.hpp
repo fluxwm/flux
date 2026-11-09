@@ -34,7 +34,8 @@ namespace flux {
         [[nodiscard]] std::string_view app_id() const noexcept { return m_app_id; }
         [[nodiscard]] bool is_maximized() const noexcept { return m_maximized; }
         [[nodiscard]] bool is_fullscreen() const noexcept { return m_fullscreen; }
-        [[nodiscard]] bool is_tiled() const noexcept { return !m_fullscreen && !m_maximized; }
+        [[nodiscard]] bool is_floating() const noexcept { return !m_fullscreen && !m_maximized && m_floating; }
+        [[nodiscard]] bool is_tiled() const noexcept { return !m_fullscreen && !m_maximized && !m_floating; }
         [[nodiscard]] bool is_mapped() const noexcept { return surface()->mapped; }
         [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
         [[nodiscard]] Output* output() const noexcept { return m_output; }
@@ -48,7 +49,9 @@ namespace flux {
             }
         }
         void reparent_to_workspace() noexcept;
+        void set_position(int x, int y) noexcept;
         void set_geometry(const wlr_box& box) noexcept;
+        void center(const wlr_box& area) noexcept;
         void toggle_maximize();
         void set_fullscreen(bool fullscreen);
         void toggle_fullscreen() { set_fullscreen(!m_fullscreen); }
@@ -58,6 +61,7 @@ namespace flux {
         void close() noexcept { wlr_xdg_toplevel_send_close(m_xdg_toplevel); }
 
     private:
+        [[nodiscard]] bool wants_floating() const noexcept;
         void on_map();
         void on_unmap();
         void on_commit();
@@ -76,6 +80,7 @@ namespace flux {
         wlr_scene_tree* m_scene_tree = nullptr;
         bool m_maximized = false;
         bool m_fullscreen = false;
+        bool m_floating = false;
         Workspace* m_workspace = nullptr;
         Output* m_output = nullptr;
         std::string m_title;

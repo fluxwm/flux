@@ -385,12 +385,12 @@ namespace flux {
 
     void Compositor::restack_windows() {
         std::vector<Output*> seen_outputs;
+        std::vector<Output*> seen_non_floating;
         for (Window* w : m_current_workspace->focus_stack()) {
             Output* out = w->output();
             const bool is_top_on_output = out && !std::ranges::contains(seen_outputs, out);
             if (is_top_on_output) {
                 seen_outputs.push_back(out);
-                w->raise_to_top();
             }
             if (w->is_fullscreen()) {
                 if (is_top_on_output) {
@@ -399,8 +399,20 @@ namespace flux {
                     w->reparent_to_workspace();
                 }
             }
-            if (!is_top_on_output && !w->is_tiled()) {
-                w->lower_to_bottom();
+            if (!w->is_floating()) {
+                const bool is_top_non_floating = out && !std::ranges::contains(seen_non_floating, out);
+                if (is_top_non_floating) {
+                    seen_non_floating.push_back(out);
+                    w->raise_to_top();
+                } else if (!w->is_tiled()) {
+                    w->lower_to_bottom();
+                }
+            }
+        }
+
+        for (Window* w : std::views::reverse(m_current_workspace->focus_stack())) {
+            if (w->is_floating()) {
+                w->raise_to_top();
             }
         }
     }
@@ -596,6 +608,8 @@ namespace flux {
                     w->set_geometry(full);
                 } else if (w->is_maximized()) {
                     w->set_geometry(usable);
+                } else if (w->is_floating()) {
+                    w->center(usable);
                 } else {
                     tiled.push_back(w);
                 }

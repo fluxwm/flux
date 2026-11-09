@@ -38,6 +38,12 @@ namespace flux {
         }
     }
 
+    bool Window::wants_floating() const noexcept {
+        const auto& state = m_xdg_toplevel->current;
+        return m_xdg_toplevel->parent != nullptr || (state.max_width > 0 && state.min_width == state.max_width) ||
+               (state.max_height > 0 && state.min_height == state.max_height);
+    }
+
     void Window::on_map() {
         wlr_log(WLR_DEBUG, "window mapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
 
@@ -62,12 +68,19 @@ namespace flux {
 
     void Window::on_commit() {
         if (m_xdg_toplevel->base->initial_commit) {
+            if (auto* parent = Window::try_from(m_xdg_toplevel->parent); parent && parent->output()) {
+                m_output = parent->output();
+            }
             on_request_decoration_mode();
             wlr_xdg_toplevel_set_wm_capabilities(m_xdg_toplevel, WLR_XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN);
-            wlr_xdg_toplevel_set_tiled(m_xdg_toplevel, WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
+            m_floating = wants_floating();
+            if (!m_floating) {
+                wlr_xdg_toplevel_set_tiled(m_xdg_toplevel,
+                                           WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
+            }
             if (m_xdg_toplevel->requested.fullscreen) {
                 set_fullscreen(true);
-            } else if (m_output && m_output->is_enabled()) {
+            } else if (!m_floating && m_output && m_output->is_enabled()) {
                 const auto& layout_cfg = m_compositor.config().layout();
                 const size_t tiled_count =
                     (layout_cfg.mode == Layout::Monocle)
@@ -79,6 +92,24 @@ namespace flux {
             } else {
                 wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
             }
+            return;
+        }
+
+        if (!m_floating && wants_floating()) {
+            m_floating = true;
+            if (auto* parent = Window::try_from(m_xdg_toplevel->parent); parent && parent->output()) {
+                m_output = parent->output();
+            }
+            wlr_xdg_toplevel_set_tiled(m_xdg_toplevel, 0);
+            if (!m_fullscreen && !m_maximized) {
+                wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
+            }
+            if (is_mapped()) {
+                m_compositor.arrange_workspace(m_workspace);
+                m_compositor.refocus();
+            }
+        } else if (is_mapped() && is_floating() && m_output && m_output->is_enabled()) {
+            center(m_output->usable_area());
         }
     }
 
@@ -98,6 +129,9 @@ namespace flux {
         }
 
         m_maximized = !m_maximized;
+        if (!m_maximized && m_floating) {
+            wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
+        }
         m_compositor.arrange_workspace(m_workspace);
         m_compositor.refocus();
     }
@@ -126,6 +160,9 @@ namespace flux {
         } else {
             reparent_to_workspace();
             wlr_xdg_toplevel_set_fullscreen(m_xdg_toplevel, false);
+            if (m_floating && !m_maximized) {
+                wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
+            }
         }
 
         if (is_mapped()) {
@@ -158,14 +195,31 @@ namespace flux {
         m_decoration = nullptr;
     }
 
-    void Window::set_geometry(const wlr_box& box) noexcept {
-        wlr_scene_node_set_position(&m_scene_tree->node, box.x, box.y);
+    void Window::set_position(int x, int y) noexcept {
+        if (m_scene_tree->node.x == x && m_scene_tree->node.y == y) {
+            return;
+        }
+        wlr_scene_node_set_position(&m_scene_tree->node, x, y);
         for (const auto& popup : m_compositor.popups()) {
             if (popup->root_tree() == m_scene_tree) {
                 popup->update_position();
             }
         }
+    }
+
+    void Window::set_geometry(const wlr_box& box) noexcept {
+        set_position(box.x, box.y);
         wlr_xdg_toplevel_set_size(m_xdg_toplevel, std::max(1, box.width), std::max(1, box.height));
+    }
+
+    void Window::center(const wlr_box& area) noexcept {
+        const wlr_box& geo = m_xdg_toplevel->base->geometry;
+        const int width = geo.width > 0 ? geo.width : surface()->current.width;
+        const int height = geo.height > 0 ? geo.height : surface()->current.height;
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+        set_position(area.x + ((area.width - width) / 2), area.y + ((area.height - height) / 2));
     }
 
     void Window::reparent_to_workspace() noexcept {
