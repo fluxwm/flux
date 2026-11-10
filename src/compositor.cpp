@@ -804,7 +804,22 @@ namespace flux {
         if (!popup || !popup->parent) {
             return;
         }
-        m_popups.push_back(std::make_unique<Popup>(*this, popup));
+
+        wlr_scene_tree* root_tree = nullptr;
+        wlr_surface* root_surface = root_popup_parent(popup->parent);
+        if (wlr_xdg_surface* toplevel = wlr_xdg_surface_try_from_wlr_surface(root_surface);
+            toplevel && toplevel->data) {
+            root_tree = static_cast<wlr_scene_tree*>(toplevel->data);
+        } else if (auto* ls = Layer::try_from(root_surface)) {
+            root_tree = ls->scene_tree();
+        }
+
+        if (!root_tree) {
+            wlr_log(WLR_ERROR, "popup parent surface has no associated scene tree");
+            return;
+        }
+
+        m_popups.push_back(std::make_unique<Popup>(*this, popup, root_tree));
     }
 
     void Compositor::on_new_layer(wlr_layer_surface_v1* layer_surface) {

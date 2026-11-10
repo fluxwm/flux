@@ -9,7 +9,7 @@ namespace flux {
 
     class Popup {
     public:
-        Popup(Compositor& compositor, wlr_xdg_popup* xdg_popup);
+        Popup(Compositor& compositor, wlr_xdg_popup* xdg_popup, wlr_scene_tree* root_tree);
         ~Popup();
 
         Popup(const Popup&) = delete;

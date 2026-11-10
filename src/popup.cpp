@@ -1,26 +1,12 @@
 #include "flux/popup.hpp"
 #include "flux/compositor.hpp"
-#include "flux/layer.hpp"
 #include "flux/output.hpp"
-#include "flux/util.hpp"
 
 namespace flux {
 
-    Popup::Popup(Compositor& compositor, wlr_xdg_popup* xdg_popup) : m_compositor(compositor), m_xdg_popup(xdg_popup) {
+    Popup::Popup(Compositor& compositor, wlr_xdg_popup* xdg_popup, wlr_scene_tree* root_tree)
+        : m_compositor(compositor), m_xdg_popup(xdg_popup), m_root_tree(root_tree) {
         m_listeners.listen(&xdg_popup->events.destroy, this, &Popup::on_destroy);
-
-        wlr_surface* root_surface = root_popup_parent(xdg_popup->parent);
-        if (wlr_xdg_surface* toplevel = wlr_xdg_surface_try_from_wlr_surface(root_surface);
-            toplevel && toplevel->data) {
-            m_root_tree = static_cast<wlr_scene_tree*>(toplevel->data);
-        } else if (auto* ls = Layer::try_from(root_surface); ls && ls->scene_tree()) {
-            m_root_tree = ls->scene_tree();
-        }
-
-        if (!m_root_tree) {
-            wlr_log(WLR_ERROR, "popup parent surface has no associated scene tree");
-            return;
-        }
 
         wlr_scene_tree* parent_tree = nullptr;
         wlr_surface* parent_surface = wlr_surface_get_root_surface(xdg_popup->parent);
@@ -50,7 +36,7 @@ namespace flux {
     }
 
     void Popup::update_position() noexcept {
-        if (m_wrapper_tree && m_root_tree) {
+        if (m_wrapper_tree) {
             int root_lx = 0;
             int root_ly = 0;
             wlr_scene_node_coords(&m_root_tree->node, &root_lx, &root_ly);
