@@ -73,6 +73,7 @@ namespace flux {
         struct CycleWindow {};
         struct MaximizeWindow {};
         struct FullscreenWindow {};
+        struct ToggleFloating {};
         struct FocusWindow {
             Direction direction = Direction::Right;
         };
@@ -92,8 +93,8 @@ namespace flux {
     }
 
     using Action = std::variant<action::Quit, action::CloseWindow, action::CycleWindow, action::MaximizeWindow,
-                                action::FullscreenWindow, action::FocusWindow, action::Spawn, action::FocusWorkspace,
-                                action::MoveToWorkspace>;
+                                action::FullscreenWindow, action::ToggleFloating, action::FocusWindow, action::Spawn,
+                                action::FocusWorkspace, action::MoveToWorkspace>;
 
     struct Keybind {
         uint32_t modifiers = 0;

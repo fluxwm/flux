@@ -67,6 +67,7 @@ namespace flux {
             reparent_to_workspace();
         }
         m_maximized = false;
+        m_floating_override = false;
 
         wlr_log(WLR_DEBUG, "window unmapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
         m_compositor.unmap_window(this);
@@ -101,19 +102,11 @@ namespace flux {
             return;
         }
 
-        if (!m_floating && wants_floating()) {
-            m_floating = true;
+        if (!m_floating && !m_floating_override && wants_floating()) {
             if (auto* parent = Window::try_from(m_xdg_toplevel->parent); parent && parent->output()) {
                 m_output = parent->output();
             }
-            wlr_xdg_toplevel_set_tiled(m_xdg_toplevel, 0);
-            if (!m_fullscreen && !m_maximized) {
-                wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
-            }
-            if (is_mapped()) {
-                m_compositor.arrange_workspace(m_workspace);
-                m_compositor.refocus();
-            }
+            set_floating(true);
         } else if (is_mapped() && is_floating() && m_output && m_output->is_enabled()) {
             center(m_output->usable_area());
         }
@@ -140,6 +133,30 @@ namespace flux {
         }
         m_compositor.arrange_workspace(m_workspace);
         m_compositor.refocus();
+    }
+
+    void Window::set_floating(bool floating) {
+        m_floating = floating;
+        constexpr uint32_t edges = WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT;
+        wlr_xdg_toplevel_set_tiled(m_xdg_toplevel, m_floating ? 0 : edges);
+        if (is_floating()) {
+            wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
+        }
+        if (is_mapped()) {
+            m_compositor.arrange_workspace(m_workspace);
+            m_compositor.refocus();
+        }
+    }
+
+    void Window::toggle_floating() {
+        if (m_fullscreen) {
+            return;
+        }
+
+        const bool floating = !is_floating();
+        m_floating_override = true;
+        m_maximized = false;
+        set_floating(floating);
     }
 
     void Window::on_request_fullscreen() {

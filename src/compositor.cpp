@@ -259,6 +259,10 @@ namespace flux {
                     if (Window* win = focused_window()) {
                         win->toggle_fullscreen();
                     }
+                } else if constexpr (std::is_same_v<T, action::ToggleFloating>) {
+                    if (Window* win = focused_window()) {
+                        win->toggle_floating();
+                    }
                 } else if constexpr (std::is_same_v<T, action::FocusWindow>) {
                     focus_window_in_direction(act.direction);
                 } else if constexpr (std::is_same_v<T, action::FocusWorkspace>) {

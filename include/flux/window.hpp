@@ -55,6 +55,8 @@ namespace flux {
         void toggle_maximize();
         void set_fullscreen(bool fullscreen);
         void toggle_fullscreen() { set_fullscreen(!m_fullscreen); }
+        void set_floating(bool floating);
+        void toggle_floating();
         void set_decoration(wlr_xdg_toplevel_decoration_v1* decoration);
         void raise_to_top() noexcept { wlr_scene_node_raise_to_top(&m_scene_tree->node); }
         void lower_to_bottom() noexcept { wlr_scene_node_lower_to_bottom(&m_scene_tree->node); }
@@ -81,6 +83,7 @@ namespace flux {
         bool m_maximized = false;
         bool m_fullscreen = false;
         bool m_floating = false;
+        bool m_floating_override = false;
         Workspace* m_workspace = nullptr;
         Output* m_output = nullptr;
         std::string m_title;

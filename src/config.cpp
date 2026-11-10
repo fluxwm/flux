@@ -152,6 +152,9 @@ namespace flux {
             if (iequals(action_name, "fullscreen-window")) {
                 return action::FullscreenWindow{};
             }
+            if (iequals(action_name, "toggle-floating")) {
+                return action::ToggleFloating{};
+            }
             if (iequals(action_name, "focus-window")) {
                 if (auto dir = parse_direction(action_node)) {
                     return action::FocusWindow{*dir};

@@ -50,6 +50,7 @@ binds {
     Super+Shift+Q       { close-window; }
     Alt+F4              { close-window; }
     Alt+Tab             { cycle-window; }
+    Super+V             { toggle-floating; }
     Super+M             { maximize-window; }
     F11                 { fullscreen-window; }
 
