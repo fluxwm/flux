@@ -9,6 +9,7 @@
 
 namespace flux {
     class Input;
+    class Window;
 }
 
 namespace flux::input {
@@ -36,6 +37,7 @@ namespace flux::input {
         void warp(double lx, double ly) noexcept { wlr_cursor_warp(m_wlr_cursor, nullptr, lx, ly); }
 
         void update_focus();
+        void cancel_grab(const Window* window = nullptr);
         void apply_config(const CursorConfig& config);
 
     private:
@@ -45,6 +47,8 @@ namespace flux::input {
         void on_axis(wlr_pointer_axis_event* event);
         void on_frame();
 
+        void start_grab(Window* window, uint32_t button);
+        void end_grab();
         bool apply_constraint(double& dx, double& dy) const;
         void process_motion(uint32_t time_msec);
 
@@ -54,6 +58,10 @@ namespace flux::input {
         CursorConfig m_config{};
         const char* m_current_shape = "default";
         std::optional<std::string> m_env_xcursor_theme;
+        Window* m_grab_window = nullptr;
+        uint32_t m_grab_button = 0;
+        double m_grab_x = 0.0;
+        double m_grab_y = 0.0;
         ListenerGroup m_listeners;
     };
 

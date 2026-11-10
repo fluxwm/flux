@@ -3,8 +3,10 @@
 #include "flux/input.hpp"
 #include "flux/layer.hpp"
 #include "flux/util.hpp"
+#include "flux/window.hpp"
 
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <string>
 
@@ -61,6 +63,42 @@ namespace flux::input {
         }
     }
 
+    void Cursor::start_grab(Window* window, uint32_t button) {
+        uint32_t edges = WLR_EDGE_NONE;
+        if (button == btn_right) {
+            const wlr_box box = window->geometry_box();
+            const uint32_t horiz = (m_wlr_cursor->x < box.x + (box.width / 2.0)) ? WLR_EDGE_LEFT : WLR_EDGE_RIGHT;
+            const uint32_t vert = (m_wlr_cursor->y < box.y + (box.height / 2.0)) ? WLR_EDGE_TOP : WLR_EDGE_BOTTOM;
+            edges = horiz | vert;
+        }
+
+        m_grab_window = window;
+        m_grab_button = button;
+        m_grab_x = m_wlr_cursor->x;
+        m_grab_y = m_wlr_cursor->y;
+        m_input.seat().clear_pointer_focus();
+        set_xcursor(edges != WLR_EDGE_NONE ? wlr_xcursor_get_resize_name(static_cast<wlr_edges>(edges)) : "grabbing");
+        window->start_grab(edges);
+    }
+
+    void Cursor::end_grab() {
+        if (!m_grab_window) {
+            return;
+        }
+        Window* window = m_grab_window;
+        m_grab_window = nullptr;
+        m_grab_button = 0;
+        window->end_grab();
+        set_xcursor("default");
+        update_focus();
+    }
+
+    void Cursor::cancel_grab(const Window* window) {
+        if (m_grab_window && (!window || m_grab_window == window)) {
+            end_grab();
+        }
+    }
+
     bool Cursor::apply_constraint(double& dx, double& dy) const {
         auto* constraint = m_input.seat().active_constraint();
         if (!constraint) {
@@ -111,6 +149,14 @@ namespace flux::input {
     }
 
     void Cursor::on_button(wlr_pointer_button_event* event) {
+        if (m_grab_window) {
+            m_input.seat().notify_activity();
+            if (event->state == WL_POINTER_BUTTON_STATE_RELEASED && event->button == m_grab_button) {
+                end_grab();
+            }
+            return;
+        }
+
         if (event->state == WL_POINTER_BUTTON_STATE_PRESSED) {
             double sx = 0.0;
             double sy = 0.0;
@@ -124,6 +170,16 @@ namespace flux::input {
                 }
             } else if (window != nullptr) {
                 m_input.compositor().focus_window(window);
+
+                wlr_keyboard* keyboard = m_input.seat().keyboard();
+                constexpr uint32_t mask = WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT | WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT;
+                const uint32_t mods = keyboard ? (wlr_keyboard_get_modifiers(keyboard) & mask) : 0;
+                if (mods == WLR_MODIFIER_LOGO && (event->button == btn_left || event->button == btn_right) &&
+                    window->is_floating()) {
+                    m_input.seat().notify_activity();
+                    start_grab(window, event->button);
+                    return;
+                }
             } else if (surface != nullptr) {
                 if (auto* layer = Layer::try_from(root_popup_parent(surface)); layer && layer->is_focusable()) {
                     m_input.compositor().focus_surface(surface);
@@ -147,6 +203,13 @@ namespace flux::input {
     }
 
     void Cursor::process_motion(uint32_t time_msec) {
+        if (m_grab_window) {
+            const int dx = static_cast<int>(std::round(m_wlr_cursor->x - m_grab_x));
+            const int dy = static_cast<int>(std::round(m_wlr_cursor->y - m_grab_y));
+            m_grab_window->update_grab(dx, dy);
+            return;
+        }
+
         if (!m_input.compositor().exclusive_layer()) {
             if (auto* constraint = m_input.seat().active_constraint();
                 constraint && constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED) {
@@ -172,6 +235,14 @@ namespace flux::input {
     }
 
     void Cursor::update_focus() {
+        if (m_grab_window) {
+            if (m_input.compositor().exclusive_layer() || !m_grab_window->is_mapped() ||
+                !m_grab_window->is_floating() || m_grab_window != m_input.compositor().focused_window()) {
+                end_grab();
+            }
+            return;
+        }
+
         const auto now = std::chrono::steady_clock::now().time_since_epoch();
         const auto time_msec =
             static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(now).count());

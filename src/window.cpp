@@ -68,6 +68,8 @@ namespace flux {
         }
         m_maximized = false;
         m_floating_override = false;
+        m_placed = false;
+        m_resize_edges = WLR_EDGE_NONE;
 
         wlr_log(WLR_DEBUG, "window unmapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
         m_compositor.unmap_window(this);
@@ -102,12 +104,26 @@ namespace flux {
             return;
         }
 
+        if (m_resize_edges != WLR_EDGE_NONE) {
+            if (is_floating()) {
+                const wlr_box box = geometry_box();
+                const int x =
+                    (m_resize_edges & WLR_EDGE_LEFT) ? (m_grab_box.x + m_grab_box.width - box.width) : m_grab_box.x;
+                const int y =
+                    (m_resize_edges & WLR_EDGE_TOP) ? (m_grab_box.y + m_grab_box.height - box.height) : m_grab_box.y;
+                set_position(x, y);
+            }
+            if (!m_resizing && !m_xdg_toplevel->current.resizing) {
+                m_resize_edges = WLR_EDGE_NONE;
+            }
+        }
+
         if (!m_floating && !m_floating_override && wants_floating()) {
             if (auto* parent = Window::try_from(m_xdg_toplevel->parent); parent && parent->output()) {
                 m_output = parent->output();
             }
             set_floating(true);
-        } else if (is_mapped() && is_floating() && m_output && m_output->is_enabled()) {
+        } else if (is_mapped() && is_floating() && !m_placed && m_output && m_output->is_enabled()) {
             center(m_output->usable_area());
         }
     }
@@ -128,6 +144,7 @@ namespace flux {
         }
 
         m_maximized = !m_maximized;
+        m_placed = false;
         if (!m_maximized && m_floating) {
             wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
         }
@@ -137,6 +154,7 @@ namespace flux {
 
     void Window::set_floating(bool floating) {
         m_floating = floating;
+        m_placed = false;
         constexpr uint32_t edges = WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT;
         wlr_xdg_toplevel_set_tiled(m_xdg_toplevel, m_floating ? 0 : edges);
         if (is_floating()) {
@@ -172,6 +190,7 @@ namespace flux {
         }
 
         m_fullscreen = fullscreen;
+        m_placed = false;
 
         if (m_fullscreen) {
             if (m_xdg_toplevel->requested.fullscreen_output) {
@@ -235,14 +254,66 @@ namespace flux {
         wlr_xdg_toplevel_set_size(m_xdg_toplevel, std::max(1, box.width), std::max(1, box.height));
     }
 
-    void Window::center(const wlr_box& area) noexcept {
+    wlr_box Window::geometry_box() const noexcept {
         const wlr_box& geo = m_xdg_toplevel->base->geometry;
-        const int width = geo.width > 0 ? geo.width : surface()->current.width;
-        const int height = geo.height > 0 ? geo.height : surface()->current.height;
-        if (width <= 0 || height <= 0) {
+        return {
+            .x = m_scene_tree->node.x,
+            .y = m_scene_tree->node.y,
+            .width = geo.width > 0 ? geo.width : surface()->current.width,
+            .height = geo.height > 0 ? geo.height : surface()->current.height,
+        };
+    }
+
+    void Window::center(const wlr_box& area) noexcept {
+        const wlr_box box = geometry_box();
+        if (box.width <= 0 || box.height <= 0) {
             return;
         }
-        set_position(area.x + ((area.width - width) / 2), area.y + ((area.height - height) / 2));
+        set_position(area.x + ((area.width - box.width) / 2), area.y + ((area.height - box.height) / 2));
+    }
+
+    void Window::start_grab(uint32_t edges) {
+        m_compositor.dismiss_popups();
+        m_placed = true;
+        m_grab_box = geometry_box();
+        m_resize_edges = edges;
+        m_resizing = (edges != WLR_EDGE_NONE);
+        if (m_resizing) {
+            wlr_xdg_toplevel_set_resizing(m_xdg_toplevel, true);
+        }
+    }
+
+    void Window::update_grab(int dx, int dy) {
+        if (!m_resizing) {
+            set_position(m_grab_box.x + dx, m_grab_box.y + dy);
+            return;
+        }
+
+        int width = m_grab_box.width;
+        int height = m_grab_box.height;
+        if (m_resize_edges & WLR_EDGE_LEFT) {
+            width -= dx;
+        } else if (m_resize_edges & WLR_EDGE_RIGHT) {
+            width += dx;
+        }
+        if (m_resize_edges & WLR_EDGE_TOP) {
+            height -= dy;
+        } else if (m_resize_edges & WLR_EDGE_BOTTOM) {
+            height += dy;
+        }
+        wlr_xdg_toplevel_set_size(m_xdg_toplevel, std::max(1, width), std::max(1, height));
+    }
+
+    void Window::end_grab() noexcept {
+        if (m_resizing) {
+            m_resizing = false;
+            if (m_xdg_toplevel->base->initialized) {
+                wlr_xdg_toplevel_set_resizing(m_xdg_toplevel, false);
+            }
+        }
+        if (Output* out = m_compositor.focused_output()) {
+            m_output = out;
+        }
     }
 
     void Window::reparent_to_workspace() noexcept {

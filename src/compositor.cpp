@@ -582,6 +582,7 @@ namespace flux {
     }
 
     void Compositor::unmap_window(Window* window) {
+        m_input->cursor().cancel_grab(window);
         dismiss_popups(window->scene_tree());
         Workspace* ws = window->workspace();
         ws->remove(window);
@@ -613,7 +614,9 @@ namespace flux {
                 } else if (w->is_maximized()) {
                     w->set_geometry(usable);
                 } else if (w->is_floating()) {
-                    w->center(usable);
+                    if (!w->is_placed()) {
+                        w->center(usable);
+                    }
                 } else {
                     tiled.push_back(w);
                 }
@@ -725,6 +728,7 @@ namespace flux {
         for (const auto& win : m_windows) {
             if (win->output() == output) {
                 win->set_output(target);
+                win->set_placed(false);
             }
         }
 

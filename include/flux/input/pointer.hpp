@@ -10,6 +10,9 @@ namespace flux {
 
 namespace flux::input {
 
+    constexpr uint32_t btn_left = 0x110;
+    constexpr uint32_t btn_right = 0x111;
+
     class Pointer {
     public:
         Pointer(Input& input, wlr_input_device* device, const TouchpadConfig& config);

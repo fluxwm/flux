@@ -36,10 +36,13 @@ namespace flux {
         [[nodiscard]] bool is_fullscreen() const noexcept { return m_fullscreen; }
         [[nodiscard]] bool is_floating() const noexcept { return !m_fullscreen && !m_maximized && m_floating; }
         [[nodiscard]] bool is_tiled() const noexcept { return !m_fullscreen && !m_maximized && !m_floating; }
+        [[nodiscard]] bool is_placed() const noexcept { return m_placed; }
         [[nodiscard]] bool is_mapped() const noexcept { return surface()->mapped; }
+        [[nodiscard]] wlr_box geometry_box() const noexcept;
         [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
         [[nodiscard]] Output* output() const noexcept { return m_output; }
         void set_output(Output* output) noexcept { m_output = output; }
+        void set_placed(bool placed) noexcept { m_placed = placed; }
 
         void set_activated(bool activated) noexcept { wlr_xdg_toplevel_set_activated(m_xdg_toplevel, activated); }
         void set_workspace(Workspace* ws) noexcept {
@@ -57,6 +60,9 @@ namespace flux {
         void toggle_fullscreen() { set_fullscreen(!m_fullscreen); }
         void set_floating(bool floating);
         void toggle_floating();
+        void start_grab(uint32_t edges);
+        void update_grab(int dx, int dy);
+        void end_grab() noexcept;
         void set_decoration(wlr_xdg_toplevel_decoration_v1* decoration);
         void raise_to_top() noexcept { wlr_scene_node_raise_to_top(&m_scene_tree->node); }
         void lower_to_bottom() noexcept { wlr_scene_node_lower_to_bottom(&m_scene_tree->node); }
@@ -84,6 +90,10 @@ namespace flux {
         bool m_fullscreen = false;
         bool m_floating = false;
         bool m_floating_override = false;
+        bool m_placed = false;
+        bool m_resizing = false;
+        uint32_t m_resize_edges = WLR_EDGE_NONE;
+        wlr_box m_grab_box{};
         Workspace* m_workspace = nullptr;
         Output* m_output = nullptr;
         std::string m_title;
