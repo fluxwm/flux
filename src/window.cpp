@@ -62,6 +62,12 @@ namespace flux {
             m_ext_toplevel_handle = nullptr;
         }
 
+        if (m_fullscreen) {
+            m_fullscreen = false;
+            reparent_to_workspace();
+        }
+        m_maximized = false;
+
         wlr_log(WLR_DEBUG, "window unmapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
         m_compositor.unmap_window(this);
     }
