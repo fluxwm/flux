@@ -81,25 +81,35 @@ namespace flux {
             return keysym != XKB_KEY_NoSymbol;
         }
 
-        std::optional<int32_t> parse_int(const kdl::Node& node, int32_t min = 0) {
+        bool parse_int(const kdl::Node& node, int32_t& out, int32_t min = 0) {
             std::string_view name = node_name(node);
             const auto& args = node.args();
             if (args.empty() || args[0].type() != kdl::Type::Number) {
                 wlr_log(WLR_ERROR, "%.*s requires an integer argument", static_cast<int>(name.size()), name.data());
-                return std::nullopt;
+                return false;
             }
             try {
                 const int32_t val = args[0].as<int32_t>();
                 if (val < min) {
                     wlr_log(WLR_ERROR, "invalid %.*s '%d' (must be >= %d)", static_cast<int>(name.size()), name.data(),
                             val, min);
-                    return std::nullopt;
+                    return false;
                 }
-                return val;
+                out = val;
+                return true;
             } catch (const std::exception& e) {
                 wlr_log(WLR_ERROR, "failed to parse %.*s: %s", static_cast<int>(name.size()), name.data(), e.what());
-                return std::nullopt;
+                return false;
             }
+        }
+
+        bool parse_int(const kdl::Node& node, uint32_t& out, int32_t min = 0) {
+            int32_t val = 0;
+            if (parse_int(node, val, min)) {
+                out = static_cast<uint32_t>(val);
+                return true;
+            }
+            return false;
         }
 
         std::optional<std::string> parse_string(const kdl::Node& node) {
@@ -110,6 +120,12 @@ namespace flux {
                 return std::nullopt;
             }
             return std::string(u8_view(args[0].as<std::u8string_view>()));
+        }
+
+        void parse_string(const kdl::Node& node, std::string& out) {
+            if (auto val = parse_string(node)) {
+                out = std::move(*val);
+            }
         }
 
         std::optional<Direction> parse_direction(const kdl::Node& node) {
@@ -163,14 +179,16 @@ namespace flux {
                 return std::nullopt;
             }
             if (iequals(action_name, "focus-workspace")) {
-                if (auto ws = parse_int(action_node, 1)) {
-                    return action::FocusWorkspace{static_cast<uint32_t>(*ws)};
+                uint32_t ws = 0;
+                if (parse_int(action_node, ws, 1)) {
+                    return action::FocusWorkspace{ws};
                 }
                 return std::nullopt;
             }
             if (iequals(action_name, "move-window-to-workspace")) {
-                if (auto ws = parse_int(action_node, 1)) {
-                    return action::MoveToWorkspace{static_cast<uint32_t>(*ws)};
+                uint32_t ws = 0;
+                if (parse_int(action_node, ws, 1)) {
+                    return action::MoveToWorkspace{ws};
                 }
                 return std::nullopt;
             }
@@ -241,54 +259,39 @@ namespace flux {
             }
         }
 
-        std::optional<bool> parse_bool(const kdl::Node& node) {
+        void parse_bool(const kdl::Node& node, bool& out) {
             std::string_view name = node_name(node);
             const auto& args = node.args();
             if (args.empty()) {
-                return true;
+                out = true;
+                return;
             }
             if (args[0].type() == kdl::Type::Bool) {
-                return args[0].as<bool>();
+                out = args[0].as<bool>();
+                return;
             }
             wlr_log(WLR_ERROR, "%.*s requires a boolean or no argument", static_cast<int>(name.size()), name.data());
-            return std::nullopt;
         }
 
         void parse_keyboard(KeyboardConfig& keyboard, const kdl::Node& keyboard_node) {
             for (const auto& child : keyboard_node.children()) {
                 std::string_view name = node_name(child);
                 if (iequals(name, "repeat-rate")) {
-                    if (auto val = parse_int(child)) {
-                        keyboard.repeat_rate = *val;
-                    }
+                    parse_int(child, keyboard.repeat_rate);
                 } else if (iequals(name, "repeat-delay")) {
-                    if (auto val = parse_int(child)) {
-                        keyboard.repeat_delay = *val;
-                    }
+                    parse_int(child, keyboard.repeat_delay);
                 } else if (iequals(name, "numlock")) {
-                    if (auto val = parse_bool(child)) {
-                        keyboard.numlock = *val;
-                    }
+                    parse_bool(child, keyboard.numlock);
                 } else if (iequals(name, "layout")) {
-                    if (auto val = parse_string(child)) {
-                        keyboard.layout = std::move(*val);
-                    }
+                    parse_string(child, keyboard.layout);
                 } else if (iequals(name, "variant")) {
-                    if (auto val = parse_string(child)) {
-                        keyboard.variant = std::move(*val);
-                    }
+                    parse_string(child, keyboard.variant);
                 } else if (iequals(name, "options")) {
-                    if (auto val = parse_string(child)) {
-                        keyboard.options = std::move(*val);
-                    }
+                    parse_string(child, keyboard.options);
                 } else if (iequals(name, "model")) {
-                    if (auto val = parse_string(child)) {
-                        keyboard.model = std::move(*val);
-                    }
+                    parse_string(child, keyboard.model);
                 } else if (iequals(name, "rules")) {
-                    if (auto val = parse_string(child)) {
-                        keyboard.rules = std::move(*val);
-                    }
+                    parse_string(child, keyboard.rules);
                 } else {
                     wlr_log(WLR_ERROR, "unknown setting '%.*s' in keyboard config", static_cast<int>(name.size()),
                             name.data());
@@ -300,13 +303,9 @@ namespace flux {
             for (const auto& child : touchpad_node.children()) {
                 std::string_view name = node_name(child);
                 if (iequals(name, "tap-to-click")) {
-                    if (auto val = parse_bool(child)) {
-                        touchpad.tap_to_click = *val;
-                    }
+                    parse_bool(child, touchpad.tap_to_click);
                 } else if (iequals(name, "natural-scroll")) {
-                    if (auto val = parse_bool(child)) {
-                        touchpad.natural_scroll = *val;
-                    }
+                    parse_bool(child, touchpad.natural_scroll);
                 } else {
                     wlr_log(WLR_ERROR, "unknown setting '%.*s' in touchpad config", static_cast<int>(name.size()),
                             name.data());
@@ -323,9 +322,7 @@ namespace flux {
                 } else if (iequals(name, "touchpad")) {
                     parse_touchpad(touchpad, child);
                 } else if (iequals(name, "middle-click-paste")) {
-                    if (auto val = parse_bool(child)) {
-                        middle_click_paste = *val;
-                    }
+                    parse_bool(child, middle_click_paste);
                 } else {
                     wlr_log(WLR_ERROR, "unknown setting '%.*s' in input config", static_cast<int>(name.size()),
                             name.data());
@@ -337,13 +334,9 @@ namespace flux {
             for (const auto& child : cursor_node.children()) {
                 std::string_view name = node_name(child);
                 if (iequals(name, "theme")) {
-                    if (auto val = parse_string(child)) {
-                        cursor.theme = std::move(*val);
-                    }
+                    parse_string(child, cursor.theme);
                 } else if (iequals(name, "size")) {
-                    if (auto val = parse_int(child, 1)) {
-                        cursor.size = static_cast<uint32_t>(*val);
-                    }
+                    parse_int(child, cursor.size, 1);
                 } else {
                     wlr_log(WLR_ERROR, "unknown setting '%.*s' in cursor config", static_cast<int>(name.size()),
                             name.data());
@@ -355,9 +348,7 @@ namespace flux {
             for (const auto& child : gestures_node.children()) {
                 std::string_view name = node_name(child);
                 if (iequals(name, "workspace-swipe")) {
-                    if (auto val = parse_bool(child)) {
-                        gestures.workspace_swipe = *val;
-                    }
+                    parse_bool(child, gestures.workspace_swipe);
                 } else {
                     wlr_log(WLR_ERROR, "unknown setting '%.*s' in gestures config", static_cast<int>(name.size()),
                             name.data());
@@ -369,17 +360,11 @@ namespace flux {
             for (const auto& child : gaps_node.children()) {
                 std::string_view name = node_name(child);
                 if (iequals(name, "inner")) {
-                    if (auto val = parse_int(child)) {
-                        gaps.inner = *val;
-                    }
+                    parse_int(child, gaps.inner);
                 } else if (iequals(name, "outer")) {
-                    if (auto val = parse_int(child)) {
-                        gaps.outer = *val;
-                    }
+                    parse_int(child, gaps.outer);
                 } else if (iequals(name, "smart")) {
-                    if (auto val = parse_bool(child)) {
-                        gaps.smart = *val;
-                    }
+                    parse_bool(child, gaps.smart);
                 } else {
                     wlr_log(WLR_ERROR, "unknown setting '%.*s' in gaps config", static_cast<int>(name.size()),
                             name.data());
@@ -387,14 +372,15 @@ namespace flux {
             }
         }
 
-        std::optional<std::array<float, 4>> parse_color(const kdl::Node& node) {
+        void parse_color(const kdl::Node& node, std::array<float, 4>& out) {
             auto str_opt = parse_string(node);
             if (!str_opt) {
-                return std::nullopt;
+                return;
             }
             std::string_view str = *str_opt;
             if (iequals(str, "none")) {
-                return std::array<float, 4>{0.0f, 0.0f, 0.0f, 0.0f};
+                out = std::array<float, 4>{0.0f, 0.0f, 0.0f, 0.0f};
+                return;
             }
             if (str.starts_with('#')) {
                 str.remove_prefix(1);
@@ -407,35 +393,29 @@ namespace flux {
                         val = (val << 8) | 0xFF;
                     }
                     const float a = static_cast<float>(val & 0xFF) / 255.0f;
-                    return std::array<float, 4>{
+                    out = std::array<float, 4>{
                         (static_cast<float>((val >> 24) & 0xFF) / 255.0f) * a,
                         (static_cast<float>((val >> 16) & 0xFF) / 255.0f) * a,
                         (static_cast<float>((val >> 8) & 0xFF) / 255.0f) * a,
                         a,
                     };
+                    return;
                 }
             }
             std::string_view name = node_name(node);
             wlr_log(WLR_ERROR, "invalid color '%s' for %.*s", str_opt->c_str(), static_cast<int>(name.size()),
                     name.data());
-            return std::nullopt;
         }
 
         void parse_border(BorderConfig& border, const kdl::Node& border_node) {
             for (const auto& child : border_node.children()) {
                 std::string_view name = node_name(child);
                 if (iequals(name, "width")) {
-                    if (auto val = parse_int(child)) {
-                        border.width = *val;
-                    }
+                    parse_int(child, border.width);
                 } else if (iequals(name, "active-color")) {
-                    if (auto val = parse_color(child)) {
-                        border.active_color = *val;
-                    }
+                    parse_color(child, border.active_color);
                 } else if (iequals(name, "inactive-color")) {
-                    if (auto val = parse_color(child)) {
-                        border.inactive_color = *val;
-                    }
+                    parse_color(child, border.inactive_color);
                 } else {
                     wlr_log(WLR_ERROR, "unknown setting '%.*s' in border config", static_cast<int>(name.size()),
                             name.data());
@@ -443,30 +423,29 @@ namespace flux {
             }
         }
 
-        std::optional<Layout> parse_layout_mode(const kdl::Node& node) {
+        void parse_layout_mode(const kdl::Node& node, Layout& out) {
             auto mode = parse_string(node);
             if (!mode) {
-                return std::nullopt;
+                return;
             }
             if (iequals(*mode, "master")) {
-                return Layout::Master;
+                out = Layout::Master;
+                return;
             }
             if (iequals(*mode, "monocle")) {
-                return Layout::Monocle;
+                out = Layout::Monocle;
+                return;
             }
             std::string_view name = node_name(node);
             wlr_log(WLR_ERROR, "invalid layout mode '%s' for %.*s", mode->c_str(), static_cast<int>(name.size()),
                     name.data());
-            return std::nullopt;
         }
 
         void parse_layout(LayoutConfig& layout, const kdl::Node& layout_node) {
             for (const auto& child : layout_node.children()) {
                 std::string_view name = node_name(child);
                 if (iequals(name, "mode")) {
-                    if (auto val = parse_layout_mode(child)) {
-                        layout.mode = *val;
-                    }
+                    parse_layout_mode(child, layout.mode);
                 } else if (iequals(name, "gaps")) {
                     parse_gaps(layout.gaps, child);
                 } else if (iequals(name, "border")) {
