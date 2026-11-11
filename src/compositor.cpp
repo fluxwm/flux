@@ -442,10 +442,8 @@ namespace flux {
             out.animation().cancel();
         }
         wlr_log(WLR_DEBUG, "moving window to workspace %u on output '%s'", id, out.raw()->name);
-        old_ws->remove(window);
 
         Workspace& new_ws = out.workspace(id);
-        new_ws.promote(window);
         window->set_workspace(&new_ws);
         window->set_activated(false);
 
@@ -466,11 +464,9 @@ namespace flux {
         }
 
         if (window) {
-            if (window->output()) {
-                m_focused_output = window->output();
-            }
             Workspace* ws = window->workspace();
             if (ws) {
+                m_focused_output = &ws->output();
                 ws->promote(window);
 
                 if (ws != &ws->output().active_workspace()) {
@@ -533,11 +529,9 @@ namespace flux {
     }
 
     void Compositor::map_window(Window* window) {
-        Output* out = window->output() ? window->output() : focused_output();
-        if (out) {
+        if (Output* out = window->output() ? window->output() : focused_output()) {
             Workspace& ws = out->active_workspace();
             window->set_workspace(&ws);
-            ws.promote(window);
             ws.arrange();
         }
         focus_window(window);
@@ -656,19 +650,10 @@ namespace flux {
             if (win->output() != output) {
                 continue;
             }
-            Workspace* old_ws = win->workspace();
-            Workspace* target_ws =
-                target ? (old_ws ? &target->workspace(old_ws->id()) : &target->active_workspace()) : nullptr;
             if (win->is_mapped()) {
-                if (old_ws) {
-                    old_ws->remove(win.get());
-                }
-                if (target_ws) {
-                    target_ws->promote(win.get());
-                }
                 win->set_activated(false);
             }
-            win->set_workspace(target_ws);
+            win->set_workspace(target ? &target->workspace(win->workspace_id()) : nullptr);
             win->set_placed(false);
         }
 
@@ -724,12 +709,8 @@ namespace flux {
             new_out->active_workspace().activate();
         }
         for (const auto& win : m_windows) {
-            if (!win->output()) {
-                Workspace& ws = new_out->workspace(win->workspace_id());
-                win->set_workspace(&ws);
-                if (win->is_mapped()) {
-                    ws.promote(win.get());
-                }
+            if (!win->workspace()) {
+                win->set_workspace(&new_out->workspace(win->workspace_id()));
             }
         }
         for (const auto& out : m_outputs) {

@@ -42,7 +42,7 @@ namespace flux {
         [[nodiscard]] wlr_box geometry_box() const noexcept;
         [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
         [[nodiscard]] uint32_t workspace_id() const noexcept { return m_workspace_id; }
-        [[nodiscard]] Output* output() const noexcept { return m_output; }
+        [[nodiscard]] Output* output() const noexcept;
         void set_output(Output* output) noexcept;
         void set_placed(bool placed) noexcept { m_placed = placed; }
 
@@ -93,7 +93,6 @@ namespace flux {
         bool m_activated = false;
         uint32_t m_resize_edges = WLR_EDGE_NONE;
         wlr_box m_grab_box{};
-        Output* m_output = nullptr;
         Workspace* m_workspace = nullptr;
         uint32_t m_workspace_id = 1;
         std::string m_title;
