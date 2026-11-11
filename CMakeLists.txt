@@ -66,6 +66,7 @@ target_compile_definitions(flux PRIVATE FLUX_VERSION="${PROJECT_VERSION}")
 target_compile_options(flux PRIVATE -Wno-c23-extensions)
 
 generate_protocol(wlr-layer-shell-unstable-v1)
+generate_protocol(wlr-output-power-management-unstable-v1)
 
 include(GNUInstallDirs)
 

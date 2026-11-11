@@ -159,10 +159,6 @@ namespace flux {
     }
 
     void Output::arrange_layers() {
-        if (!is_enabled()) {
-            return;
-        }
-
         const wlr_box output_box = layout_box();
         wlr_box full_area = output_box;
         wlr_box usable_area = output_box;

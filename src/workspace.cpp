@@ -128,10 +128,6 @@ namespace flux {
     }
 
     void Workspace::arrange() {
-        if (!m_output.is_enabled()) {
-            return;
-        }
-
         const auto& layout_cfg = m_output.compositor().config().layout();
         const wlr_box full = m_output.layout_box();
         const wlr_box& usable = m_output.usable_area();
@@ -164,10 +160,6 @@ namespace flux {
     }
 
     void Workspace::restack() {
-        if (!m_output.is_enabled()) {
-            return;
-        }
-
         const bool is_busy_output = m_output.animation().is_busy();
         Window* top_fullscreen = nullptr;
         Window* top_non_floating = nullptr;

@@ -107,7 +107,7 @@ namespace flux {
             }
             if (m_xdg_toplevel->requested.fullscreen) {
                 set_fullscreen(true);
-            } else if (!m_floating && m_workspace && m_workspace->output().is_enabled()) {
+            } else if (!m_floating && m_workspace) {
                 set_geometry(m_workspace->next_tile_box());
             } else {
                 wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
@@ -134,7 +134,7 @@ namespace flux {
                 set_output(parent->output());
             }
             set_floating(true);
-        } else if (is_mapped() && is_floating() && !m_placed && m_workspace && m_workspace->output().is_enabled()) {
+        } else if (is_mapped() && is_floating() && !m_placed && m_workspace) {
             center(m_workspace->output().usable_area());
         }
         update_borders();

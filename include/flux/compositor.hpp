@@ -88,6 +88,7 @@ namespace flux {
         void on_new_layer(wlr_layer_surface_v1* layer_surface);
         void on_request_activate(wlr_xdg_activation_v1_request_activate_event* event);
         void on_workspace_commit(wlr_ext_workspace_v1_commit_event* event);
+        void on_output_power_set_mode(wlr_output_power_v1_set_mode_event* event);
         void execute_action(const Action& action);
         void spawn(const action::Spawn& action);
 

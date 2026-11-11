@@ -124,6 +124,9 @@ namespace flux {
         m_workspace_manager = wlr_ext_workspace_manager_v1_create(m_display, 1);
         m_listeners.listen(&m_workspace_manager->events.commit, this, &Compositor::on_workspace_commit);
 
+        auto* output_power_mgr = wlr_output_power_manager_v1_create(m_display);
+        m_listeners.listen(&output_power_mgr->events.set_mode, this, &Compositor::on_output_power_set_mode);
+
         m_listeners.listen(&m_backend->events.new_output, this, &Compositor::on_new_output);
 
         m_scene = std::make_unique<Scene>(m_display, m_output_layout);
@@ -368,10 +371,15 @@ namespace flux {
         Workspace& old_ws = output->active_workspace();
         Workspace& new_ws = output->workspace(id);
         output->set_active_workspace(&new_ws);
-        output->animation().start(old_ws, new_ws, std::max(1, output->layout_box().width));
+        if (output->is_enabled()) {
+            output->animation().start(old_ws, new_ws, std::max(1, output->layout_box().width));
+            wlr_output_schedule_frame(output->raw());
+        } else {
+            old_ws.deactivate();
+            new_ws.activate();
+        }
 
         focus_window(new_ws.focused_window());
-        wlr_output_schedule_frame(output->raw());
     }
 
     bool Compositor::begin_workspace_swipe() {
@@ -381,7 +389,7 @@ namespace flux {
 
         m_focused_output = nullptr;
         Output* out = focused_output();
-        if (!out) {
+        if (!out || !out->is_enabled()) {
             return false;
         }
 
@@ -521,7 +529,7 @@ namespace flux {
     }
 
     Output* Compositor::focused_output() const noexcept {
-        if (m_focused_output && m_focused_output->is_enabled()) {
+        if (m_focused_output) {
             return m_focused_output;
         }
         wlr_output* wlr_out =
@@ -648,6 +656,9 @@ namespace flux {
 
         auto it =
             std::ranges::find_if(m_outputs, [output](const auto& o) { return o.get() != output && o->is_enabled(); });
+        if (it == m_outputs.end()) {
+            it = std::ranges::find_if(m_outputs, [output](const auto& o) { return o.get() != output; });
+        }
         Output* target = (it != m_outputs.end()) ? it->get() : nullptr;
         if (!target) {
             m_saved_workspace_id = output->active_workspace().id();
@@ -722,6 +733,41 @@ namespace flux {
 
         if (to_activate) {
             focus_workspace(&to_activate->output(), to_activate->id());
+        }
+    }
+
+    void Compositor::on_output_power_set_mode(wlr_output_power_v1_set_mode_event* event) {
+        Output* output = output_from_wlr(event->output);
+        if (!output) {
+            return;
+        }
+
+        const bool enable = (event->mode == ZWLR_OUTPUT_POWER_V1_MODE_ON);
+        if (output->is_enabled() == enable) {
+            return;
+        }
+
+        wlr_output_state state;
+        wlr_output_state_init(&state);
+        wlr_output_state_set_enabled(&state, enable);
+        if (enable && !event->output->current_mode) {
+            if (wlr_output_mode* mode = wlr_output_preferred_mode(event->output)) {
+                wlr_output_state_set_mode(&state, mode);
+            }
+        }
+        const bool committed = wlr_output_commit_state(event->output, &state);
+        wlr_output_state_finish(&state);
+
+        if (!committed) {
+            return;
+        }
+
+        if (!enable && (m_swipe_output == output || output->animation().is_busy())) {
+            if (m_swipe_output == output) {
+                cancel_workspace_swipe();
+            }
+            output->animation().cancel();
+            on_animation_finished();
         }
     }
 
