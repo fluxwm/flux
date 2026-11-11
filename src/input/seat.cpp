@@ -46,6 +46,7 @@ namespace flux::input {
         : m_input(input), m_wlr_seat(wlr_seat_create(display, name)),
           m_idle_notifier(wlr_idle_notifier_v1_create(display)),
           m_pointer_constraints(wlr_pointer_constraints_v1_create(display)),
+          m_pointer_gestures(wlr_pointer_gestures_v1_create(display)),
           m_relative_pointer_mgr(wlr_relative_pointer_manager_v1_create(display)) {
         m_listeners.listen(&m_wlr_seat->events.request_set_cursor, this, &Seat::on_request_set_cursor);
         m_listeners.listen(&m_wlr_seat->pointer_state.events.focus_change, this, &Seat::on_pointer_focus_change);

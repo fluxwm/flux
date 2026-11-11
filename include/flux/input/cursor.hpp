@@ -46,6 +46,14 @@ namespace flux::input {
         void on_button(wlr_pointer_button_event* event);
         void on_axis(wlr_pointer_axis_event* event);
         void on_frame();
+        void on_swipe_begin(wlr_pointer_swipe_begin_event* event);
+        void on_swipe_update(wlr_pointer_swipe_update_event* event);
+        void on_swipe_end(wlr_pointer_swipe_end_event* event);
+        void on_pinch_begin(wlr_pointer_pinch_begin_event* event);
+        void on_pinch_update(wlr_pointer_pinch_update_event* event);
+        void on_pinch_end(wlr_pointer_pinch_end_event* event);
+        void on_hold_begin(wlr_pointer_hold_begin_event* event);
+        void on_hold_end(wlr_pointer_hold_end_event* event);
 
         void start_grab(Window* window, uint32_t button);
         void end_grab();

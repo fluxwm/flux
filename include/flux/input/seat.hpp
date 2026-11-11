@@ -62,6 +62,39 @@ namespace flux::input {
             wlr_seat_pointer_notify_axis(m_wlr_seat, time_msec, orientation, value, value_discrete, source,
                                          relative_direction);
         }
+        void notify_swipe_begin(uint32_t time_msec, uint32_t fingers) noexcept {
+            notify_activity();
+            wlr_pointer_gestures_v1_send_swipe_begin(m_pointer_gestures, m_wlr_seat, time_msec, fingers);
+        }
+        void notify_swipe_update(uint32_t time_msec, double dx, double dy) noexcept {
+            notify_activity();
+            wlr_pointer_gestures_v1_send_swipe_update(m_pointer_gestures, m_wlr_seat, time_msec, dx, dy);
+        }
+        void notify_swipe_end(uint32_t time_msec, bool cancelled) noexcept {
+            notify_activity();
+            wlr_pointer_gestures_v1_send_swipe_end(m_pointer_gestures, m_wlr_seat, time_msec, cancelled);
+        }
+        void notify_pinch_begin(uint32_t time_msec, uint32_t fingers) noexcept {
+            notify_activity();
+            wlr_pointer_gestures_v1_send_pinch_begin(m_pointer_gestures, m_wlr_seat, time_msec, fingers);
+        }
+        void notify_pinch_update(uint32_t time_msec, double dx, double dy, double scale, double rotation) noexcept {
+            notify_activity();
+            wlr_pointer_gestures_v1_send_pinch_update(m_pointer_gestures, m_wlr_seat, time_msec, dx, dy, scale,
+                                                      rotation);
+        }
+        void notify_pinch_end(uint32_t time_msec, bool cancelled) noexcept {
+            notify_activity();
+            wlr_pointer_gestures_v1_send_pinch_end(m_pointer_gestures, m_wlr_seat, time_msec, cancelled);
+        }
+        void notify_hold_begin(uint32_t time_msec, uint32_t fingers) noexcept {
+            notify_activity();
+            wlr_pointer_gestures_v1_send_hold_begin(m_pointer_gestures, m_wlr_seat, time_msec, fingers);
+        }
+        void notify_hold_end(uint32_t time_msec, bool cancelled) noexcept {
+            notify_activity();
+            wlr_pointer_gestures_v1_send_hold_end(m_pointer_gestures, m_wlr_seat, time_msec, cancelled);
+        }
         void notify_frame() noexcept { wlr_seat_pointer_notify_frame(m_wlr_seat); }
         void notify_enter(wlr_surface* surface, double sx, double sy) noexcept {
             wlr_seat_pointer_notify_enter(m_wlr_seat, surface, sx, sy);
@@ -86,6 +119,7 @@ namespace flux::input {
         wlr_seat* m_wlr_seat = nullptr;
         wlr_idle_notifier_v1* m_idle_notifier = nullptr;
         wlr_pointer_constraints_v1* m_pointer_constraints = nullptr;
+        wlr_pointer_gestures_v1* m_pointer_gestures = nullptr;
         wlr_relative_pointer_manager_v1* m_relative_pointer_mgr = nullptr;
         wlr_pointer_constraint_v1* m_active_constraint = nullptr;
         std::vector<std::unique_ptr<IdleInhibitor>> m_idle_inhibitors;

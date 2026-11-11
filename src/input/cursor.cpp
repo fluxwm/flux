@@ -24,6 +24,14 @@ namespace flux::input {
         m_listeners.listen(&m_wlr_cursor->events.button, this, &Cursor::on_button);
         m_listeners.listen(&m_wlr_cursor->events.axis, this, &Cursor::on_axis);
         m_listeners.listen(&m_wlr_cursor->events.frame, this, &Cursor::on_frame);
+        m_listeners.listen(&m_wlr_cursor->events.swipe_begin, this, &Cursor::on_swipe_begin);
+        m_listeners.listen(&m_wlr_cursor->events.swipe_update, this, &Cursor::on_swipe_update);
+        m_listeners.listen(&m_wlr_cursor->events.swipe_end, this, &Cursor::on_swipe_end);
+        m_listeners.listen(&m_wlr_cursor->events.pinch_begin, this, &Cursor::on_pinch_begin);
+        m_listeners.listen(&m_wlr_cursor->events.pinch_update, this, &Cursor::on_pinch_update);
+        m_listeners.listen(&m_wlr_cursor->events.pinch_end, this, &Cursor::on_pinch_end);
+        m_listeners.listen(&m_wlr_cursor->events.hold_begin, this, &Cursor::on_hold_begin);
+        m_listeners.listen(&m_wlr_cursor->events.hold_end, this, &Cursor::on_hold_end);
     }
 
     Cursor::~Cursor() {
@@ -200,6 +208,38 @@ namespace flux::input {
 
     void Cursor::on_frame() {
         m_input.seat().notify_frame();
+    }
+
+    void Cursor::on_swipe_begin(wlr_pointer_swipe_begin_event* event) {
+        m_input.seat().notify_swipe_begin(event->time_msec, event->fingers);
+    }
+
+    void Cursor::on_swipe_update(wlr_pointer_swipe_update_event* event) {
+        m_input.seat().notify_swipe_update(event->time_msec, event->dx, event->dy);
+    }
+
+    void Cursor::on_swipe_end(wlr_pointer_swipe_end_event* event) {
+        m_input.seat().notify_swipe_end(event->time_msec, event->cancelled);
+    }
+
+    void Cursor::on_pinch_begin(wlr_pointer_pinch_begin_event* event) {
+        m_input.seat().notify_pinch_begin(event->time_msec, event->fingers);
+    }
+
+    void Cursor::on_pinch_update(wlr_pointer_pinch_update_event* event) {
+        m_input.seat().notify_pinch_update(event->time_msec, event->dx, event->dy, event->scale, event->rotation);
+    }
+
+    void Cursor::on_pinch_end(wlr_pointer_pinch_end_event* event) {
+        m_input.seat().notify_pinch_end(event->time_msec, event->cancelled);
+    }
+
+    void Cursor::on_hold_begin(wlr_pointer_hold_begin_event* event) {
+        m_input.seat().notify_hold_begin(event->time_msec, event->fingers);
+    }
+
+    void Cursor::on_hold_end(wlr_pointer_hold_end_event* event) {
+        m_input.seat().notify_hold_end(event->time_msec, event->cancelled);
     }
 
     void Cursor::process_motion(uint32_t time_msec) {
