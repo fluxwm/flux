@@ -4,7 +4,6 @@
 #include "flux/listener.hpp"
 #include "flux/scene.hpp"
 #include "flux/wlroots.hpp"
-#include "flux/workspace.hpp"
 
 #include <filesystem>
 #include <memory>
@@ -67,7 +66,6 @@ namespace flux {
         void cancel_workspace_swipe();
         void cancel_animations();
         void focus_surface(wlr_surface* surface);
-        void arrange_workspace(Workspace* ws);
         void refocus();
         void arrange_layers(Output* output);
         void focus_layer(Layer* layer);

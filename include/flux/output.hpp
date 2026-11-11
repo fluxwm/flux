@@ -12,6 +12,7 @@ namespace flux {
 
     class Compositor;
     class Workspace;
+    enum class Direction : uint8_t;
 
     class Output {
     public:
@@ -21,6 +22,7 @@ namespace flux {
         Output(const Output&) = delete;
         Output& operator=(const Output&) = delete;
 
+        [[nodiscard]] Compositor& compositor() const noexcept { return m_compositor; }
         [[nodiscard]] wlr_output* raw() const noexcept { return m_wlr_output; }
         [[nodiscard]] const wlr_box& usable_area() const noexcept { return m_usable_area; }
         void set_usable_area(const wlr_box& area) noexcept { m_usable_area = area; }
@@ -29,6 +31,7 @@ namespace flux {
         [[nodiscard]] bool is_enabled() const noexcept { return m_wlr_output->enabled; }
         [[nodiscard]] bool is_nested() const noexcept;
         [[nodiscard]] wlr_box layout_box() const noexcept;
+        [[nodiscard]] Output* adjacent_output(Direction direction) const noexcept;
 
         [[nodiscard]] Workspace& active_workspace() const noexcept { return *m_active_workspace; }
         void set_active_workspace(Workspace* ws) noexcept { m_active_workspace = ws; }

@@ -2,7 +2,6 @@
 #include "flux/compositor.hpp"
 #include "flux/output.hpp"
 #include "flux/popup.hpp"
-#include "flux/util.hpp"
 #include "flux/workspace.hpp"
 
 #include <algorithm>
@@ -101,13 +100,7 @@ namespace flux {
             if (m_xdg_toplevel->requested.fullscreen) {
                 set_fullscreen(true);
             } else if (!m_floating && m_output && m_output->is_enabled() && m_workspace) {
-                const auto& layout_cfg = m_compositor.config().layout();
-                const size_t tiled_count =
-                    (layout_cfg.mode == Layout::Monocle)
-                        ? 0
-                        : static_cast<size_t>(std::ranges::count_if(m_workspace->windows(),
-                                                                    [](const Window* w) { return w->is_tiled(); }));
-                set_geometry(tile_box(m_output->usable_area(), tiled_count, tiled_count + 1, layout_cfg));
+                set_geometry(m_workspace->next_tile_box());
             } else {
                 wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
             }
@@ -159,7 +152,9 @@ namespace flux {
         if (!m_maximized && m_floating) {
             wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
         }
-        m_compositor.arrange_workspace(m_workspace);
+        if (m_workspace) {
+            m_workspace->arrange();
+        }
         m_compositor.refocus();
     }
 
@@ -172,7 +167,9 @@ namespace flux {
             wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
         }
         if (is_mapped()) {
-            m_compositor.arrange_workspace(m_workspace);
+            if (m_workspace) {
+                m_workspace->arrange();
+            }
             m_compositor.refocus();
         }
         update_borders();
@@ -224,7 +221,9 @@ namespace flux {
             if (m_fullscreen && m_workspace) {
                 m_workspace->promote(this);
             }
-            m_compositor.arrange_workspace(m_workspace);
+            if (m_workspace) {
+                m_workspace->arrange();
+            }
             m_compositor.refocus();
         } else if (m_fullscreen && m_output) {
             set_geometry(m_output->layout_box());
@@ -282,11 +281,7 @@ namespace flux {
         const auto& border_cfg = layout_cfg.border;
 
         const bool smart_solitary =
-            layout_cfg.gaps.smart &&
-            (m_maximized || (is_tiled() && (layout_cfg.mode == Layout::Monocle || !m_workspace ||
-                                            std::ranges::count_if(m_workspace->windows(), [](const Window* w) {
-                                                return w->is_tiled();
-                                            }) <= 1)));
+            layout_cfg.gaps.smart && (m_maximized || (is_tiled() && (!m_workspace || m_workspace->is_solitary())));
 
         const auto& color = m_activated ? border_cfg.active_color : border_cfg.inactive_color;
         const bool visible = is_mapped() && !m_fullscreen && border_cfg.width > 0 && !smart_solitary && color[3] > 0.0f;
@@ -381,7 +376,9 @@ namespace flux {
         if (!was_resizing && is_mapped()) {
             if (Output* out = m_compositor.focused_output(); out && m_output != out) {
                 set_output(out);
-                m_compositor.arrange_workspace(m_workspace);
+                if (m_workspace) {
+                    m_workspace->arrange();
+                }
                 m_compositor.refocus();
             }
         }
@@ -402,7 +399,7 @@ namespace flux {
                 new_ws->promote(this);
             }
             if (old_ws) {
-                m_compositor.arrange_workspace(old_ws);
+                old_ws->arrange();
             }
         }
     }

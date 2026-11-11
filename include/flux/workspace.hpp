@@ -11,6 +11,7 @@ namespace flux {
     class Scene;
     class Window;
     class Output;
+    enum class Direction : uint8_t;
 
     class Workspace {
     public:
@@ -37,7 +38,15 @@ namespace flux {
         void remove(Window* window) noexcept;
         Window* cycle();
 
+        void arrange();
+        void restack();
+        [[nodiscard]] Window* window_in_direction(Direction direction) const;
+        [[nodiscard]] wlr_box next_tile_box() const noexcept;
+        [[nodiscard]] bool is_solitary() const noexcept;
+
     private:
+        [[nodiscard]] size_t tiled_count() const noexcept;
+
         uint32_t m_id = 1;
         Output& m_output;
         wlr_scene_tree* m_tree = nullptr;

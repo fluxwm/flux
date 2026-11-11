@@ -5,6 +5,7 @@
 #include "flux/popup.hpp"
 #include "flux/util.hpp"
 #include "flux/window.hpp"
+#include "flux/workspace.hpp"
 
 #include <algorithm>
 #include <array>
@@ -156,7 +157,7 @@ namespace flux {
             m_input->apply_config();
             for (const auto& out : m_outputs) {
                 for (const auto& ws : out->workspaces()) {
-                    arrange_workspace(ws.get());
+                    ws->arrange();
                 }
             }
             m_input->cursor().update_focus();
@@ -448,51 +449,14 @@ namespace flux {
         window->set_workspace(&new_ws);
         window->set_activated(false);
 
-        arrange_workspace(old_ws);
-        arrange_workspace(&new_ws);
+        old_ws->arrange();
+        new_ws.arrange();
         refocus();
     }
 
     void Compositor::restack_windows() {
         for (const auto& out : m_outputs) {
-            if (!out->is_enabled()) {
-                continue;
-            }
-            Workspace& ws = out->active_workspace();
-            const bool is_busy_output = out->animation().is_busy();
-            Window* top_fullscreen = nullptr;
-            Window* top_non_floating = nullptr;
-            for (Window* w : ws.focus_stack()) {
-                if (w->is_fullscreen() && !top_fullscreen) {
-                    top_fullscreen = w;
-                }
-                if (!w->is_floating() && !top_non_floating) {
-                    top_non_floating = w;
-                }
-            }
-
-            for (Window* w : ws.focus_stack()) {
-                if (w->is_fullscreen()) {
-                    if (w == top_fullscreen && !is_busy_output) {
-                        wlr_scene_node_reparent(&w->scene_tree()->node, m_scene->fullscreen());
-                    } else {
-                        w->reparent_to_workspace();
-                    }
-                }
-                if (!w->is_floating()) {
-                    if (w == top_non_floating) {
-                        w->raise_to_top();
-                    } else if (!w->is_tiled()) {
-                        w->lower_to_bottom();
-                    }
-                }
-            }
-
-            for (Window* w : std::views::reverse(ws.focus_stack())) {
-                if (w->is_floating()) {
-                    w->raise_to_top();
-                }
-            }
+            out->active_workspace().restack();
         }
     }
 
@@ -530,102 +494,20 @@ namespace flux {
     }
 
     void Compositor::focus_window_in_direction(Direction direction) {
-        Window* focused = focused_window();
-        Output* cur_output = focused ? focused->output() : focused_output();
-        if (!cur_output) {
+        if (exclusive_layer()) {
             return;
         }
 
-        auto focus_adjacent_output = [this, cur_output, direction] -> bool {
-            const wlr_box cur_box = cur_output->layout_box();
-            const double ref_lx = cur_box.x + (static_cast<double>(cur_box.width) / 2.0);
-            const double ref_ly = cur_box.y + (static_cast<double>(cur_box.height) / 2.0);
-
-            wlr_output* adj_wlr = wlr_output_layout_adjacent_output(
-                m_output_layout, static_cast<wlr_direction>(direction), cur_output->raw(), ref_lx, ref_ly);
-            Output* adj_out = output_from_wlr(adj_wlr);
-            if (!adj_out || !adj_out->is_enabled()) {
-                return false;
-            }
-
-            m_focused_output = adj_out;
-            focus_window(adj_out->active_workspace().focused_window());
-            return true;
-        };
-
-        if (!focused || !focused->is_tiled()) {
-            focus_adjacent_output();
+        Output* cur = focused_output();
+        if (!cur) {
             return;
         }
 
-        Workspace& ws = cur_output->active_workspace();
-        std::vector<Window*> tiled;
-        for (Window* w : ws.windows()) {
-            if (w->is_tiled()) {
-                tiled.push_back(w);
-            }
-        }
-
-        if (tiled.size() <= 1) {
-            focus_adjacent_output();
-            return;
-        }
-
-        const auto it = std::ranges::find(tiled, focused);
-        const size_t idx = static_cast<size_t>(std::distance(tiled.begin(), it));
-
-        if (m_config->layout().mode == Layout::Monocle) {
-            const bool at_edge = (direction == Direction::Left || direction == Direction::Right) ||
-                                 (direction == Direction::Up && idx == 0) ||
-                                 (direction == Direction::Down && idx == tiled.size() - 1);
-            if (at_edge && focus_adjacent_output()) {
-                return;
-            }
-
-            const size_t next_idx = (direction == Direction::Down || direction == Direction::Right)
-                                        ? ((idx + 1) % tiled.size())
-                                        : ((idx == 0) ? (tiled.size() - 1) : (idx - 1));
-            focus_window(tiled[next_idx]);
-            return;
-        }
-
-        if (idx == 0) {
-            if (direction == Direction::Right) {
-                Window* target = tiled[1];
-                for (Window* w : ws.focus_stack()) {
-                    if (w != focused && w->is_tiled()) {
-                        target = w;
-                        break;
-                    }
-                }
-                focus_window(target);
-            } else if (direction == Direction::Left) {
-                focus_adjacent_output();
-            } else if (direction == Direction::Down) {
-                if (!focus_adjacent_output()) {
-                    focus_window(tiled[1]);
-                }
-            } else if (direction == Direction::Up) {
-                if (!focus_adjacent_output()) {
-                    focus_window(tiled.back());
-                }
-            }
-        } else {
-            if (direction == Direction::Left) {
-                focus_window(tiled[0]);
-            } else if (direction == Direction::Right) {
-                focus_adjacent_output();
-            } else if (direction == Direction::Up) {
-                if (idx == 1 && focus_adjacent_output()) {
-                    return;
-                }
-                focus_window(tiled[(idx == 1) ? (tiled.size() - 1) : (idx - 1)]);
-            } else if (direction == Direction::Down) {
-                if (idx == tiled.size() - 1 && focus_adjacent_output()) {
-                    return;
-                }
-                focus_window(tiled[(idx == tiled.size() - 1) ? 1 : (idx + 1)]);
-            }
+        if (Window* w = cur->active_workspace().window_in_direction(direction)) {
+            focus_window(w);
+        } else if (Output* adj = cur->adjacent_output(direction)) {
+            m_focused_output = adj;
+            focus_window(adj->active_workspace().focused_window());
         }
     }
 
@@ -656,7 +538,7 @@ namespace flux {
             Workspace& ws = out->active_workspace();
             window->set_workspace(&ws);
             ws.promote(window);
-            arrange_workspace(&ws);
+            ws.arrange();
         }
         focus_window(window);
     }
@@ -667,50 +549,9 @@ namespace flux {
         Workspace* ws = window->workspace();
         if (ws) {
             ws->remove(window);
-            arrange_workspace(ws);
+            ws->arrange();
         }
         refocus();
-    }
-
-    void Compositor::arrange_workspace(Workspace* ws) {
-        if (!ws) {
-            return;
-        }
-
-        Output& output = ws->output();
-        if (!output.is_enabled()) {
-            return;
-        }
-
-        const auto& layout_cfg = m_config->layout();
-        const wlr_box full = output.layout_box();
-        const wlr_box& usable = output.usable_area();
-
-        std::vector<Window*> tiled;
-        for (Window* w : ws->windows()) {
-            if (w->is_fullscreen()) {
-                w->set_geometry(full);
-            } else if (w->is_maximized()) {
-                const int bw = layout_cfg.gaps.smart ? 0 : layout_cfg.border.width;
-                w->set_geometry({
-                    .x = usable.x + bw,
-                    .y = usable.y + bw,
-                    .width = std::max(1, usable.width - (2 * bw)),
-                    .height = std::max(1, usable.height - (2 * bw)),
-                });
-            } else if (w->is_floating()) {
-                if (!w->is_placed()) {
-                    w->center(usable);
-                }
-                w->update_borders();
-            } else {
-                tiled.push_back(w);
-            }
-        }
-
-        for (size_t i = 0; i < tiled.size(); ++i) {
-            tiled[i]->set_geometry(tile_box(usable, i, tiled.size(), layout_cfg));
-        }
     }
 
     Layer* Compositor::exclusive_layer() const noexcept {
@@ -997,7 +838,7 @@ namespace flux {
         }
 
         for (const auto& ws : output->workspaces()) {
-            arrange_workspace(ws.get());
+            ws->arrange();
         }
 
         m_input->cursor().update_focus();

@@ -1,5 +1,6 @@
 #include "flux/output.hpp"
 #include "flux/compositor.hpp"
+#include "flux/config.hpp"
 #include "flux/workspace.hpp"
 
 #include <algorithm>
@@ -116,6 +117,17 @@ namespace flux {
         wlr_box box{};
         wlr_output_layout_get_box(m_compositor.output_layout(), m_wlr_output, &box);
         return box;
+    }
+
+    Output* Output::adjacent_output(Direction direction) const noexcept {
+        const wlr_box cur_box = layout_box();
+        const double ref_lx = cur_box.x + (static_cast<double>(cur_box.width) / 2.0);
+        const double ref_ly = cur_box.y + (static_cast<double>(cur_box.height) / 2.0);
+
+        wlr_output* adj_wlr = wlr_output_layout_adjacent_output(
+            m_compositor.output_layout(), static_cast<wlr_direction>(direction), m_wlr_output, ref_lx, ref_ly);
+        Output* adj_out = m_compositor.output_from_wlr(adj_wlr);
+        return (adj_out && adj_out->is_enabled()) ? adj_out : nullptr;
     }
 
 }
