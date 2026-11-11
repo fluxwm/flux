@@ -128,10 +128,14 @@ namespace flux {
 
         m_scene = std::make_unique<Scene>(m_display, m_output_layout);
 
-        if (wlr_renderer_get_drm_fd(m_renderer) >= 0 &&
-            wlr_renderer_get_texture_formats(m_renderer, WLR_BUFFER_CAP_DMABUF) != nullptr) {
-            if (auto* linux_dmabuf = wlr_linux_dmabuf_v1_create_with_renderer(m_display, 5, m_renderer)) {
-                m_scene->set_linux_dmabuf_v1(linux_dmabuf);
+        if (const int drm_fd = wlr_renderer_get_drm_fd(m_renderer); drm_fd >= 0) {
+            if (wlr_renderer_get_texture_formats(m_renderer, WLR_BUFFER_CAP_DMABUF) != nullptr) {
+                if (auto* linux_dmabuf = wlr_linux_dmabuf_v1_create_with_renderer(m_display, 5, m_renderer)) {
+                    m_scene->set_linux_dmabuf_v1(linux_dmabuf);
+                }
+            }
+            if (m_renderer->features.timeline && m_backend->features.timeline) {
+                wlr_linux_drm_syncobj_manager_v1_create(m_display, 1, drm_fd);
             }
         }
 
