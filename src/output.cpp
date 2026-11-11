@@ -48,6 +48,7 @@ namespace flux {
     }
 
     Output::~Output() {
+        m_animation.cancel();
         m_workspaces.clear();
         if (m_workspace_group) {
             wlr_ext_workspace_group_handle_v1_destroy(m_workspace_group);
@@ -66,6 +67,12 @@ namespace flux {
     void Output::on_frame() {
         if (!m_scene_output) {
             return;
+        }
+
+        const bool was_animating = m_animation.is_active();
+        m_animation.step(*this);
+        if (was_animating && !m_animation.is_active()) {
+            m_compositor.on_animation_finished();
         }
 
         if (wlr_scene_output_needs_frame(m_scene_output)) {

@@ -52,7 +52,7 @@ namespace flux {
         [[nodiscard]] wlr_ext_workspace_manager_v1* workspace_manager() const noexcept { return m_workspace_manager; }
         [[nodiscard]] Window* focused_window() const noexcept;
         [[nodiscard]] std::span<const std::unique_ptr<Popup>> popups() const noexcept { return m_popups; }
-        [[nodiscard]] bool is_workspace_swiping() const noexcept { return m_swipe_active; }
+        [[nodiscard]] bool is_workspace_swiping() const noexcept { return m_swipe_output != nullptr; }
 
         // Window management & interactions
         bool handle_keybinding(uint32_t modifiers, xkb_keysym_t sym);
@@ -65,6 +65,7 @@ namespace flux {
         void update_workspace_swipe(double dx);
         void end_workspace_swipe();
         void cancel_workspace_swipe();
+        void cancel_animations();
         void focus_surface(wlr_surface* surface);
         void arrange_workspace(Workspace* ws);
         void refocus();
@@ -80,6 +81,7 @@ namespace flux {
         void remove_popup(Popup* popup);
         void remove_output(Output* output);
         void remove_layer(Layer* layer);
+        void on_animation_finished();
 
     private:
         void restack_windows();
@@ -112,9 +114,7 @@ namespace flux {
         std::vector<std::unique_ptr<Popup>> m_popups;
         std::vector<std::unique_ptr<Layer>> m_layers;
         Output* m_swipe_output = nullptr;
-        Workspace* m_swipe_target = nullptr;
-        double m_swipe_progress = 0.0;
-        bool m_swipe_active = false;
+        uint32_t m_saved_workspace_id = 1;
 
         ListenerGroup m_listeners;
     };

@@ -11,7 +11,8 @@ namespace flux {
 
     Window::Window(Compositor& compositor, wlr_xdg_toplevel* xdg_toplevel)
         : m_compositor(compositor), m_xdg_toplevel(xdg_toplevel), m_output(compositor.focused_output()),
-          m_workspace(m_output ? &m_output->active_workspace() : nullptr) {
+          m_workspace(m_output ? &m_output->active_workspace() : nullptr),
+          m_workspace_id(m_workspace ? m_workspace->id() : 1) {
         wlr_scene_tree* parent_tree = m_workspace ? m_workspace->tree() : compositor.scene().windows();
         m_scene_tree = wlr_scene_xdg_surface_create(parent_tree, xdg_toplevel->base);
         m_scene_tree->node.data = this;
@@ -407,6 +408,9 @@ namespace flux {
     }
 
     void Window::set_workspace(Workspace* ws) noexcept {
+        if (ws) {
+            m_workspace_id = ws->id();
+        }
         if (m_workspace != ws) {
             m_workspace = ws;
             m_output = ws ? &ws->output() : nullptr;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "flux/animation.hpp"
 #include "flux/listener.hpp"
 #include "flux/wlroots.hpp"
 
@@ -33,6 +34,8 @@ namespace flux {
         void set_active_workspace(Workspace* ws) noexcept { m_active_workspace = ws; }
         [[nodiscard]] Workspace& workspace(uint32_t id);
         [[nodiscard]] std::span<const std::unique_ptr<Workspace>> workspaces() const noexcept { return m_workspaces; }
+        [[nodiscard]] WorkspaceAnimation& animation() noexcept { return m_animation; }
+        [[nodiscard]] const WorkspaceAnimation& animation() const noexcept { return m_animation; }
 
     private:
         void on_frame();
@@ -46,6 +49,7 @@ namespace flux {
         wlr_ext_workspace_group_handle_v1* m_workspace_group = nullptr;
         std::vector<std::unique_ptr<Workspace>> m_workspaces;
         Workspace* m_active_workspace = nullptr;
+        WorkspaceAnimation m_animation;
 
         ListenerGroup m_listeners;
     };

@@ -2,6 +2,7 @@
 #include "flux/compositor.hpp"
 #include "flux/input.hpp"
 #include "flux/layer.hpp"
+#include "flux/output.hpp"
 #include "flux/util.hpp"
 #include "flux/window.hpp"
 
@@ -178,13 +179,17 @@ namespace flux::input {
         }
 
         if (event->state == WL_POINTER_BUTTON_STATE_PRESSED) {
+            m_input.compositor().set_focused_output(nullptr);
+            if (Output* out = m_input.compositor().focused_output(); out && out->animation().is_active()) {
+                out->animation().cancel();
+                m_input.compositor().on_animation_finished();
+            }
+
             double sx = 0.0;
             double sy = 0.0;
             wlr_surface* surface = nullptr;
             Window* window =
                 m_input.compositor().scene().window_at(m_wlr_cursor->x, m_wlr_cursor->y, &surface, &sx, &sy);
-
-            m_input.compositor().set_focused_output(nullptr);
             if (auto* excl = m_input.compositor().exclusive_layer()) {
                 if (surface && root_popup_parent(surface) == excl->surface()) {
                     m_input.compositor().focus_surface(surface);

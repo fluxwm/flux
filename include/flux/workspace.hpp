@@ -31,6 +31,7 @@ namespace flux {
 
         void activate() noexcept;
         void deactivate() noexcept;
+        void prepare_slide() noexcept;
 
         void promote(Window* window);
         void remove(Window* window) noexcept;

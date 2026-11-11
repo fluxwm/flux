@@ -57,6 +57,7 @@ add_executable(flux
         src/layer.cpp
         src/config.cpp
         src/log.cpp
+        src/animation.cpp
 )
 
 target_include_directories(flux PRIVATE include "${GEN_PROTO_DIR}")

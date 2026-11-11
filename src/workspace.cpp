@@ -35,12 +35,17 @@ namespace flux {
     }
 
     void Workspace::deactivate() noexcept {
+        prepare_slide();
+        wlr_scene_node_set_enabled(&m_tree->node, false);
+        wlr_scene_node_set_position(&m_tree->node, 0, 0);
+    }
+
+    void Workspace::prepare_slide() noexcept {
         for (Window* w : m_focus_stack) {
             if (w->is_fullscreen()) {
                 w->reparent_to_workspace();
             }
         }
-        wlr_scene_node_set_enabled(&m_tree->node, false);
         wlr_ext_workspace_handle_v1_set_active(m_handle, false);
     }
 

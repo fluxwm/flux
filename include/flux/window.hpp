@@ -41,6 +41,7 @@ namespace flux {
         [[nodiscard]] bool is_mapped() const noexcept { return surface()->mapped; }
         [[nodiscard]] wlr_box geometry_box() const noexcept;
         [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
+        [[nodiscard]] uint32_t workspace_id() const noexcept { return m_workspace_id; }
         [[nodiscard]] Output* output() const noexcept { return m_output; }
         void set_output(Output* output) noexcept;
         void set_placed(bool placed) noexcept { m_placed = placed; }
@@ -94,6 +95,7 @@ namespace flux {
         wlr_box m_grab_box{};
         Output* m_output = nullptr;
         Workspace* m_workspace = nullptr;
+        uint32_t m_workspace_id = 1;
         std::string m_title;
         std::string m_app_id;
         wlr_ext_foreign_toplevel_handle_v1* m_ext_toplevel_handle = nullptr;
