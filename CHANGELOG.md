@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.8.0](https://github.com/fluxwm/flux/compare/v0.7.0...v0.8.0) (2026-11-11)
+
+
+### Features
+
+* add 1:1 workspace swipe gesture support ([4960f29](https://github.com/fluxwm/flux/commit/4960f292bdc3067a5990f13a3c450eef07f609e8))
+* add automatic floating window support and centering ([ffaa663](https://github.com/fluxwm/flux/commit/ffaa66359c6443f2c11a396ce0c6d1fb49595318))
+* add color-representation-v1 protocol support ([813e09f](https://github.com/fluxwm/flux/commit/813e09f6d30c38b5511eadf8507900ebd1e5d3b9))
+* add content-type-v1 protocol support ([e2fa48c](https://github.com/fluxwm/flux/commit/e2fa48ca2a19fffadd18cce47c8f83a01b8c985c))
+* add dedicated per-monitor workspace support ([9e86395](https://github.com/fluxwm/flux/commit/9e863953892a109cfbaa704f95c2feb7bcbbb34f))
+* add interactive drag and resize for floating windows ([bd0267e](https://github.com/fluxwm/flux/commit/bd0267e14d336af5e1ba3600900396f3aa26d63d))
+* add linux-drm-syncobj-v1 protocol support ([f263f2c](https://github.com/fluxwm/flux/commit/f263f2ca323124e726f8e860afee0665281d827c))
+* add pointer-gestures-unstable-v1 protocol support ([3b68e90](https://github.com/fluxwm/flux/commit/3b68e90ab0e312cafb71848cef31f8231a7a215a))
+* add spring-physics workspace slide and swipe animations ([d72a0f4](https://github.com/fluxwm/flux/commit/d72a0f42dcb01d4b64b9131b8130727730f816c9))
+* add toggle-floating window  action ([2c87a29](https://github.com/fluxwm/flux/commit/2c87a29ae5caad81b94a0cb715b8d952a5135caf))
+* add window border configuration ([a563f2b](https://github.com/fluxwm/flux/commit/a563f2b2c7ca40f0027315233afabf1af97cc1a6))
+
+
+### Bug Fixes
+
+* allow workspace swipe to complete on gesture cancel ([9605303](https://github.com/fluxwm/flux/commit/96053030965d27504d93af0212eef832a312a97e))
+* reset fullscreen and maximized state on window unmap ([428f439](https://github.com/fluxwm/flux/commit/428f439ce879b1c19b812d0e3aba730b85cf9158))
+* validate root scene tree before constructing popups ([9a44ffb](https://github.com/fluxwm/flux/commit/9a44ffbd5f13219bc907d6843cd41955b5e85792))
+
+
+### Performance Improvements
+
+* cache timezone lookup in logger ([2927bf2](https://github.com/fluxwm/flux/commit/2927bf2d2a9d2b347c7c99be1f1991519c250d43))
+
+
+### Refactoring
+
+* delegate layout arrangement, restacking, and directional focus to Workspace ([59f645c](https://github.com/fluxwm/flux/commit/59f645c9e03b1e4d9e6a12bcb514c24e6ccef1c8))
+* move pointer gestures and relative pointer protocols from Seat to Cursor ([d028191](https://github.com/fluxwm/flux/commit/d028191ed6546bea8085427f82ef15fdc07d82b9))
+* simplify kdl node parsing with out-reference helpers ([59cb653](https://github.com/fluxwm/flux/commit/59cb653595c907cf69ba6a1fd07a27f86aa6e07c))
+* transfer layer ownership and arrangement from Compositor to Output ([7b0e117](https://github.com/fluxwm/flux/commit/7b0e117a7e109bd5617d5ef3ce13daf7c2dc33ee))
+* unify window workspace assignment and remove redundant output pointer ([4821c36](https://github.com/fluxwm/flux/commit/4821c36b3a24acec34cca87a41c1068c3a254aa7))
+
+
+### Continuous Integration
+
+* use git ls-files for clang-format check ([897ebd3](https://github.com/fluxwm/flux/commit/897ebd303f52d4f807005d19d51f2b07e5b99e3e))
+
 ## [0.7.0](https://github.com/fluxwm/flux/compare/v0.6.0...v0.7.0) (2026-11-07)
 
 
