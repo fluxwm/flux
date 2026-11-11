@@ -13,6 +13,7 @@ namespace flux {
         m_scene_window_popups = wlr_scene_tree_create(&m_scene->tree);
         m_scene_overlay = wlr_scene_tree_create(&m_scene->tree);
         m_scene_popups = wlr_scene_tree_create(&m_scene->tree);
+        m_scene_drag_icons = wlr_scene_tree_create(&m_scene->tree);
         m_scene_layout = wlr_scene_attach_output_layout(m_scene, output_layout);
 
         wlr_scene_set_gamma_control_manager_v1(m_scene, wlr_gamma_control_manager_v1_create(display));
@@ -49,8 +50,21 @@ namespace flux {
         return scene_output;
     }
 
+    wlr_scene_node* Scene::interactive_node_at(double lx, double ly, double* sx, double* sy) const {
+        wlr_scene_node* node = nullptr;
+        wl_list_for_each_reverse(node, &m_scene->tree.children, link) {
+            if (node == &m_scene_drag_icons->node) {
+                continue;
+            }
+            if (wlr_scene_node* hit = wlr_scene_node_at(node, lx, ly, sx, sy)) {
+                return hit;
+            }
+        }
+        return nullptr;
+    }
+
     wlr_surface* Scene::surface_at(double lx, double ly, double* sx, double* sy) const {
-        wlr_scene_node* node = wlr_scene_node_at(&m_scene->tree.node, lx, ly, sx, sy);
+        wlr_scene_node* node = interactive_node_at(lx, ly, sx, sy);
         if (!node || node->type != WLR_SCENE_NODE_BUFFER) {
             return nullptr;
         }
@@ -60,7 +74,7 @@ namespace flux {
     }
 
     Window* Scene::window_at(double lx, double ly, wlr_surface** surface, double* sx, double* sy) const {
-        wlr_scene_node* node = wlr_scene_node_at(&m_scene->tree.node, lx, ly, sx, sy);
+        wlr_scene_node* node = interactive_node_at(lx, ly, sx, sy);
         if (!node) {
             return nullptr;
         }

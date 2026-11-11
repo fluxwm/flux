@@ -24,6 +24,7 @@ namespace flux {
         [[nodiscard]] wlr_scene_tree* fullscreen() const noexcept { return m_scene_fullscreen; }
         [[nodiscard]] wlr_scene_tree* popups() const noexcept { return m_scene_popups; }
         [[nodiscard]] wlr_scene_tree* window_popups() const noexcept { return m_scene_window_popups; }
+        [[nodiscard]] wlr_scene_tree* drag_icons() const noexcept { return m_scene_drag_icons; }
         [[nodiscard]] wlr_scene_tree* layer_tree(zwlr_layer_shell_v1_layer layer) const noexcept;
 
         wlr_scene_output* attach_output(wlr_output* output, wlr_output_layout_output* layout_output);
@@ -32,6 +33,8 @@ namespace flux {
         [[nodiscard]] Window* window_at(double lx, double ly, wlr_surface** surface, double* sx, double* sy) const;
 
     private:
+        [[nodiscard]] wlr_scene_node* interactive_node_at(double lx, double ly, double* sx, double* sy) const;
+
         wlr_scene* m_scene = nullptr;
         wlr_scene_tree* m_scene_background = nullptr;
         wlr_scene_tree* m_scene_bottom = nullptr;
@@ -41,6 +44,7 @@ namespace flux {
         wlr_scene_tree* m_scene_window_popups = nullptr;
         wlr_scene_tree* m_scene_overlay = nullptr;
         wlr_scene_tree* m_scene_popups = nullptr;
+        wlr_scene_tree* m_scene_drag_icons = nullptr;
         wlr_scene_output_layout* m_scene_layout = nullptr;
     };
 

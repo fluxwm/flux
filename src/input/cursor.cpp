@@ -207,6 +207,11 @@ namespace flux::input {
             return;
         }
 
+        if (m_input.seat().is_drag_active()) {
+            m_input.seat().notify_button(event->time_msec, event->button, event->state);
+            return;
+        }
+
         if (event->state == WL_POINTER_BUTTON_STATE_PRESSED) {
             m_input.compositor().set_focused_output(nullptr);
             if (Output* out = m_input.compositor().focused_output(); out && out->animation().is_active()) {
@@ -259,7 +264,8 @@ namespace flux::input {
 
     void Cursor::on_swipe_begin(wlr_pointer_swipe_begin_event* event) {
         m_input.seat().notify_activity();
-        if (event->fingers == 3 && !m_grab_window && m_input.compositor().begin_workspace_swipe()) {
+        if (event->fingers == 3 && !m_grab_window && !m_input.seat().is_drag_active() &&
+            m_input.compositor().begin_workspace_swipe()) {
             m_input.seat().clear_pointer_focus();
             return;
         }
@@ -288,6 +294,8 @@ namespace flux::input {
     }
 
     void Cursor::process_motion(uint32_t time_msec) {
+        m_input.seat().update_drag_icons_position();
+
         if (m_grab_window) {
             const int dx = static_cast<int>(std::round(m_wlr_cursor->x - m_grab_x));
             const int dy = static_cast<int>(std::round(m_wlr_cursor->y - m_grab_y));

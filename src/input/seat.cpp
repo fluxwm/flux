@@ -6,6 +6,7 @@
 #include "flux/window.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 namespace flux::input {
 
@@ -51,6 +52,8 @@ namespace flux::input {
         m_listeners.listen(&m_wlr_seat->events.request_set_selection, this, &Seat::on_request_set_selection);
         m_listeners.listen(&m_wlr_seat->events.request_set_primary_selection, this,
                            &Seat::on_request_set_primary_selection);
+        m_listeners.listen(&m_wlr_seat->events.request_start_drag, this, &Seat::on_request_start_drag);
+        m_listeners.listen(&m_wlr_seat->events.start_drag, this, &Seat::on_start_drag);
 
         auto* cursor_shape_mgr = wlr_cursor_shape_manager_v1_create(display, 2);
         m_listeners.listen(&cursor_shape_mgr->events.request_set_shape, this, &Seat::on_request_set_shape);
@@ -62,6 +65,7 @@ namespace flux::input {
     }
 
     Seat::~Seat() {
+        m_drag_listeners.clear();
         m_constraint_listeners.clear();
         m_idle_inhibitors.clear();
         m_listeners.clear();
@@ -98,6 +102,47 @@ namespace flux::input {
             wlr_seat_set_primary_selection(m_wlr_seat, event->source, event->serial);
         } else if (event->source) {
             wlr_primary_selection_source_destroy(event->source);
+        }
+    }
+
+    void Seat::on_request_start_drag(wlr_seat_request_start_drag_event* event) {
+        if (wlr_seat_validate_pointer_grab_serial(m_wlr_seat, event->origin, event->serial)) {
+            wlr_seat_start_pointer_drag(m_wlr_seat, event->drag, event->serial);
+        } else {
+            wlr_log(WLR_DEBUG, "failed to validate serial %u for drag start request", event->serial);
+            if (event->drag->source) {
+                wlr_data_source_destroy(event->drag->source);
+            }
+        }
+    }
+
+    void Seat::on_start_drag(wlr_drag* drag) {
+        if (drag->icon) {
+            wlr_scene_drag_icon_create(m_input.compositor().scene().drag_icons(), drag->icon);
+            update_drag_icons_position();
+        }
+        m_drag_listeners.clear();
+        m_drag_listeners.listen(&drag->events.destroy, this, &Seat::on_destroy_drag);
+    }
+
+    void Seat::on_destroy_drag() {
+        m_drag_listeners.clear();
+        m_input.cursor().set_xcursor("default");
+        m_input.compositor().refocus();
+    }
+
+    void Seat::update_drag_icons_position() noexcept {
+        wlr_scene_tree* drag_icons = m_input.compositor().scene().drag_icons();
+        if (wl_list_empty(&drag_icons->children)) {
+            return;
+        }
+
+        const int cx = static_cast<int>(std::round(m_input.cursor().x()));
+        const int cy = static_cast<int>(std::round(m_input.cursor().y()));
+
+        wlr_scene_node* node = nullptr;
+        wl_list_for_each(node, &drag_icons->children, link) {
+            wlr_scene_node_set_position(node, cx, cy);
         }
     }
 

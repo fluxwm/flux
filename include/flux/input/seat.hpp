@@ -30,6 +30,7 @@ namespace flux::input {
         }
         [[nodiscard]] wlr_seat* raw() const noexcept { return m_wlr_seat; }
         [[nodiscard]] wlr_pointer_constraint_v1* active_constraint() const noexcept { return m_active_constraint; }
+        [[nodiscard]] bool is_drag_active() const noexcept { return m_wlr_seat && m_wlr_seat->drag != nullptr; }
 
         void set_capabilities(uint32_t capabilities) noexcept { wlr_seat_set_capabilities(m_wlr_seat, capabilities); }
         void set_keyboard(wlr_keyboard* keyboard) noexcept { wlr_seat_set_keyboard(m_wlr_seat, keyboard); }
@@ -63,6 +64,7 @@ namespace flux::input {
         }
         void clear_pointer_focus() noexcept { wlr_seat_pointer_clear_focus(m_wlr_seat); }
         void clear_primary_selection() noexcept { wlr_seat_set_primary_selection(m_wlr_seat, nullptr, 0); }
+        void update_drag_icons_position() noexcept;
 
     private:
         void on_request_set_cursor(wlr_seat_pointer_request_set_cursor_event* event);
@@ -70,6 +72,9 @@ namespace flux::input {
         void on_pointer_focus_change(wlr_seat_pointer_focus_change_event* event);
         void on_request_set_selection(wlr_seat_request_set_selection_event* event);
         void on_request_set_primary_selection(wlr_seat_request_set_primary_selection_event* event);
+        void on_request_start_drag(wlr_seat_request_start_drag_event* event);
+        void on_start_drag(wlr_drag* drag);
+        void on_destroy_drag();
         void on_new_idle_inhibitor(wlr_idle_inhibitor_v1* inhibitor);
         void update_idle_inhibit();
         void update_pointer_constraint();
@@ -85,6 +90,7 @@ namespace flux::input {
         std::vector<std::unique_ptr<IdleInhibitor>> m_idle_inhibitors;
         ListenerGroup m_listeners;
         ListenerGroup m_constraint_listeners;
+        ListenerGroup m_drag_listeners;
     };
 
 }
