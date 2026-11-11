@@ -21,6 +21,7 @@ namespace flux {
     Compositor::Compositor() = default;
 
     Compositor::~Compositor() {
+        cancel_workspace_swipe();
         if (m_display) {
             wl_display_destroy_clients(m_display);
         }
@@ -30,13 +31,9 @@ namespace flux {
         m_popups.clear();
         m_layers.clear();
         m_windows.clear();
-        m_workspaces.clear();
-        if (m_workspace_group) {
-            wlr_ext_workspace_group_handle_v1_destroy(m_workspace_group);
-        }
+        m_outputs.clear();
         m_input.reset();
         m_config.reset();
-        m_outputs.clear();
 
         m_scene.reset();
 
@@ -122,18 +119,12 @@ namespace flux {
         m_output_layout = wlr_output_layout_create(m_display);
         wlr_xdg_output_manager_v1_create(m_display, m_output_layout);
 
-        auto* workspace_mgr = wlr_ext_workspace_manager_v1_create(m_display, 1);
-        m_workspace_group = wlr_ext_workspace_group_handle_v1_create(workspace_mgr, 0);
-        m_listeners.listen(&workspace_mgr->events.commit, this, &Compositor::on_workspace_commit);
+        m_workspace_manager = wlr_ext_workspace_manager_v1_create(m_display, 1);
+        m_listeners.listen(&m_workspace_manager->events.commit, this, &Compositor::on_workspace_commit);
 
         m_listeners.listen(&m_backend->events.new_output, this, &Compositor::on_new_output);
 
         m_scene = std::make_unique<Scene>(m_display, m_output_layout);
-        m_current_workspace = &workspace(1);
-        m_current_workspace->activate();
-        for (uint32_t i = 2; i <= 9; ++i) {
-            workspace(i);
-        }
 
         if (wlr_renderer_get_drm_fd(m_renderer) >= 0 &&
             wlr_renderer_get_texture_formats(m_renderer, WLR_BUFFER_CAP_DMABUF) != nullptr) {
@@ -163,8 +154,10 @@ namespace flux {
         m_input = std::make_unique<Input>(*this);
         m_config->set_on_reload([this] {
             m_input->apply_config();
-            for (const auto& ws : m_workspaces) {
-                arrange_workspace(ws.get());
+            for (const auto& out : m_outputs) {
+                for (const auto& ws : out->workspaces()) {
+                    arrange_workspace(ws.get());
+                }
             }
             m_input->cursor().update_focus();
         });
@@ -249,8 +242,10 @@ namespace flux {
                         win->close();
                     }
                 } else if constexpr (std::is_same_v<T, action::CycleWindow>) {
-                    if (Window* next = m_current_workspace->cycle()) {
-                        focus_window(next);
+                    if (Output* out = focused_output()) {
+                        if (Window* next = out->active_workspace().cycle()) {
+                            focus_window(next);
+                        }
                     }
                 } else if constexpr (std::is_same_v<T, action::MaximizeWindow>) {
                     if (Window* win = focused_window()) {
@@ -340,31 +335,28 @@ namespace flux {
         m_input->seat().notify_keyboard_enter(surface);
     }
 
-    Workspace& Compositor::workspace(uint32_t id) {
-        auto it = std::ranges::find_if(m_workspaces, [id](const auto& ws) { return ws->id() == id; });
-        if (it != m_workspaces.end()) {
-            return **it;
-        }
-
-        m_workspaces.push_back(std::make_unique<Workspace>(id, *m_scene, m_workspace_group));
-        return *m_workspaces.back();
+    Window* Compositor::focused_window() const noexcept {
+        Output* out = focused_output();
+        return out ? out->active_workspace().focused_window() : nullptr;
     }
 
-    void Compositor::focus_workspace(uint32_t id) {
-        if (exclusive_layer() || id == 0 || m_current_workspace->id() == id) {
+    void Compositor::focus_workspace(Output* output, uint32_t id) {
+        if (exclusive_layer() || id == 0 || !output || output->active_workspace().id() == id) {
             return;
         }
 
         cancel_workspace_swipe();
         dismiss_popups();
 
-        wlr_log(WLR_DEBUG, "switching from workspace %u to %u", m_current_workspace->id(), id);
-        m_current_workspace->deactivate();
+        m_focused_output = output;
+        wlr_log(WLR_DEBUG, "output '%s': switching from workspace %u to %u", output->raw()->name,
+                output->active_workspace().id(), id);
+        output->active_workspace().deactivate();
 
-        m_current_workspace = &workspace(id);
-        m_current_workspace->activate();
+        output->set_active_workspace(&output->workspace(id));
+        output->active_workspace().activate();
 
-        focus_window(focused_window());
+        focus_window(output->active_workspace().focused_window());
     }
 
     bool Compositor::begin_workspace_swipe() {
@@ -372,7 +364,14 @@ namespace flux {
             return false;
         }
 
+        m_focused_output = nullptr;
+        Output* out = focused_output();
+        if (!out) {
+            return false;
+        }
+
         m_swipe_active = true;
+        m_swipe_output = out;
         m_swipe_progress = 0.0;
         m_swipe_target = nullptr;
         dismiss_popups();
@@ -381,31 +380,27 @@ namespace flux {
     }
 
     void Compositor::update_workspace_swipe(double dx) {
-        if (!m_swipe_active) {
-            return;
-        }
-
-        Output* out = focused_output();
-        if (!out) {
+        if (!m_swipe_active || !m_swipe_output) {
             return;
         }
 
         constexpr double swipe_distance = 350.0;
         const double delta = (m_config->touchpad().natural_scroll ? dx : -dx) / swipe_distance;
-        const uint32_t cur_id = m_current_workspace->id();
+        Workspace& cur_ws = m_swipe_output->active_workspace();
+        const uint32_t cur_id = cur_ws.id();
         const double min_progress = (cur_id < 9) ? -1.0 : 0.0;
         const double max_progress = (cur_id > 1) ? 1.0 : 0.0;
         m_swipe_progress = std::clamp(m_swipe_progress + delta, min_progress, max_progress);
 
-        const int span = std::max(1, out->layout_box().width);
+        const int span = std::max(1, m_swipe_output->layout_box().width);
         const int offset = static_cast<int>(std::round(m_swipe_progress * span));
-        wlr_scene_node_set_position(&m_current_workspace->tree()->node, offset, 0);
+        wlr_scene_node_set_position(&cur_ws.tree()->node, offset, 0);
 
         Workspace* target = nullptr;
         if (offset < 0 && cur_id < 9) {
-            target = &workspace(cur_id + 1);
+            target = &m_swipe_output->workspace(cur_id + 1);
         } else if (offset > 0 && cur_id > 1) {
-            target = &workspace(cur_id - 1);
+            target = &m_swipe_output->workspace(cur_id - 1);
         }
 
         if (m_swipe_target && m_swipe_target != target) {
@@ -421,17 +416,18 @@ namespace flux {
     }
 
     void Compositor::end_workspace_swipe(bool cancelled) {
-        if (!m_swipe_active) {
+        if (!m_swipe_active || !m_swipe_output) {
             return;
         }
 
         constexpr double commit_threshold = 0.25;
         Workspace* committed_target =
             (!cancelled && m_swipe_target && std::abs(m_swipe_progress) >= commit_threshold) ? m_swipe_target : nullptr;
+        Output* out = m_swipe_output;
 
         cancel_workspace_swipe();
         if (committed_target) {
-            focus_workspace(committed_target->id());
+            focus_workspace(out, committed_target->id());
         } else {
             refocus();
         }
@@ -443,67 +439,79 @@ namespace flux {
         }
         m_swipe_active = false;
         m_swipe_progress = 0.0;
-        wlr_scene_node_set_position(&m_current_workspace->tree()->node, 0, 0);
+        if (m_swipe_output) {
+            wlr_scene_node_set_position(&m_swipe_output->active_workspace().tree()->node, 0, 0);
+        }
         if (m_swipe_target) {
             wlr_scene_node_set_enabled(&m_swipe_target->tree()->node, false);
             wlr_scene_node_set_position(&m_swipe_target->tree()->node, 0, 0);
             m_swipe_target = nullptr;
         }
+        m_swipe_output = nullptr;
     }
 
     void Compositor::move_to_workspace(Window* window, uint32_t id) {
-        if (exclusive_layer() || !window || id == 0 || window->workspace()->id() == id) {
+        Workspace* old_ws = window ? window->workspace() : nullptr;
+        if (exclusive_layer() || !old_ws || id == 0 || old_ws->id() == id) {
             return;
         }
 
         cancel_workspace_swipe();
         dismiss_popups(window->scene_tree());
 
-        wlr_log(WLR_DEBUG, "moving window to workspace %u", id);
-        Workspace* old_ws = window->workspace();
+        Output& out = old_ws->output();
+        wlr_log(WLR_DEBUG, "moving window to workspace %u on output '%s'", id, out.raw()->name);
         old_ws->remove(window);
 
-        Workspace& new_ws = workspace(id);
+        Workspace& new_ws = out.workspace(id);
         new_ws.promote(window);
         window->set_workspace(&new_ws);
         window->set_activated(false);
 
         arrange_workspace(old_ws);
         arrange_workspace(&new_ws);
-
         refocus();
     }
 
     void Compositor::restack_windows() {
-        std::vector<Output*> seen_outputs;
-        std::vector<Output*> seen_non_floating;
-        for (Window* w : m_current_workspace->focus_stack()) {
-            Output* out = w->output();
-            const bool is_top_on_output = out && !std::ranges::contains(seen_outputs, out);
-            if (is_top_on_output) {
-                seen_outputs.push_back(out);
+        for (const auto& out : m_outputs) {
+            if (!out->is_enabled()) {
+                continue;
             }
-            if (w->is_fullscreen()) {
-                if (is_top_on_output && !m_swipe_active) {
-                    wlr_scene_node_reparent(&w->scene_tree()->node, m_scene->fullscreen());
-                } else {
-                    w->reparent_to_workspace();
+            Workspace& ws = out->active_workspace();
+            const bool is_swiping_output = (m_swipe_active && m_swipe_output == out.get());
+            Window* top_fullscreen = nullptr;
+            Window* top_non_floating = nullptr;
+            for (Window* w : ws.focus_stack()) {
+                if (w->is_fullscreen() && !top_fullscreen) {
+                    top_fullscreen = w;
+                }
+                if (!w->is_floating() && !top_non_floating) {
+                    top_non_floating = w;
                 }
             }
-            if (!w->is_floating()) {
-                const bool is_top_non_floating = out && !std::ranges::contains(seen_non_floating, out);
-                if (is_top_non_floating) {
-                    seen_non_floating.push_back(out);
-                    w->raise_to_top();
-                } else if (!w->is_tiled()) {
-                    w->lower_to_bottom();
-                }
-            }
-        }
 
-        for (Window* w : std::views::reverse(m_current_workspace->focus_stack())) {
-            if (w->is_floating()) {
-                w->raise_to_top();
+            for (Window* w : ws.focus_stack()) {
+                if (w->is_fullscreen()) {
+                    if (w == top_fullscreen && !is_swiping_output) {
+                        wlr_scene_node_reparent(&w->scene_tree()->node, m_scene->fullscreen());
+                    } else {
+                        w->reparent_to_workspace();
+                    }
+                }
+                if (!w->is_floating()) {
+                    if (w == top_non_floating) {
+                        w->raise_to_top();
+                    } else if (!w->is_tiled()) {
+                        w->lower_to_bottom();
+                    }
+                }
+            }
+
+            for (Window* w : std::views::reverse(ws.focus_stack())) {
+                if (w->is_floating()) {
+                    w->raise_to_top();
+                }
             }
         }
     }
@@ -514,12 +522,17 @@ namespace flux {
         }
 
         if (window) {
+            if (window->output()) {
+                m_focused_output = window->output();
+            }
             Workspace* ws = window->workspace();
-            ws->promote(window);
+            if (ws) {
+                ws->promote(window);
 
-            if (ws != m_current_workspace) {
-                focus_workspace(ws->id());
-                return;
+                if (ws != &ws->output().active_workspace()) {
+                    focus_workspace(&ws->output(), ws->id());
+                    return;
+                }
             }
         }
 
@@ -538,11 +551,10 @@ namespace flux {
 
     void Compositor::focus_window_in_direction(Direction direction) {
         Window* focused = focused_window();
-        if (!focused || !focused->output()) {
+        Output* cur_output = focused ? focused->output() : focused_output();
+        if (!cur_output) {
             return;
         }
-
-        Output* cur_output = focused->output();
 
         auto focus_adjacent_output = [this, cur_output, direction] -> bool {
             const wlr_box cur_box = cur_output->layout_box();
@@ -556,23 +568,20 @@ namespace flux {
                 return false;
             }
 
-            for (Window* w : m_current_workspace->focus_stack()) {
-                if (w->output() == adj_out) {
-                    focus_window(w);
-                    return true;
-                }
-            }
-            return false;
+            m_focused_output = adj_out;
+            focus_window(adj_out->active_workspace().focused_window());
+            return true;
         };
 
-        if (!focused->is_tiled()) {
+        if (!focused || !focused->is_tiled()) {
             focus_adjacent_output();
             return;
         }
 
+        Workspace& ws = cur_output->active_workspace();
         std::vector<Window*> tiled;
-        for (Window* w : m_current_workspace->windows()) {
-            if (w->output() == cur_output && w->is_tiled()) {
+        for (Window* w : ws.windows()) {
+            if (w->is_tiled()) {
                 tiled.push_back(w);
             }
         }
@@ -603,8 +612,8 @@ namespace flux {
         if (idx == 0) {
             if (direction == Direction::Right) {
                 Window* target = tiled[1];
-                for (Window* w : m_current_workspace->focus_stack()) {
-                    if (w != focused && w->output() == cur_output && w->is_tiled()) {
+                for (Window* w : ws.focus_stack()) {
+                    if (w != focused && w->is_tiled()) {
                         target = w;
                         break;
                     }
@@ -649,6 +658,9 @@ namespace flux {
     }
 
     Output* Compositor::focused_output() const noexcept {
+        if (m_focused_output && m_focused_output->is_enabled()) {
+            return m_focused_output;
+        }
         wlr_output* wlr_out =
             wlr_output_layout_output_at(m_output_layout, m_input->cursor().x(), m_input->cursor().y());
         if (!wlr_out) {
@@ -659,12 +671,13 @@ namespace flux {
     }
 
     void Compositor::map_window(Window* window) {
-        if (!window->output()) {
-            window->set_output(focused_output());
+        Output* out = window->output() ? window->output() : focused_output();
+        if (out) {
+            Workspace& ws = out->active_workspace();
+            window->set_workspace(&ws);
+            ws.promote(window);
+            arrange_workspace(&ws);
         }
-        window->set_workspace(m_current_workspace);
-        m_current_workspace->promote(window);
-        arrange_workspace(m_current_workspace);
         focus_window(window);
     }
 
@@ -672,8 +685,10 @@ namespace flux {
         m_input->cursor().cancel_grab(window);
         dismiss_popups(window->scene_tree());
         Workspace* ws = window->workspace();
-        ws->remove(window);
-        arrange_workspace(ws);
+        if (ws) {
+            ws->remove(window);
+            arrange_workspace(ws);
+        }
         refocus();
     }
 
@@ -682,36 +697,32 @@ namespace flux {
             return;
         }
 
+        Output& output = ws->output();
+        if (!output.is_enabled()) {
+            return;
+        }
+
         const auto& layout_cfg = m_config->layout();
-        for (const auto& output : m_outputs) {
-            if (!output->is_enabled()) {
-                continue;
-            }
+        const wlr_box full = output.layout_box();
+        const wlr_box& usable = output.usable_area();
 
-            const wlr_box full = output->layout_box();
-            const wlr_box& usable = output->usable_area();
-
-            std::vector<Window*> tiled;
-            for (Window* w : ws->windows()) {
-                if (w->output() != output.get()) {
-                    continue;
+        std::vector<Window*> tiled;
+        for (Window* w : ws->windows()) {
+            if (w->is_fullscreen()) {
+                w->set_geometry(full);
+            } else if (w->is_maximized()) {
+                w->set_geometry(usable);
+            } else if (w->is_floating()) {
+                if (!w->is_placed()) {
+                    w->center(usable);
                 }
-                if (w->is_fullscreen()) {
-                    w->set_geometry(full);
-                } else if (w->is_maximized()) {
-                    w->set_geometry(usable);
-                } else if (w->is_floating()) {
-                    if (!w->is_placed()) {
-                        w->center(usable);
-                    }
-                } else {
-                    tiled.push_back(w);
-                }
+            } else {
+                tiled.push_back(w);
             }
+        }
 
-            for (size_t i = 0; i < tiled.size(); ++i) {
-                tiled[i]->set_geometry(tile_box(usable, i, tiled.size(), layout_cfg));
-            }
+        for (size_t i = 0; i < tiled.size(); ++i) {
+            tiled[i]->set_geometry(tile_box(usable, i, tiled.size(), layout_cfg));
         }
     }
 
@@ -737,14 +748,10 @@ namespace flux {
             return false;
         }
 
-        for (const Window* w : m_current_workspace->focus_stack()) {
-            if (w->output() == output) {
-                return w->is_fullscreen() &&
-                       wlr_tearing_control_manager_v1_surface_hint_from_surface(m_tearing_control_mgr, w->surface()) ==
-                           WP_TEARING_CONTROL_V1_PRESENTATION_HINT_ASYNC;
-            }
-        }
-        return false;
+        const Window* w = output->active_workspace().focused_window();
+        return w && w->is_fullscreen() &&
+               wlr_tearing_control_manager_v1_surface_hint_from_surface(m_tearing_control_mgr, w->surface()) ==
+                   WP_TEARING_CONTROL_V1_PRESENTATION_HINT_ASYNC;
     }
 
     void Compositor::refocus() {
@@ -797,10 +804,40 @@ namespace flux {
     }
 
     void Compositor::remove_output(Output* output) {
-        const bool is_nested = output && output->is_nested();
+        if (!output) {
+            return;
+        }
 
-        if (output) {
-            wlr_ext_workspace_group_handle_v1_output_leave(m_workspace_group, output->raw());
+        const bool is_nested = output->is_nested();
+        if (m_swipe_output == output) {
+            cancel_workspace_swipe();
+        }
+        if (m_focused_output == output) {
+            m_focused_output = nullptr;
+        }
+
+        auto it =
+            std::ranges::find_if(m_outputs, [output](const auto& o) { return o.get() != output && o->is_enabled(); });
+        Output* target = (it != m_outputs.end()) ? it->get() : nullptr;
+
+        for (const auto& win : m_windows) {
+            if (win->output() != output) {
+                continue;
+            }
+            Workspace* old_ws = win->workspace();
+            Workspace* target_ws =
+                target ? (old_ws ? &target->workspace(old_ws->id()) : &target->active_workspace()) : nullptr;
+            if (win->is_mapped()) {
+                if (old_ws) {
+                    old_ws->remove(win.get());
+                }
+                if (target_ws) {
+                    target_ws->promote(win.get());
+                }
+                win->set_activated(false);
+            }
+            win->set_workspace(target_ws);
+            win->set_placed(false);
         }
 
         std::vector<wlr_layer_surface_v1*> to_destroy;
@@ -809,15 +846,8 @@ namespace flux {
                 to_destroy.push_back(ls->raw());
             }
         }
-        erase_unique_ptr(m_outputs, output);
 
-        Output* target = focused_output();
-        for (const auto& win : m_windows) {
-            if (win->output() == output) {
-                win->set_output(target);
-                win->set_placed(false);
-            }
-        }
+        erase_unique_ptr(m_outputs, output);
 
         for (auto* raw : to_destroy) {
             wlr_layer_surface_v1_destroy(raw);
@@ -856,10 +886,12 @@ namespace flux {
     void Compositor::on_new_output(wlr_output* output) {
         m_outputs.push_back(std::make_unique<Output>(*this, output));
         Output* new_out = m_outputs.back().get();
-        wlr_ext_workspace_group_handle_v1_output_enter(m_workspace_group, output);
         for (const auto& win : m_windows) {
             if (!win->output()) {
-                win->set_output(new_out);
+                win->set_workspace(&new_out->active_workspace());
+                if (win->is_mapped()) {
+                    new_out->active_workspace().promote(win.get());
+                }
             }
         }
         for (const auto& out : m_outputs) {
@@ -891,7 +923,7 @@ namespace flux {
         }
 
         if (to_activate) {
-            focus_workspace(to_activate->id());
+            focus_workspace(&to_activate->output(), to_activate->id());
         }
     }
 
@@ -966,7 +998,7 @@ namespace flux {
             popup->update_position();
         }
 
-        for (const auto& ws : m_workspaces) {
+        for (const auto& ws : output->workspaces()) {
             arrange_workspace(ws.get());
         }
 
@@ -976,6 +1008,9 @@ namespace flux {
     void Compositor::focus_layer(Layer* layer) {
         if (!layer || !layer->is_mapped()) {
             return;
+        }
+        if (layer->output()) {
+            m_focused_output = layer->output();
         }
         if (layer->is_exclusive()) {
             cancel_workspace_swipe();

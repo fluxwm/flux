@@ -43,15 +43,14 @@ namespace flux {
         [[nodiscard]] wlr_output_layout* output_layout() const noexcept { return m_output_layout; }
         [[nodiscard]] Output* output_from_wlr(wlr_output* wlr_out) const noexcept;
         [[nodiscard]] Output* focused_output() const noexcept;
+        void set_focused_output(Output* output) noexcept { m_focused_output = output; }
         [[nodiscard]] Layer* exclusive_layer() const noexcept;
         [[nodiscard]] bool allows_tearing(const Output* output) const noexcept;
         [[nodiscard]] wlr_ext_foreign_toplevel_list_v1* foreign_toplevel_list() const noexcept {
             return m_foreign_toplevel_list;
         }
-        [[nodiscard]] Window* focused_window() const noexcept {
-            return m_current_workspace ? m_current_workspace->focused_window() : nullptr;
-        }
-        [[nodiscard]] Workspace& current_workspace() const noexcept { return *m_current_workspace; }
+        [[nodiscard]] wlr_ext_workspace_manager_v1* workspace_manager() const noexcept { return m_workspace_manager; }
+        [[nodiscard]] Window* focused_window() const noexcept;
         [[nodiscard]] std::span<const std::unique_ptr<Popup>> popups() const noexcept { return m_popups; }
         [[nodiscard]] bool is_workspace_swiping() const noexcept { return m_swipe_active; }
 
@@ -59,7 +58,8 @@ namespace flux {
         bool handle_keybinding(uint32_t modifiers, xkb_keysym_t sym);
         void focus_window(Window* window);
         void focus_window_in_direction(Direction direction);
-        void focus_workspace(uint32_t id);
+        void focus_workspace(uint32_t id) { focus_workspace(focused_output(), id); }
+        void focus_workspace(Output* output, uint32_t id);
         void move_to_workspace(Window* window, uint32_t id);
         bool begin_workspace_swipe();
         void update_workspace_swipe(double dx);
@@ -82,7 +82,6 @@ namespace flux {
         void remove_layer(Layer* layer);
 
     private:
-        Workspace& workspace(uint32_t id);
         void restack_windows();
 
         void on_new_output(wlr_output* output);
@@ -100,7 +99,7 @@ namespace flux {
         wlr_allocator* m_allocator = nullptr;
         wlr_output_layout* m_output_layout = nullptr;
         wlr_ext_foreign_toplevel_list_v1* m_foreign_toplevel_list = nullptr;
-        wlr_ext_workspace_group_handle_v1* m_workspace_group = nullptr;
+        wlr_ext_workspace_manager_v1* m_workspace_manager = nullptr;
         wlr_tearing_control_manager_v1* m_tearing_control_mgr = nullptr;
 
         std::unique_ptr<Config> m_config;
@@ -108,11 +107,11 @@ namespace flux {
         std::unique_ptr<Input> m_input;
 
         std::vector<std::unique_ptr<Output>> m_outputs;
+        Output* m_focused_output = nullptr;
         std::vector<std::unique_ptr<Window>> m_windows;
         std::vector<std::unique_ptr<Popup>> m_popups;
         std::vector<std::unique_ptr<Layer>> m_layers;
-        std::vector<std::unique_ptr<Workspace>> m_workspaces;
-        Workspace* m_current_workspace = nullptr;
+        Output* m_swipe_output = nullptr;
         Workspace* m_swipe_target = nullptr;
         double m_swipe_progress = 0.0;
         bool m_swipe_active = false;

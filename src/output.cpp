@@ -1,6 +1,8 @@
 #include "flux/output.hpp"
 #include "flux/compositor.hpp"
+#include "flux/workspace.hpp"
 
+#include <algorithm>
 #include <ctime>
 
 namespace flux {
@@ -34,6 +36,31 @@ namespace flux {
         } else if (wlr_output_is_x11(m_wlr_output)) {
             wlr_x11_output_set_title(m_wlr_output, "Flux");
         }
+
+        m_workspace_group = wlr_ext_workspace_group_handle_v1_create(m_compositor.workspace_manager(), 0);
+        wlr_ext_workspace_group_handle_v1_output_enter(m_workspace_group, m_wlr_output);
+
+        for (uint32_t i = 1; i <= 9; ++i) {
+            m_workspaces.push_back(std::make_unique<Workspace>(i, *this, m_compositor.scene(), m_workspace_group));
+        }
+        m_active_workspace = m_workspaces.front().get();
+        m_active_workspace->activate();
+    }
+
+    Output::~Output() {
+        m_workspaces.clear();
+        if (m_workspace_group) {
+            wlr_ext_workspace_group_handle_v1_destroy(m_workspace_group);
+        }
+    }
+
+    Workspace& Output::workspace(uint32_t id) {
+        auto it = std::ranges::find_if(m_workspaces, [id](const auto& ws) { return ws->id() == id; });
+        if (it != m_workspaces.end()) {
+            return **it;
+        }
+        m_workspaces.push_back(std::make_unique<Workspace>(id, *this, m_compositor.scene(), m_workspace_group));
+        return *m_workspaces.back();
     }
 
     void Output::on_frame() {

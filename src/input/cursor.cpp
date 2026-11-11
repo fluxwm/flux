@@ -137,6 +137,9 @@ namespace flux::input {
         double dy = event->delta_y;
         if (apply_constraint(dx, dy)) {
             wlr_cursor_move(m_wlr_cursor, &event->pointer->base, dx, dy);
+            if (!m_grab_window && !m_input.compositor().focused_window()) {
+                m_input.compositor().set_focused_output(nullptr);
+            }
             process_motion(event->time_msec);
         }
         m_input.seat().notify_relative_motion(event->time_msec, event->delta_x, event->delta_y, event->unaccel_dx,
@@ -152,6 +155,9 @@ namespace flux::input {
         double dy = ly - m_wlr_cursor->y;
         if (apply_constraint(dx, dy)) {
             wlr_cursor_move(m_wlr_cursor, &event->pointer->base, dx, dy);
+            if (!m_grab_window && !m_input.compositor().focused_window()) {
+                m_input.compositor().set_focused_output(nullptr);
+            }
             process_motion(event->time_msec);
         }
     }
@@ -160,6 +166,7 @@ namespace flux::input {
         if (m_grab_window) {
             m_input.seat().notify_activity();
             if (event->state == WL_POINTER_BUTTON_STATE_RELEASED && event->button == m_grab_button) {
+                m_input.compositor().set_focused_output(nullptr);
                 end_grab();
             }
             return;
@@ -177,6 +184,7 @@ namespace flux::input {
             Window* window =
                 m_input.compositor().scene().window_at(m_wlr_cursor->x, m_wlr_cursor->y, &surface, &sx, &sy);
 
+            m_input.compositor().set_focused_output(nullptr);
             if (auto* excl = m_input.compositor().exclusive_layer()) {
                 if (surface && root_popup_parent(surface) == excl->surface()) {
                     m_input.compositor().focus_surface(surface);

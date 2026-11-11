@@ -1,4 +1,5 @@
 #include "flux/workspace.hpp"
+#include "flux/output.hpp"
 #include "flux/scene.hpp"
 #include "flux/window.hpp"
 
@@ -7,8 +8,8 @@
 
 namespace flux {
 
-    Workspace::Workspace(uint32_t id, Scene& scene, wlr_ext_workspace_group_handle_v1* group)
-        : m_id(id), m_tree(wlr_scene_tree_create(scene.windows())) {
+    Workspace::Workspace(uint32_t id, Output& output, Scene& scene, wlr_ext_workspace_group_handle_v1* group)
+        : m_id(id), m_output(output), m_tree(wlr_scene_tree_create(scene.windows())) {
         wlr_scene_node_set_enabled(&m_tree->node, false);
 
         const std::string id_str = std::to_string(id);
@@ -22,9 +23,13 @@ namespace flux {
 
     Workspace::~Workspace() {
         wlr_ext_workspace_handle_v1_destroy(m_handle);
+        if (m_tree) {
+            wlr_scene_node_destroy(&m_tree->node);
+        }
     }
 
     void Workspace::activate() noexcept {
+        wlr_scene_node_set_position(&m_tree->node, 0, 0);
         wlr_scene_node_set_enabled(&m_tree->node, true);
         wlr_ext_workspace_handle_v1_set_active(m_handle, true);
     }

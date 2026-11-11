@@ -10,16 +10,18 @@ namespace flux {
 
     class Scene;
     class Window;
+    class Output;
 
     class Workspace {
     public:
-        Workspace(uint32_t id, Scene& scene, wlr_ext_workspace_group_handle_v1* group);
+        Workspace(uint32_t id, Output& output, Scene& scene, wlr_ext_workspace_group_handle_v1* group);
         ~Workspace();
 
         Workspace(const Workspace&) = delete;
         Workspace& operator=(const Workspace&) = delete;
 
         [[nodiscard]] uint32_t id() const noexcept { return m_id; }
+        [[nodiscard]] Output& output() const noexcept { return m_output; }
         [[nodiscard]] wlr_scene_tree* tree() const noexcept { return m_tree; }
         [[nodiscard]] std::span<Window* const> focus_stack() const noexcept { return m_focus_stack; }
         [[nodiscard]] std::span<Window* const> windows() const noexcept { return m_windows; }
@@ -36,6 +38,7 @@ namespace flux {
 
     private:
         uint32_t m_id = 1;
+        Output& m_output;
         wlr_scene_tree* m_tree = nullptr;
         wlr_ext_workspace_handle_v1* m_handle = nullptr;
         std::vector<Window*> m_focus_stack;

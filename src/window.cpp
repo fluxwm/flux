@@ -10,9 +10,10 @@
 namespace flux {
 
     Window::Window(Compositor& compositor, wlr_xdg_toplevel* xdg_toplevel)
-        : m_compositor(compositor), m_xdg_toplevel(xdg_toplevel), m_workspace(&compositor.current_workspace()),
-          m_output(compositor.focused_output()) {
-        m_scene_tree = wlr_scene_xdg_surface_create(m_workspace->tree(), xdg_toplevel->base);
+        : m_compositor(compositor), m_xdg_toplevel(xdg_toplevel), m_output(compositor.focused_output()),
+          m_workspace(m_output ? &m_output->active_workspace() : nullptr) {
+        wlr_scene_tree* parent_tree = m_workspace ? m_workspace->tree() : compositor.scene().windows();
+        m_scene_tree = wlr_scene_xdg_surface_create(parent_tree, xdg_toplevel->base);
         m_scene_tree->node.data = this;
         xdg_toplevel->base->data = m_scene_tree;
 
@@ -78,7 +79,7 @@ namespace flux {
     void Window::on_commit() {
         if (m_xdg_toplevel->base->initial_commit) {
             if (auto* parent = Window::try_from(m_xdg_toplevel->parent); parent && parent->output()) {
-                m_output = parent->output();
+                set_output(parent->output());
             }
             on_request_decoration_mode();
             wlr_xdg_toplevel_set_wm_capabilities(m_xdg_toplevel, WLR_XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN);
@@ -89,14 +90,13 @@ namespace flux {
             }
             if (m_xdg_toplevel->requested.fullscreen) {
                 set_fullscreen(true);
-            } else if (!m_floating && m_output && m_output->is_enabled()) {
+            } else if (!m_floating && m_output && m_output->is_enabled() && m_workspace) {
                 const auto& layout_cfg = m_compositor.config().layout();
                 const size_t tiled_count =
                     (layout_cfg.mode == Layout::Monocle)
                         ? 0
-                        : static_cast<size_t>(std::ranges::count_if(m_workspace->windows(), [this](const Window* w) {
-                              return w->output() == m_output && w->is_tiled();
-                          }));
+                        : static_cast<size_t>(std::ranges::count_if(m_workspace->windows(),
+                                                                    [](const Window* w) { return w->is_tiled(); }));
                 set_geometry(tile_box(m_output->usable_area(), tiled_count, tiled_count + 1, layout_cfg));
             } else {
                 wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
@@ -120,7 +120,7 @@ namespace flux {
 
         if (!m_floating && !m_floating_override && wants_floating()) {
             if (auto* parent = Window::try_from(m_xdg_toplevel->parent); parent && parent->output()) {
-                m_output = parent->output();
+                set_output(parent->output());
             }
             set_floating(true);
         } else if (is_mapped() && is_floating() && !m_placed && m_output && m_output->is_enabled()) {
@@ -195,7 +195,7 @@ namespace flux {
         if (m_fullscreen) {
             if (m_xdg_toplevel->requested.fullscreen_output) {
                 if (Output* out = m_compositor.output_from_wlr(m_xdg_toplevel->requested.fullscreen_output)) {
-                    m_output = out;
+                    set_output(out);
                 }
             }
             wlr_xdg_toplevel_set_fullscreen(m_xdg_toplevel, true);
@@ -208,7 +208,7 @@ namespace flux {
         }
 
         if (is_mapped()) {
-            if (m_fullscreen && m_workspace == &m_compositor.current_workspace()) {
+            if (m_fullscreen && m_workspace) {
                 m_workspace->promote(this);
             }
             m_compositor.arrange_workspace(m_workspace);
@@ -305,19 +305,53 @@ namespace flux {
     }
 
     void Window::end_grab() noexcept {
+        const bool was_resizing = m_resizing;
         if (m_resizing) {
             m_resizing = false;
             if (m_xdg_toplevel->base->initialized) {
                 wlr_xdg_toplevel_set_resizing(m_xdg_toplevel, false);
             }
         }
-        if (Output* out = m_compositor.focused_output()) {
-            m_output = out;
+        if (!was_resizing && is_mapped()) {
+            if (Output* out = m_compositor.focused_output(); out && m_output != out) {
+                set_output(out);
+                m_compositor.arrange_workspace(m_workspace);
+                m_compositor.refocus();
+            }
+        }
+    }
+
+    void Window::set_output(Output* output) noexcept {
+        if (m_output == output) {
+            return;
+        }
+        Workspace* old_ws = m_workspace;
+        Workspace* new_ws = output ? &output->active_workspace() : nullptr;
+        if (is_mapped() && old_ws) {
+            old_ws->remove(this);
+        }
+        set_workspace(new_ws);
+        if (is_mapped()) {
+            if (new_ws) {
+                new_ws->promote(this);
+            }
+            if (old_ws) {
+                m_compositor.arrange_workspace(old_ws);
+            }
+        }
+    }
+
+    void Window::set_workspace(Workspace* ws) noexcept {
+        if (m_workspace != ws) {
+            m_workspace = ws;
+            m_output = ws ? &ws->output() : nullptr;
+            reparent_to_workspace();
         }
     }
 
     void Window::reparent_to_workspace() noexcept {
-        wlr_scene_node_reparent(&m_scene_tree->node, m_workspace->tree());
+        wlr_scene_tree* target = m_workspace ? m_workspace->tree() : m_compositor.scene().windows();
+        wlr_scene_node_reparent(&m_scene_tree->node, target);
     }
 
     void Window::update_foreign_toplevel() noexcept {

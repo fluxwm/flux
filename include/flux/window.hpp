@@ -41,16 +41,11 @@ namespace flux {
         [[nodiscard]] wlr_box geometry_box() const noexcept;
         [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
         [[nodiscard]] Output* output() const noexcept { return m_output; }
-        void set_output(Output* output) noexcept { m_output = output; }
+        void set_output(Output* output) noexcept;
         void set_placed(bool placed) noexcept { m_placed = placed; }
 
         void set_activated(bool activated) noexcept { wlr_xdg_toplevel_set_activated(m_xdg_toplevel, activated); }
-        void set_workspace(Workspace* ws) noexcept {
-            if (m_workspace != ws) {
-                m_workspace = ws;
-                reparent_to_workspace();
-            }
-        }
+        void set_workspace(Workspace* ws) noexcept;
         void reparent_to_workspace() noexcept;
         void set_position(int x, int y) noexcept;
         void set_geometry(const wlr_box& box) noexcept;
@@ -94,8 +89,8 @@ namespace flux {
         bool m_resizing = false;
         uint32_t m_resize_edges = WLR_EDGE_NONE;
         wlr_box m_grab_box{};
-        Workspace* m_workspace = nullptr;
         Output* m_output = nullptr;
+        Workspace* m_workspace = nullptr;
         std::string m_title;
         std::string m_app_id;
         wlr_ext_foreign_toplevel_handle_v1* m_ext_toplevel_handle = nullptr;
