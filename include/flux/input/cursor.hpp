@@ -49,11 +49,6 @@ namespace flux::input {
         void on_swipe_begin(wlr_pointer_swipe_begin_event* event);
         void on_swipe_update(wlr_pointer_swipe_update_event* event);
         void on_swipe_end(wlr_pointer_swipe_end_event* event);
-        void on_pinch_begin(wlr_pointer_pinch_begin_event* event);
-        void on_pinch_update(wlr_pointer_pinch_update_event* event);
-        void on_pinch_end(wlr_pointer_pinch_end_event* event);
-        void on_hold_begin(wlr_pointer_hold_begin_event* event);
-        void on_hold_end(wlr_pointer_hold_end_event* event);
 
         void start_grab(Window* window, uint32_t button);
         void end_grab();
@@ -67,6 +62,8 @@ namespace flux::input {
         const char* m_current_shape = "default";
         std::optional<std::string> m_env_xcursor_theme;
         Window* m_grab_window = nullptr;
+        wlr_pointer_gestures_v1* m_pointer_gestures = nullptr;
+        wlr_relative_pointer_manager_v1* m_relative_pointer_mgr = nullptr;
         uint32_t m_grab_button = 0;
         double m_grab_x = 0.0;
         double m_grab_y = 0.0;

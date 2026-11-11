@@ -13,7 +13,10 @@
 
 namespace flux::input {
 
-    Cursor::Cursor(Input& input) : m_input(input), m_wlr_cursor(wlr_cursor_create()) {
+    Cursor::Cursor(Input& input)
+        : m_input(input), m_wlr_cursor(wlr_cursor_create()),
+          m_pointer_gestures(wlr_pointer_gestures_v1_create(m_input.compositor().display())),
+          m_relative_pointer_mgr(wlr_relative_pointer_manager_v1_create(m_input.compositor().display())) {
         if (const char* env_theme = std::getenv("XCURSOR_THEME"); env_theme && *env_theme != '\0') {
             m_env_xcursor_theme = env_theme;
         }
@@ -28,11 +31,36 @@ namespace flux::input {
         m_listeners.listen(&m_wlr_cursor->events.swipe_begin, this, &Cursor::on_swipe_begin);
         m_listeners.listen(&m_wlr_cursor->events.swipe_update, this, &Cursor::on_swipe_update);
         m_listeners.listen(&m_wlr_cursor->events.swipe_end, this, &Cursor::on_swipe_end);
-        m_listeners.listen(&m_wlr_cursor->events.pinch_begin, this, &Cursor::on_pinch_begin);
-        m_listeners.listen(&m_wlr_cursor->events.pinch_update, this, &Cursor::on_pinch_update);
-        m_listeners.listen(&m_wlr_cursor->events.pinch_end, this, &Cursor::on_pinch_end);
-        m_listeners.listen(&m_wlr_cursor->events.hold_begin, this, &Cursor::on_hold_begin);
-        m_listeners.listen(&m_wlr_cursor->events.hold_end, this, &Cursor::on_hold_end);
+        m_listeners.listen(&m_wlr_cursor->events.pinch_begin, [this](void* d) {
+            auto* ev = static_cast<wlr_pointer_pinch_begin_event*>(d);
+            m_input.seat().notify_activity();
+            wlr_pointer_gestures_v1_send_pinch_begin(m_pointer_gestures, m_input.seat().raw(), ev->time_msec,
+                                                     ev->fingers);
+        });
+        m_listeners.listen(&m_wlr_cursor->events.pinch_update, [this](void* d) {
+            auto* ev = static_cast<wlr_pointer_pinch_update_event*>(d);
+            m_input.seat().notify_activity();
+            wlr_pointer_gestures_v1_send_pinch_update(m_pointer_gestures, m_input.seat().raw(), ev->time_msec, ev->dx,
+                                                      ev->dy, ev->scale, ev->rotation);
+        });
+        m_listeners.listen(&m_wlr_cursor->events.pinch_end, [this](void* d) {
+            auto* ev = static_cast<wlr_pointer_pinch_end_event*>(d);
+            m_input.seat().notify_activity();
+            wlr_pointer_gestures_v1_send_pinch_end(m_pointer_gestures, m_input.seat().raw(), ev->time_msec,
+                                                   ev->cancelled);
+        });
+        m_listeners.listen(&m_wlr_cursor->events.hold_begin, [this](void* d) {
+            auto* ev = static_cast<wlr_pointer_hold_begin_event*>(d);
+            m_input.seat().notify_activity();
+            wlr_pointer_gestures_v1_send_hold_begin(m_pointer_gestures, m_input.seat().raw(), ev->time_msec,
+                                                    ev->fingers);
+        });
+        m_listeners.listen(&m_wlr_cursor->events.hold_end, [this](void* d) {
+            auto* ev = static_cast<wlr_pointer_hold_end_event*>(d);
+            m_input.seat().notify_activity();
+            wlr_pointer_gestures_v1_send_hold_end(m_pointer_gestures, m_input.seat().raw(), ev->time_msec,
+                                                  ev->cancelled);
+        });
     }
 
     Cursor::~Cursor() {
@@ -143,8 +171,9 @@ namespace flux::input {
             }
             process_motion(event->time_msec);
         }
-        m_input.seat().notify_relative_motion(event->time_msec, event->delta_x, event->delta_y, event->unaccel_dx,
-                                              event->unaccel_dy);
+        wlr_relative_pointer_manager_v1_send_relative_motion(
+            m_relative_pointer_mgr, m_input.seat().raw(), static_cast<uint64_t>(event->time_msec) * 1000,
+            event->delta_x, event->delta_y, event->unaccel_dx, event->unaccel_dy);
     }
 
     void Cursor::on_motion_absolute(wlr_pointer_motion_absolute_event* event) {
@@ -229,50 +258,33 @@ namespace flux::input {
     }
 
     void Cursor::on_swipe_begin(wlr_pointer_swipe_begin_event* event) {
+        m_input.seat().notify_activity();
         if (event->fingers == 3 && !m_grab_window && m_input.compositor().begin_workspace_swipe()) {
-            m_input.seat().notify_activity();
             m_input.seat().clear_pointer_focus();
             return;
         }
-        m_input.seat().notify_swipe_begin(event->time_msec, event->fingers);
+        wlr_pointer_gestures_v1_send_swipe_begin(m_pointer_gestures, m_input.seat().raw(), event->time_msec,
+                                                 event->fingers);
     }
 
     void Cursor::on_swipe_update(wlr_pointer_swipe_update_event* event) {
+        m_input.seat().notify_activity();
         if (m_input.compositor().is_workspace_swiping()) {
-            m_input.seat().notify_activity();
             m_input.compositor().update_workspace_swipe(event->dx);
             return;
         }
-        m_input.seat().notify_swipe_update(event->time_msec, event->dx, event->dy);
+        wlr_pointer_gestures_v1_send_swipe_update(m_pointer_gestures, m_input.seat().raw(), event->time_msec, event->dx,
+                                                  event->dy);
     }
 
     void Cursor::on_swipe_end(wlr_pointer_swipe_end_event* event) {
+        m_input.seat().notify_activity();
         if (m_input.compositor().is_workspace_swiping()) {
-            m_input.seat().notify_activity();
             m_input.compositor().end_workspace_swipe();
             return;
         }
-        m_input.seat().notify_swipe_end(event->time_msec, event->cancelled);
-    }
-
-    void Cursor::on_pinch_begin(wlr_pointer_pinch_begin_event* event) {
-        m_input.seat().notify_pinch_begin(event->time_msec, event->fingers);
-    }
-
-    void Cursor::on_pinch_update(wlr_pointer_pinch_update_event* event) {
-        m_input.seat().notify_pinch_update(event->time_msec, event->dx, event->dy, event->scale, event->rotation);
-    }
-
-    void Cursor::on_pinch_end(wlr_pointer_pinch_end_event* event) {
-        m_input.seat().notify_pinch_end(event->time_msec, event->cancelled);
-    }
-
-    void Cursor::on_hold_begin(wlr_pointer_hold_begin_event* event) {
-        m_input.seat().notify_hold_begin(event->time_msec, event->fingers);
-    }
-
-    void Cursor::on_hold_end(wlr_pointer_hold_end_event* event) {
-        m_input.seat().notify_hold_end(event->time_msec, event->cancelled);
+        wlr_pointer_gestures_v1_send_swipe_end(m_pointer_gestures, m_input.seat().raw(), event->time_msec,
+                                               event->cancelled);
     }
 
     void Cursor::process_motion(uint32_t time_msec) {
