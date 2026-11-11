@@ -5,12 +5,11 @@
 
 namespace flux {
 
-    class Compositor;
     class Output;
 
     class Layer {
     public:
-        Layer(Compositor& compositor, wlr_layer_surface_v1* layer_surface);
+        Layer(Output& output, wlr_layer_surface_v1* layer_surface);
         ~Layer();
 
         Layer(const Layer&) = delete;
@@ -20,7 +19,7 @@ namespace flux {
         [[nodiscard]] wlr_surface* surface() const noexcept { return m_layer_surface->surface; }
         [[nodiscard]] wlr_scene_layer_surface_v1* scene_layer() const noexcept { return m_scene_layer; }
         [[nodiscard]] wlr_scene_tree* scene_tree() const noexcept { return m_scene_tree; }
-        [[nodiscard]] Output* output() const noexcept;
+        [[nodiscard]] Output* output() const noexcept { return &m_output; }
         [[nodiscard]] bool is_mapped() const noexcept { return surface()->mapped; }
         [[nodiscard]] bool is_initialized() const noexcept { return m_layer_surface->initialized; }
         [[nodiscard]] bool is_exclusive() const noexcept {
@@ -47,7 +46,7 @@ namespace flux {
         void on_destroy();
         void on_new_popup(wlr_xdg_popup* popup);
 
-        Compositor& m_compositor;
+        Output& m_output;
         wlr_layer_surface_v1* m_layer_surface = nullptr;
         wlr_scene_layer_surface_v1* m_scene_layer = nullptr;
         wlr_scene_tree* m_scene_tree = nullptr;

@@ -4,9 +4,9 @@
 
 namespace flux {
 
-    Layer::Layer(Compositor& compositor, wlr_layer_surface_v1* layer_surface)
-        : m_compositor(compositor), m_layer_surface(layer_surface) {
-        wlr_scene_tree* parent = m_compositor.scene().layer_tree(layer_surface->pending.layer);
+    Layer::Layer(Output& output, wlr_layer_surface_v1* layer_surface)
+        : m_output(output), m_layer_surface(layer_surface) {
+        wlr_scene_tree* parent = m_output.compositor().scene().layer_tree(layer_surface->pending.layer);
         m_scene_layer = wlr_scene_layer_surface_v1_create(parent, layer_surface);
         m_scene_tree = m_scene_layer ? m_scene_layer->tree : nullptr;
         layer_surface->data = this;
@@ -19,18 +19,16 @@ namespace flux {
     }
 
     Layer::~Layer() {
+        m_listeners.clear();
+        m_output.compositor().dismiss_popups(m_scene_tree);
         if (m_layer_surface) {
             m_layer_surface->data = nullptr;
         }
     }
 
-    Output* Layer::output() const noexcept {
-        return m_compositor.output_from_wlr(m_layer_surface->output);
-    }
-
     void Layer::on_commit() {
         if (m_layer_surface->current.committed & WLR_LAYER_SURFACE_V1_STATE_LAYER) {
-            wlr_scene_tree* new_parent = m_compositor.scene().layer_tree(layer());
+            wlr_scene_tree* new_parent = m_output.compositor().scene().layer_tree(layer());
             wlr_scene_node_reparent(&scene_tree()->node, new_parent);
         }
 
@@ -40,14 +38,12 @@ namespace flux {
                                           WLR_LAYER_SURFACE_V1_STATE_EXCLUSIVE_EDGE | WLR_LAYER_SURFACE_V1_STATE_LAYER;
 
         if (m_layer_surface->initial_commit || (m_layer_surface->current.committed & arrange_mask)) {
-            if (Output* out = output()) {
-                m_compositor.arrange_layers(out);
-            }
+            m_output.arrange_layers();
         }
 
         if (m_layer_surface->current.committed &
             (WLR_LAYER_SURFACE_V1_STATE_KEYBOARD_INTERACTIVITY | WLR_LAYER_SURFACE_V1_STATE_LAYER)) {
-            m_compositor.refocus();
+            m_output.compositor().refocus();
         }
     }
 
@@ -55,14 +51,12 @@ namespace flux {
         wlr_log(WLR_DEBUG, "layer surface mapped: namespace '%s'",
                 m_layer_surface->_namespace ? m_layer_surface->_namespace : "");
 
-        if (Output* out = output()) {
-            m_compositor.arrange_layers(out);
-        }
+        m_output.arrange_layers();
 
         if (is_focusable()) {
-            auto* excl = m_compositor.exclusive_layer();
+            auto* excl = m_output.compositor().exclusive_layer();
             if (!excl || excl == this) {
-                m_compositor.focus_layer(this);
+                m_output.compositor().focus_layer(this);
             }
         }
     }
@@ -72,19 +66,17 @@ namespace flux {
             wlr_log(WLR_DEBUG, "layer surface unmapped: namespace '%s'",
                     m_layer_surface->_namespace ? m_layer_surface->_namespace : "");
         }
-        m_compositor.dismiss_popups(m_scene_tree);
-        if (Output* out = output()) {
-            m_compositor.arrange_layers(out);
-        }
-        m_compositor.refocus();
+        m_output.compositor().dismiss_popups(m_scene_tree);
+        m_output.arrange_layers();
+        m_output.compositor().refocus();
     }
 
     void Layer::on_destroy() {
-        m_compositor.remove_layer(this);
+        m_output.remove_layer(this);
     }
 
     void Layer::on_new_popup(wlr_xdg_popup* popup) {
-        m_compositor.create_popup(popup);
+        m_output.compositor().create_popup(popup);
     }
 
 }

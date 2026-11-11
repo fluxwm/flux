@@ -1,9 +1,13 @@
 #include "flux/output.hpp"
 #include "flux/compositor.hpp"
 #include "flux/config.hpp"
+#include "flux/layer.hpp"
+#include "flux/popup.hpp"
+#include "flux/util.hpp"
 #include "flux/workspace.hpp"
 
 #include <algorithm>
+#include <array>
 #include <ctime>
 
 namespace flux {
@@ -50,6 +54,12 @@ namespace flux {
 
     Output::~Output() {
         m_animation.cancel();
+        for (auto& layer : m_layers) {
+            wlr_layer_surface_v1* raw = layer->raw();
+            layer.reset();
+            wlr_layer_surface_v1_destroy(raw);
+        }
+        m_layers.clear();
         m_workspaces.clear();
         if (m_workspace_group) {
             wlr_ext_workspace_group_handle_v1_destroy(m_workspace_group);
@@ -101,7 +111,7 @@ namespace flux {
 
     void Output::on_request_state(const wlr_output_event_request_state* event) {
         if (wlr_output_commit_state(m_wlr_output, event->state)) {
-            m_compositor.arrange_layers(this);
+            arrange_layers();
         }
     }
 
@@ -128,6 +138,66 @@ namespace flux {
             m_compositor.output_layout(), static_cast<wlr_direction>(direction), m_wlr_output, ref_lx, ref_ly);
         Output* adj_out = m_compositor.output_from_wlr(adj_wlr);
         return (adj_out && adj_out->is_enabled()) ? adj_out : nullptr;
+    }
+
+    void Output::add_layer(wlr_layer_surface_v1* layer_surface) {
+        m_layers.push_back(std::make_unique<Layer>(*this, layer_surface));
+    }
+
+    void Output::remove_layer(Layer* layer) {
+        if (!layer) {
+            return;
+        }
+
+        const bool was_initialized = layer->is_initialized();
+        erase_unique_ptr(m_layers, layer);
+
+        if (was_initialized) {
+            arrange_layers();
+            m_compositor.refocus();
+        }
+    }
+
+    void Output::arrange_layers() {
+        if (!is_enabled()) {
+            return;
+        }
+
+        const wlr_box output_box = layout_box();
+        wlr_box full_area = output_box;
+        wlr_box usable_area = output_box;
+
+        constexpr std::array layers = {
+            ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
+            ZWLR_LAYER_SHELL_V1_LAYER_TOP,
+            ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM,
+            ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND,
+        };
+
+        auto configure = [&](bool exclusive) {
+            for (auto layer : layers) {
+                for (const auto& ls : m_layers) {
+                    if (ls->scene_layer() && ls->is_initialized() && ls->layer() == layer &&
+                        (ls->exclusive_zone() > 0) == exclusive) {
+                        wlr_scene_layer_surface_v1_configure(ls->scene_layer(), &full_area, &usable_area);
+                    }
+                }
+            }
+        };
+
+        configure(true);
+        set_usable_area(usable_area);
+        configure(false);
+
+        for (const auto& popup : m_compositor.popups()) {
+            popup->update_position();
+        }
+
+        for (const auto& ws : m_workspaces) {
+            ws->arrange();
+        }
+
+        m_compositor.update_cursor_focus();
     }
 
 }

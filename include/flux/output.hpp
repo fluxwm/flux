@@ -12,6 +12,7 @@ namespace flux {
 
     class Compositor;
     class Workspace;
+    class Layer;
     enum class Direction : uint8_t;
 
     class Output {
@@ -40,6 +41,11 @@ namespace flux {
         [[nodiscard]] WorkspaceAnimation& animation() noexcept { return m_animation; }
         [[nodiscard]] const WorkspaceAnimation& animation() const noexcept { return m_animation; }
 
+        void add_layer(wlr_layer_surface_v1* layer_surface);
+        void remove_layer(Layer* layer);
+        void arrange_layers();
+        [[nodiscard]] std::span<const std::unique_ptr<Layer>> layers() const noexcept { return m_layers; }
+
     private:
         void on_frame();
         void on_request_state(const wlr_output_event_request_state* event);
@@ -51,6 +57,7 @@ namespace flux {
         wlr_box m_usable_area{};
         wlr_ext_workspace_group_handle_v1* m_workspace_group = nullptr;
         std::vector<std::unique_ptr<Workspace>> m_workspaces;
+        std::vector<std::unique_ptr<Layer>> m_layers;
         Workspace* m_active_workspace = nullptr;
         WorkspaceAnimation m_animation;
 

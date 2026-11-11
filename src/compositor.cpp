@@ -30,7 +30,6 @@ namespace flux {
         m_listeners.clear();
 
         m_popups.clear();
-        m_layers.clear();
         m_windows.clear();
         m_outputs.clear();
         m_input.reset();
@@ -555,9 +554,11 @@ namespace flux {
         };
 
         for (auto layer : layers) {
-            for (const auto& ls : std::views::reverse(m_layers)) {
-                if (ls->is_mapped() && ls->layer() == layer && ls->is_exclusive()) {
-                    return ls.get();
+            for (const auto& out : m_outputs) {
+                for (const auto& ls : std::views::reverse(out->layers())) {
+                    if (ls->is_mapped() && ls->layer() == layer && ls->is_exclusive()) {
+                        return ls.get();
+                    }
                 }
             }
         }
@@ -657,18 +658,7 @@ namespace flux {
             win->set_placed(false);
         }
 
-        std::vector<wlr_layer_surface_v1*> to_destroy;
-        for (const auto& ls : m_layers) {
-            if (ls->output() == output) {
-                to_destroy.push_back(ls->raw());
-            }
-        }
-
         erase_unique_ptr(m_outputs, output);
-
-        for (auto* raw : to_destroy) {
-            wlr_layer_surface_v1_destroy(raw);
-        }
 
         if (is_nested && m_outputs.empty()) {
             quit();
@@ -676,28 +666,10 @@ namespace flux {
         }
 
         for (const auto& remaining : m_outputs) {
-            arrange_layers(remaining.get());
+            remaining->arrange_layers();
         }
 
         refocus();
-    }
-
-    void Compositor::remove_layer(Layer* layer) {
-        if (!layer) {
-            return;
-        }
-
-        const bool was_initialized = layer->is_initialized();
-        dismiss_popups(layer->scene_tree());
-        Output* output = layer->output();
-        erase_unique_ptr(m_layers, layer);
-
-        if (was_initialized) {
-            if (output) {
-                arrange_layers(output);
-            }
-            refocus();
-        }
     }
 
     void Compositor::on_new_output(wlr_output* output) {
@@ -714,7 +686,7 @@ namespace flux {
             }
         }
         for (const auto& out : m_outputs) {
-            arrange_layers(out.get());
+            out->arrange_layers();
         }
         refocus();
     }
@@ -770,59 +742,15 @@ namespace flux {
     }
 
     void Compositor::on_new_layer(wlr_layer_surface_v1* layer_surface) {
-        if (!layer_surface->output) {
-            Output* output = focused_output();
-            if (!output) {
-                wlr_log(WLR_ERROR, "no output available for layer surface");
-                wlr_layer_surface_v1_destroy(layer_surface);
-                return;
-            }
-            layer_surface->output = output->raw();
-        }
-
-        m_layers.push_back(std::make_unique<Layer>(*this, layer_surface));
-    }
-
-    void Compositor::arrange_layers(Output* output) {
-        if (!output || !output->is_enabled()) {
+        Output* output = layer_surface->output ? output_from_wlr(layer_surface->output) : focused_output();
+        if (!output) {
+            wlr_log(WLR_ERROR, "no output available for layer surface");
+            wlr_layer_surface_v1_destroy(layer_surface);
             return;
         }
 
-        wlr_box output_box = output->layout_box();
-        wlr_box full_area = output_box;
-        wlr_box usable_area = output_box;
-
-        constexpr std::array layers = {
-            ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
-            ZWLR_LAYER_SHELL_V1_LAYER_TOP,
-            ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM,
-            ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND,
-        };
-
-        auto configure = [&](bool exclusive) {
-            for (auto layer : layers) {
-                for (const auto& ls : m_layers) {
-                    if (ls->output() == output && ls->scene_layer() && ls->is_initialized() && ls->layer() == layer &&
-                        (ls->exclusive_zone() > 0) == exclusive) {
-                        wlr_scene_layer_surface_v1_configure(ls->scene_layer(), &full_area, &usable_area);
-                    }
-                }
-            }
-        };
-
-        configure(true);
-        output->set_usable_area(usable_area);
-        configure(false);
-
-        for (const auto& popup : m_popups) {
-            popup->update_position();
-        }
-
-        for (const auto& ws : output->workspaces()) {
-            ws->arrange();
-        }
-
-        m_input->cursor().update_focus();
+        layer_surface->output = output->raw();
+        output->add_layer(layer_surface);
     }
 
     void Compositor::focus_layer(Layer* layer) {
@@ -840,6 +768,10 @@ namespace flux {
             wlr_scene_node_raise_to_top(&layer->scene_tree()->node);
         }
         focus_surface(layer->surface());
+        m_input->cursor().update_focus();
+    }
+
+    void Compositor::update_cursor_focus() noexcept {
         m_input->cursor().update_focus();
     }
 

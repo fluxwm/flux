@@ -67,10 +67,10 @@ namespace flux {
         void cancel_animations();
         void focus_surface(wlr_surface* surface);
         void refocus();
-        void arrange_layers(Output* output);
         void focus_layer(Layer* layer);
         void create_popup(wlr_xdg_popup* popup);
         void dismiss_popups(wlr_scene_tree* root = nullptr, wlr_scene_tree* except_root = nullptr);
+        void update_cursor_focus() noexcept;
 
         // Collection management
         void map_window(Window* window);
@@ -78,7 +78,6 @@ namespace flux {
         void remove_window(Window* window);
         void remove_popup(Popup* popup);
         void remove_output(Output* output);
-        void remove_layer(Layer* layer);
         void on_animation_finished();
 
     private:
@@ -110,7 +109,6 @@ namespace flux {
         Output* m_focused_output = nullptr;
         std::vector<std::unique_ptr<Window>> m_windows;
         std::vector<std::unique_ptr<Popup>> m_popups;
-        std::vector<std::unique_ptr<Layer>> m_layers;
         Output* m_swipe_output = nullptr;
         uint32_t m_saved_workspace_id = 1;
 

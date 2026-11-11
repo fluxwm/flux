@@ -3,12 +3,19 @@
 #include "flux/wlroots.hpp"
 
 #include <algorithm>
+#include <utility>
 
 namespace flux {
 
     template <typename Container, typename T>
     constexpr bool erase_unique_ptr(Container& container, const T* target) noexcept {
-        return std::erase_if(container, [target](const auto& item) { return item.get() == target; }) > 0;
+        auto it = std::ranges::find_if(container, [target](const auto& item) { return item.get() == target; });
+        if (it == container.end()) {
+            return false;
+        }
+        auto removed = std::move(*it);
+        container.erase(it);
+        return true;
     }
 
     [[nodiscard]] inline wlr_surface* root_popup_parent(wlr_surface* surface) noexcept {
