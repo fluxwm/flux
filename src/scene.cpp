@@ -49,35 +49,31 @@ namespace flux {
         return scene_output;
     }
 
-    wlr_scene_node* Scene::surface_node_at(double lx, double ly, double* sx, double* sy, wlr_surface** surface) const {
+    wlr_surface* Scene::surface_at(double lx, double ly, double* sx, double* sy) const {
         wlr_scene_node* node = wlr_scene_node_at(&m_scene->tree.node, lx, ly, sx, sy);
         if (!node || node->type != WLR_SCENE_NODE_BUFFER) {
             return nullptr;
         }
-
         wlr_scene_buffer* scene_buffer = wlr_scene_buffer_from_node(node);
         wlr_scene_surface* scene_surface = wlr_scene_surface_try_from_buffer(scene_buffer);
-        if (!scene_surface) {
-            return nullptr;
-        }
-
-        if (surface) {
-            *surface = scene_surface->surface;
-        }
-        return node;
-    }
-
-    wlr_surface* Scene::surface_at(double lx, double ly, double* sx, double* sy) const {
-        wlr_surface* surface = nullptr;
-        if (surface_node_at(lx, ly, sx, sy, &surface)) {
-            return surface;
-        }
-        return nullptr;
+        return scene_surface ? scene_surface->surface : nullptr;
     }
 
     Window* Scene::window_at(double lx, double ly, wlr_surface** surface, double* sx, double* sy) const {
-        wlr_scene_node* node = surface_node_at(lx, ly, sx, sy, surface);
+        wlr_scene_node* node = wlr_scene_node_at(&m_scene->tree.node, lx, ly, sx, sy);
         if (!node) {
+            return nullptr;
+        }
+        if (node->type == WLR_SCENE_NODE_BUFFER) {
+            wlr_scene_buffer* scene_buffer = wlr_scene_buffer_from_node(node);
+            wlr_scene_surface* scene_surface = wlr_scene_surface_try_from_buffer(scene_buffer);
+            if (!scene_surface) {
+                return nullptr;
+            }
+            if (surface) {
+                *surface = scene_surface->surface;
+            }
+        } else if (node->type != WLR_SCENE_NODE_RECT) {
             return nullptr;
         }
 
@@ -86,7 +82,11 @@ namespace flux {
             tree = tree->node.parent;
         }
 
-        return tree ? static_cast<Window*>(tree->node.data) : nullptr;
+        auto* window = tree ? static_cast<Window*>(tree->node.data) : nullptr;
+        if (window && surface && !*surface) {
+            *surface = window->surface();
+        }
+        return window;
     }
 
 }

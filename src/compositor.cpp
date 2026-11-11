@@ -328,8 +328,15 @@ namespace flux {
         }
         if (prev_surface) {
             wlr_surface* prev_root = root_popup_parent(prev_surface);
-            if (wlr_xdg_toplevel* prev_toplevel = wlr_xdg_toplevel_try_from_wlr_surface(prev_root)) {
-                wlr_xdg_toplevel_set_activated(prev_toplevel, false);
+            wlr_surface* new_root = surface ? root_popup_parent(surface) : nullptr;
+            if (prev_root != new_root) {
+                if (wlr_xdg_toplevel* prev_toplevel = wlr_xdg_toplevel_try_from_wlr_surface(prev_root)) {
+                    if (Window* prev_window = Window::try_from(prev_toplevel)) {
+                        prev_window->set_activated(false);
+                    } else {
+                        wlr_xdg_toplevel_set_activated(prev_toplevel, false);
+                    }
+                }
             }
         }
         m_input->seat().notify_keyboard_enter(surface);
@@ -711,11 +718,18 @@ namespace flux {
             if (w->is_fullscreen()) {
                 w->set_geometry(full);
             } else if (w->is_maximized()) {
-                w->set_geometry(usable);
+                const int bw = layout_cfg.gaps.smart ? 0 : layout_cfg.border.width;
+                w->set_geometry({
+                    .x = usable.x + bw,
+                    .y = usable.y + bw,
+                    .width = std::max(1, usable.width - (2 * bw)),
+                    .height = std::max(1, usable.height - (2 * bw)),
+                });
             } else if (w->is_floating()) {
                 if (!w->is_placed()) {
                     w->center(usable);
                 }
+                w->update_borders();
             } else {
                 tiled.push_back(w);
             }

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <charconv>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -386,6 +387,62 @@ namespace flux {
             }
         }
 
+        std::optional<std::array<float, 4>> parse_color(const kdl::Node& node) {
+            auto str_opt = parse_string(node);
+            if (!str_opt) {
+                return std::nullopt;
+            }
+            std::string_view str = *str_opt;
+            if (iequals(str, "none")) {
+                return std::array<float, 4>{0.0f, 0.0f, 0.0f, 0.0f};
+            }
+            if (str.starts_with('#')) {
+                str.remove_prefix(1);
+            }
+            uint32_t val = 0;
+            if (str.size() == 6 || str.size() == 8) {
+                const auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), val, 16);
+                if (ec == std::errc{} && ptr == str.data() + str.size()) {
+                    if (str.size() == 6) {
+                        val = (val << 8) | 0xFF;
+                    }
+                    const float a = static_cast<float>(val & 0xFF) / 255.0f;
+                    return std::array<float, 4>{
+                        (static_cast<float>((val >> 24) & 0xFF) / 255.0f) * a,
+                        (static_cast<float>((val >> 16) & 0xFF) / 255.0f) * a,
+                        (static_cast<float>((val >> 8) & 0xFF) / 255.0f) * a,
+                        a,
+                    };
+                }
+            }
+            std::string_view name = node_name(node);
+            wlr_log(WLR_ERROR, "invalid color '%s' for %.*s", str_opt->c_str(), static_cast<int>(name.size()),
+                    name.data());
+            return std::nullopt;
+        }
+
+        void parse_border(BorderConfig& border, const kdl::Node& border_node) {
+            for (const auto& child : border_node.children()) {
+                std::string_view name = node_name(child);
+                if (iequals(name, "width")) {
+                    if (auto val = parse_int(child)) {
+                        border.width = *val;
+                    }
+                } else if (iequals(name, "active-color")) {
+                    if (auto val = parse_color(child)) {
+                        border.active_color = *val;
+                    }
+                } else if (iequals(name, "inactive-color")) {
+                    if (auto val = parse_color(child)) {
+                        border.inactive_color = *val;
+                    }
+                } else {
+                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in border config", static_cast<int>(name.size()),
+                            name.data());
+                }
+            }
+        }
+
         std::optional<Layout> parse_layout_mode(const kdl::Node& node) {
             auto mode = parse_string(node);
             if (!mode) {
@@ -412,6 +469,8 @@ namespace flux {
                     }
                 } else if (iequals(name, "gaps")) {
                     parse_gaps(layout.gaps, child);
+                } else if (iequals(name, "border")) {
+                    parse_border(layout.border, child);
                 } else {
                     wlr_log(WLR_ERROR, "unknown section '%.*s' in layout config", static_cast<int>(name.size()),
                             name.data());

@@ -3,6 +3,7 @@
 #include "flux/listener.hpp"
 #include "flux/wlroots.hpp"
 
+#include <array>
 #include <string>
 #include <string_view>
 
@@ -44,7 +45,8 @@ namespace flux {
         void set_output(Output* output) noexcept;
         void set_placed(bool placed) noexcept { m_placed = placed; }
 
-        void set_activated(bool activated) noexcept { wlr_xdg_toplevel_set_activated(m_xdg_toplevel, activated); }
+        void set_activated(bool activated) noexcept;
+        void update_borders() noexcept;
         void set_workspace(Workspace* ws) noexcept;
         void reparent_to_workspace() noexcept;
         void set_position(int x, int y) noexcept;
@@ -87,6 +89,7 @@ namespace flux {
         bool m_floating_override = false;
         bool m_placed = false;
         bool m_resizing = false;
+        bool m_activated = false;
         uint32_t m_resize_edges = WLR_EDGE_NONE;
         wlr_box m_grab_box{};
         Output* m_output = nullptr;
@@ -94,6 +97,7 @@ namespace flux {
         std::string m_title;
         std::string m_app_id;
         wlr_ext_foreign_toplevel_handle_v1* m_ext_toplevel_handle = nullptr;
+        std::array<wlr_scene_rect*, 4> m_borders{};
 
         ListenerGroup m_listeners;
         ListenerGroup m_decoration_listeners;

@@ -32,9 +32,6 @@ namespace flux {
         [[nodiscard]] Window* window_at(double lx, double ly, wlr_surface** surface, double* sx, double* sy) const;
 
     private:
-        [[nodiscard]] wlr_scene_node* surface_node_at(double lx, double ly, double* sx, double* sy,
-                                                      wlr_surface** surface) const;
-
         wlr_scene* m_scene = nullptr;
         wlr_scene_tree* m_scene_background = nullptr;
         wlr_scene_tree* m_scene_bottom = nullptr;

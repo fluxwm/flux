@@ -45,6 +45,12 @@ layout {
         outer 16
         // smart
     }
+
+    border {
+        width 2
+        active-color "#7fc8ff"
+        inactive-color "#333333"
+    }
 }
 
 binds {

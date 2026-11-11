@@ -17,6 +17,12 @@ namespace flux {
         m_scene_tree->node.data = this;
         xdg_toplevel->base->data = m_scene_tree;
 
+        constexpr float transparent[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        for (auto& border : m_borders) {
+            border = wlr_scene_rect_create(m_scene_tree, 0, 0, transparent);
+            wlr_scene_node_set_enabled(&border->node, false);
+        }
+
         m_listeners.listen(&xdg_toplevel->base->surface->events.map, this, &Window::on_map);
         m_listeners.listen(&xdg_toplevel->base->surface->events.unmap, this, &Window::on_unmap);
         m_listeners.listen(&xdg_toplevel->base->surface->events.commit, this, &Window::on_commit);
@@ -55,6 +61,7 @@ namespace flux {
         m_ext_toplevel_handle = wlr_ext_foreign_toplevel_handle_v1_create(m_compositor.foreign_toplevel_list(), &state);
 
         m_compositor.map_window(this);
+        update_borders();
     }
 
     void Window::on_unmap() {
@@ -71,6 +78,8 @@ namespace flux {
         m_floating_override = false;
         m_placed = false;
         m_resize_edges = WLR_EDGE_NONE;
+        m_activated = false;
+        update_borders();
 
         wlr_log(WLR_DEBUG, "window unmapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
         m_compositor.unmap_window(this);
@@ -126,6 +135,7 @@ namespace flux {
         } else if (is_mapped() && is_floating() && !m_placed && m_output && m_output->is_enabled()) {
             center(m_output->usable_area());
         }
+        update_borders();
     }
 
     void Window::on_destroy() {
@@ -164,6 +174,7 @@ namespace flux {
             m_compositor.arrange_workspace(m_workspace);
             m_compositor.refocus();
         }
+        update_borders();
     }
 
     void Window::toggle_floating() {
@@ -191,6 +202,7 @@ namespace flux {
 
         m_fullscreen = fullscreen;
         m_placed = false;
+        update_borders();
 
         if (m_fullscreen) {
             if (m_xdg_toplevel->requested.fullscreen_output) {
@@ -252,6 +264,59 @@ namespace flux {
     void Window::set_geometry(const wlr_box& box) noexcept {
         set_position(box.x, box.y);
         wlr_xdg_toplevel_set_size(m_xdg_toplevel, std::max(1, box.width), std::max(1, box.height));
+        update_borders();
+    }
+
+    void Window::set_activated(bool activated) noexcept {
+        if (m_activated == activated) {
+            return;
+        }
+        m_activated = activated;
+        wlr_xdg_toplevel_set_activated(m_xdg_toplevel, activated);
+        update_borders();
+    }
+
+    void Window::update_borders() noexcept {
+        const auto& layout_cfg = m_compositor.config().layout();
+        const auto& border_cfg = layout_cfg.border;
+
+        const bool smart_solitary =
+            layout_cfg.gaps.smart &&
+            (m_maximized || (is_tiled() && (layout_cfg.mode == Layout::Monocle || !m_workspace ||
+                                            std::ranges::count_if(m_workspace->windows(), [](const Window* w) {
+                                                return w->is_tiled();
+                                            }) <= 1)));
+
+        const auto& color = m_activated ? border_cfg.active_color : border_cfg.inactive_color;
+        const bool visible = is_mapped() && !m_fullscreen && border_cfg.width > 0 && !smart_solitary && color[3] > 0.0f;
+        if (!visible) {
+            for (auto* border : m_borders) {
+                wlr_scene_node_set_enabled(&border->node, false);
+            }
+            return;
+        }
+
+        const int bw = border_cfg.width;
+        const wlr_box box = geometry_box();
+        const int w = std::max(1, box.width);
+        const int h = std::max(1, box.height);
+
+        wlr_scene_node_set_position(&m_borders[0]->node, -bw, -bw);
+        wlr_scene_rect_set_size(m_borders[0], w + (2 * bw), bw);
+
+        wlr_scene_node_set_position(&m_borders[1]->node, -bw, h);
+        wlr_scene_rect_set_size(m_borders[1], w + (2 * bw), bw);
+
+        wlr_scene_node_set_position(&m_borders[2]->node, -bw, 0);
+        wlr_scene_rect_set_size(m_borders[2], bw, h);
+
+        wlr_scene_node_set_position(&m_borders[3]->node, w, 0);
+        wlr_scene_rect_set_size(m_borders[3], bw, h);
+
+        for (auto* border : m_borders) {
+            wlr_scene_rect_set_color(border, color.data());
+            wlr_scene_node_set_enabled(&border->node, true);
+        }
     }
 
     wlr_box Window::geometry_box() const noexcept {

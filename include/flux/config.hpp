@@ -2,6 +2,7 @@
 
 #include "flux/wlroots.hpp"
 
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -54,9 +55,16 @@ namespace flux {
         bool smart = false;
     };
 
+    struct BorderConfig {
+        int32_t width = 0;
+        std::array<float, 4> active_color{0.498f, 0.784f, 1.0f, 1.0f};
+        std::array<float, 4> inactive_color{0.2f, 0.2f, 0.2f, 1.0f};
+    };
+
     struct LayoutConfig {
         Layout mode = Layout::Master;
         GapsConfig gaps{};
+        BorderConfig border{};
     };
 
     struct EnvironmentVariable {
