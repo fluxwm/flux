@@ -244,7 +244,7 @@ namespace flux::input {
     void Cursor::on_swipe_end(wlr_pointer_swipe_end_event* event) {
         if (m_input.compositor().is_workspace_swiping()) {
             m_input.seat().notify_activity();
-            m_input.compositor().end_workspace_swipe(event->cancelled);
+            m_input.compositor().end_workspace_swipe();
             return;
         }
         m_input.seat().notify_swipe_end(event->time_msec, event->cancelled);

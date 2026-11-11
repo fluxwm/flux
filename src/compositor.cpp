@@ -415,14 +415,14 @@ namespace flux {
         }
     }
 
-    void Compositor::end_workspace_swipe(bool cancelled) {
+    void Compositor::end_workspace_swipe() {
         if (!m_swipe_active || !m_swipe_output) {
             return;
         }
 
         constexpr double commit_threshold = 0.25;
         Workspace* committed_target =
-            (!cancelled && m_swipe_target && std::abs(m_swipe_progress) >= commit_threshold) ? m_swipe_target : nullptr;
+            (m_swipe_target && std::abs(m_swipe_progress) >= commit_threshold) ? m_swipe_target : nullptr;
         Output* out = m_swipe_output;
 
         cancel_workspace_swipe();

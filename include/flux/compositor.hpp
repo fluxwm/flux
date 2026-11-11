@@ -63,7 +63,7 @@ namespace flux {
         void move_to_workspace(Window* window, uint32_t id);
         bool begin_workspace_swipe();
         void update_workspace_swipe(double dx);
-        void end_workspace_swipe(bool cancelled);
+        void end_workspace_swipe();
         void cancel_workspace_swipe();
         void focus_surface(wlr_surface* surface);
         void arrange_workspace(Workspace* ws);
