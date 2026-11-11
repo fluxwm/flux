@@ -110,6 +110,7 @@ namespace flux {
         wlr_single_pixel_buffer_manager_v1_create(m_display);
         wlr_alpha_modifier_v1_create(m_display);
         wlr_content_type_manager_v1_create(m_display, 1);
+        wlr_color_representation_manager_v1_create_with_renderer(m_display, 1, m_renderer);
         wlr_fixes_create(m_display, 1);
         m_foreign_toplevel_list = wlr_ext_foreign_toplevel_list_v1_create(m_display, 1);
         auto* foreign_registry = wlr_xdg_foreign_registry_create(m_display);
