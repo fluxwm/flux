@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <csignal>
 #include <cstdlib>
 #include <fcntl.h>
@@ -354,6 +355,7 @@ namespace flux {
             return;
         }
 
+        cancel_workspace_swipe();
         dismiss_popups();
 
         wlr_log(WLR_DEBUG, "switching from workspace %u to %u", m_current_workspace->id(), id);
@@ -365,11 +367,96 @@ namespace flux {
         focus_window(focused_window());
     }
 
+    bool Compositor::begin_workspace_swipe() {
+        if (m_swipe_active || !m_config->gestures().workspace_swipe || exclusive_layer()) {
+            return false;
+        }
+
+        m_swipe_active = true;
+        m_swipe_progress = 0.0;
+        m_swipe_target = nullptr;
+        dismiss_popups();
+        restack_windows();
+        return true;
+    }
+
+    void Compositor::update_workspace_swipe(double dx) {
+        if (!m_swipe_active) {
+            return;
+        }
+
+        Output* out = focused_output();
+        if (!out) {
+            return;
+        }
+
+        constexpr double swipe_distance = 350.0;
+        const double delta = (m_config->touchpad().natural_scroll ? dx : -dx) / swipe_distance;
+        const uint32_t cur_id = m_current_workspace->id();
+        const double min_progress = (cur_id < 9) ? -1.0 : 0.0;
+        const double max_progress = (cur_id > 1) ? 1.0 : 0.0;
+        m_swipe_progress = std::clamp(m_swipe_progress + delta, min_progress, max_progress);
+
+        const int span = std::max(1, out->layout_box().width);
+        const int offset = static_cast<int>(std::round(m_swipe_progress * span));
+        wlr_scene_node_set_position(&m_current_workspace->tree()->node, offset, 0);
+
+        Workspace* target = nullptr;
+        if (offset < 0 && cur_id < 9) {
+            target = &workspace(cur_id + 1);
+        } else if (offset > 0 && cur_id > 1) {
+            target = &workspace(cur_id - 1);
+        }
+
+        if (m_swipe_target && m_swipe_target != target) {
+            wlr_scene_node_set_enabled(&m_swipe_target->tree()->node, false);
+            wlr_scene_node_set_position(&m_swipe_target->tree()->node, 0, 0);
+        }
+        m_swipe_target = target;
+        if (m_swipe_target) {
+            const int target_x = (offset < 0) ? (offset + span) : (offset - span);
+            wlr_scene_node_set_position(&m_swipe_target->tree()->node, target_x, 0);
+            wlr_scene_node_set_enabled(&m_swipe_target->tree()->node, true);
+        }
+    }
+
+    void Compositor::end_workspace_swipe(bool cancelled) {
+        if (!m_swipe_active) {
+            return;
+        }
+
+        constexpr double commit_threshold = 0.25;
+        Workspace* committed_target =
+            (!cancelled && m_swipe_target && std::abs(m_swipe_progress) >= commit_threshold) ? m_swipe_target : nullptr;
+
+        cancel_workspace_swipe();
+        if (committed_target) {
+            focus_workspace(committed_target->id());
+        } else {
+            refocus();
+        }
+    }
+
+    void Compositor::cancel_workspace_swipe() {
+        if (!m_swipe_active) {
+            return;
+        }
+        m_swipe_active = false;
+        m_swipe_progress = 0.0;
+        wlr_scene_node_set_position(&m_current_workspace->tree()->node, 0, 0);
+        if (m_swipe_target) {
+            wlr_scene_node_set_enabled(&m_swipe_target->tree()->node, false);
+            wlr_scene_node_set_position(&m_swipe_target->tree()->node, 0, 0);
+            m_swipe_target = nullptr;
+        }
+    }
+
     void Compositor::move_to_workspace(Window* window, uint32_t id) {
         if (exclusive_layer() || !window || id == 0 || window->workspace()->id() == id) {
             return;
         }
 
+        cancel_workspace_swipe();
         dismiss_popups(window->scene_tree());
 
         wlr_log(WLR_DEBUG, "moving window to workspace %u", id);
@@ -397,7 +484,7 @@ namespace flux {
                 seen_outputs.push_back(out);
             }
             if (w->is_fullscreen()) {
-                if (is_top_on_output) {
+                if (is_top_on_output && !m_swipe_active) {
                     wlr_scene_node_reparent(&w->scene_tree()->node, m_scene->fullscreen());
                 } else {
                     w->reparent_to_workspace();
@@ -891,6 +978,7 @@ namespace flux {
             return;
         }
         if (layer->is_exclusive()) {
+            cancel_workspace_swipe();
             dismiss_popups(nullptr, layer->scene_tree());
         }
         if (layer->scene_tree()) {

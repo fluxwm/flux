@@ -53,6 +53,7 @@ namespace flux {
         }
         [[nodiscard]] Workspace& current_workspace() const noexcept { return *m_current_workspace; }
         [[nodiscard]] std::span<const std::unique_ptr<Popup>> popups() const noexcept { return m_popups; }
+        [[nodiscard]] bool is_workspace_swiping() const noexcept { return m_swipe_active; }
 
         // Window management & interactions
         bool handle_keybinding(uint32_t modifiers, xkb_keysym_t sym);
@@ -60,6 +61,10 @@ namespace flux {
         void focus_window_in_direction(Direction direction);
         void focus_workspace(uint32_t id);
         void move_to_workspace(Window* window, uint32_t id);
+        bool begin_workspace_swipe();
+        void update_workspace_swipe(double dx);
+        void end_workspace_swipe(bool cancelled);
+        void cancel_workspace_swipe();
         void focus_surface(wlr_surface* surface);
         void arrange_workspace(Workspace* ws);
         void refocus();
@@ -108,6 +113,9 @@ namespace flux {
         std::vector<std::unique_ptr<Layer>> m_layers;
         std::vector<std::unique_ptr<Workspace>> m_workspaces;
         Workspace* m_current_workspace = nullptr;
+        Workspace* m_swipe_target = nullptr;
+        double m_swipe_progress = 0.0;
+        bool m_swipe_active = false;
 
         ListenerGroup m_listeners;
     };

@@ -28,6 +28,10 @@ input {
     }
 }
 
+gestures {
+    workspace-swipe
+}
+
 cursor {
     // theme "default"
     // size 24

@@ -32,6 +32,10 @@ namespace flux {
         bool natural_scroll = false;
     };
 
+    struct GesturesConfig {
+        bool workspace_swipe = false;
+    };
+
     struct CursorConfig {
         std::string theme;
         uint32_t size = 24;
@@ -113,6 +117,7 @@ namespace flux {
         [[nodiscard]] bool middle_click_paste() const noexcept { return m_middle_click_paste; }
         [[nodiscard]] const KeyboardConfig& keyboard() const noexcept { return m_keyboard; }
         [[nodiscard]] const TouchpadConfig& touchpad() const noexcept { return m_touchpad; }
+        [[nodiscard]] const GesturesConfig& gestures() const noexcept { return m_gestures; }
         [[nodiscard]] const CursorConfig& cursor() const noexcept { return m_cursor; }
         [[nodiscard]] const LayoutConfig& layout() const noexcept { return m_layout; }
         [[nodiscard]] std::span<const EnvironmentVariable> environment() const noexcept { return m_environment; }
@@ -139,6 +144,7 @@ namespace flux {
         bool m_middle_click_paste = true;
         KeyboardConfig m_keyboard;
         TouchpadConfig m_touchpad;
+        GesturesConfig m_gestures;
         CursorConfig m_cursor;
         LayoutConfig m_layout;
         std::vector<EnvironmentVariable> m_environment;

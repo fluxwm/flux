@@ -165,6 +165,11 @@ namespace flux::input {
             return;
         }
 
+        if (m_input.compositor().is_workspace_swiping()) {
+            m_input.seat().notify_activity();
+            return;
+        }
+
         if (event->state == WL_POINTER_BUTTON_STATE_PRESSED) {
             double sx = 0.0;
             double sy = 0.0;
@@ -211,14 +216,29 @@ namespace flux::input {
     }
 
     void Cursor::on_swipe_begin(wlr_pointer_swipe_begin_event* event) {
+        if (event->fingers == 3 && !m_grab_window && m_input.compositor().begin_workspace_swipe()) {
+            m_input.seat().notify_activity();
+            m_input.seat().clear_pointer_focus();
+            return;
+        }
         m_input.seat().notify_swipe_begin(event->time_msec, event->fingers);
     }
 
     void Cursor::on_swipe_update(wlr_pointer_swipe_update_event* event) {
+        if (m_input.compositor().is_workspace_swiping()) {
+            m_input.seat().notify_activity();
+            m_input.compositor().update_workspace_swipe(event->dx);
+            return;
+        }
         m_input.seat().notify_swipe_update(event->time_msec, event->dx, event->dy);
     }
 
     void Cursor::on_swipe_end(wlr_pointer_swipe_end_event* event) {
+        if (m_input.compositor().is_workspace_swiping()) {
+            m_input.seat().notify_activity();
+            m_input.compositor().end_workspace_swipe(event->cancelled);
+            return;
+        }
         m_input.seat().notify_swipe_end(event->time_msec, event->cancelled);
     }
 
@@ -250,6 +270,10 @@ namespace flux::input {
             return;
         }
 
+        if (m_input.compositor().is_workspace_swiping()) {
+            return;
+        }
+
         if (!m_input.compositor().exclusive_layer()) {
             if (auto* constraint = m_input.seat().active_constraint();
                 constraint && constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED) {
@@ -275,6 +299,10 @@ namespace flux::input {
     }
 
     void Cursor::update_focus() {
+        if (m_input.compositor().is_workspace_swiping()) {
+            return;
+        }
+
         if (m_grab_window) {
             if (m_input.compositor().exclusive_layer() || !m_grab_window->is_mapped() ||
                 !m_grab_window->is_floating() || m_grab_window != m_input.compositor().focused_window()) {

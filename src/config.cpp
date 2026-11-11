@@ -350,6 +350,20 @@ namespace flux {
             }
         }
 
+        void parse_gestures(GesturesConfig& gestures, const kdl::Node& gestures_node) {
+            for (const auto& child : gestures_node.children()) {
+                std::string_view name = node_name(child);
+                if (iequals(name, "workspace-swipe")) {
+                    if (auto val = parse_bool(child)) {
+                        gestures.workspace_swipe = *val;
+                    }
+                } else {
+                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in gestures config", static_cast<int>(name.size()),
+                            name.data());
+                }
+            }
+        }
+
         void parse_gaps(GapsConfig& gaps, const kdl::Node& gaps_node) {
             for (const auto& child : gaps_node.children()) {
                 std::string_view name = node_name(child);
@@ -614,6 +628,7 @@ namespace flux {
         bool middle_click_paste = true;
         KeyboardConfig keyboard;
         TouchpadConfig touchpad;
+        GesturesConfig gestures;
         CursorConfig cursor;
         LayoutConfig layout;
         std::vector<EnvironmentVariable> environment;
@@ -626,6 +641,8 @@ namespace flux {
                 parse_autostart(autostart, node);
             } else if (iequals(name, "input")) {
                 parse_input(keyboard, touchpad, middle_click_paste, node);
+            } else if (iequals(name, "gestures")) {
+                parse_gestures(gestures, node);
             } else if (iequals(name, "cursor")) {
                 parse_cursor(cursor, node);
             } else if (iequals(name, "layout")) {
@@ -642,6 +659,7 @@ namespace flux {
         m_middle_click_paste = middle_click_paste;
         m_keyboard = std::move(keyboard);
         m_touchpad = touchpad;
+        m_gestures = gestures;
         m_cursor = std::move(cursor);
         m_layout = layout;
         m_environment = std::move(environment);
