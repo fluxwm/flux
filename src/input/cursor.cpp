@@ -166,9 +166,14 @@ namespace flux::input {
             constraint->surface) {
             return true;
         }
+
+        const pixman_region32_t* region =
+            pixman_region32_not_empty(&constraint->region) || pixman_region32_not_empty(&constraint->current.region)
+                ? &constraint->region
+                : &constraint->surface->input_region;
         double confined_x = 0.0;
         double confined_y = 0.0;
-        if (!wlr_region_confine(&constraint->region, sx, sy, sx + dx, sy + dy, &confined_x, &confined_y)) {
+        if (!wlr_region_confine(region, sx, sy, sx + dx, sy + dy, &confined_x, &confined_y)) {
             return false;
         }
         dx = confined_x - sx;

@@ -12,6 +12,7 @@
 extern "C" {
 #define static
 #define namespace _namespace
+#include <pixman.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
 #include <wlr/backend/libinput.h>
