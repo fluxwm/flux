@@ -55,8 +55,8 @@ namespace flux {
                     token.remove_suffix(1);
                 }
 
-                if (token.empty()) {
-                    continue;
+                if (token.empty() || !key_name.empty()) {
+                    return false;
                 }
 
                 if (iequals(token, "ctrl") || iequals(token, "control")) {
