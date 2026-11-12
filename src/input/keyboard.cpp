@@ -8,17 +8,29 @@
 namespace flux::input {
 
     Keyboard::Keyboard(Input& input, wlr_input_device* device, const KeyboardConfig& config)
-        : m_input(input), m_wlr_keyboard(wlr_keyboard_from_input_device(device)) {
+        : m_input(input), m_wlr_keyboard(wlr_keyboard_from_input_device(device)),
+          m_is_virtual(wlr_input_device_get_virtual_keyboard(device) != nullptr) {
         apply_config(config);
 
         m_listeners.listen(&m_wlr_keyboard->events.modifiers, this, &Keyboard::on_modifiers);
         m_listeners.listen(&m_wlr_keyboard->events.key, this, &Keyboard::on_key);
+        m_listeners.listen(&m_wlr_keyboard->events.keymap, this, &Keyboard::on_keymap);
         m_listeners.listen(&device->events.destroy, this, &Keyboard::on_destroy);
 
-        m_input.seat().set_keyboard(m_wlr_keyboard);
+        if (m_wlr_keyboard->keymap || !m_input.seat().keyboard()) {
+            m_input.seat().set_keyboard(m_wlr_keyboard);
+        }
     }
 
     void Keyboard::apply_config(const KeyboardConfig& config) {
+        if (m_is_virtual) {
+            if (m_wlr_keyboard->repeat_info.rate != config.repeat_rate ||
+                m_wlr_keyboard->repeat_info.delay != config.repeat_delay) {
+                wlr_keyboard_set_repeat_info(m_wlr_keyboard, config.repeat_rate, config.repeat_delay);
+            }
+            return;
+        }
+
         if (m_wlr_keyboard->keymap && m_config == config) {
             return;
         }
@@ -120,6 +132,10 @@ namespace flux::input {
             m_input.seat().set_keyboard(m_wlr_keyboard);
             m_input.seat().notify_key(event->time_msec, event->keycode, event->state);
         }
+    }
+
+    void Keyboard::on_keymap() {
+        m_input.seat().set_keyboard(m_wlr_keyboard);
     }
 
     void Keyboard::on_destroy() {

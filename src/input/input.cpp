@@ -3,12 +3,17 @@
 #include "flux/config.hpp"
 #include "flux/util.hpp"
 
+#include <ranges>
+
 namespace flux {
 
     Input::Input(Compositor& compositor)
         : m_compositor(compositor), m_seat(std::make_unique<input::Seat>(*this, compositor.display())),
           m_cursor(std::make_unique<input::Cursor>(*this)) {
         m_listeners.listen(&m_compositor.backend()->events.new_input, this, &Input::on_new_input);
+
+        auto* virtual_keyboard_mgr = wlr_virtual_keyboard_manager_v1_create(compositor.display());
+        m_listeners.listen(&virtual_keyboard_mgr->events.new_virtual_keyboard, this, &Input::on_new_virtual_keyboard);
 
         auto* virtual_pointer_mgr = wlr_virtual_pointer_manager_v1_create(compositor.display());
         m_listeners.listen(&virtual_pointer_mgr->events.new_virtual_pointer, this, &Input::on_new_virtual_pointer);
@@ -37,6 +42,13 @@ namespace flux {
                 m_compositor.refocus();
             }
         }
+    }
+
+    void Input::on_new_virtual_keyboard(wlr_virtual_keyboard_v1* keyboard) {
+        if (!keyboard->seat) {
+            return;
+        }
+        on_new_input(&keyboard->keyboard.base);
     }
 
     void Input::on_new_virtual_pointer(wlr_virtual_pointer_v1_new_pointer_event* event) {
@@ -74,7 +86,10 @@ namespace flux {
 
     void Input::remove_keyboard(input::Keyboard* keyboard) {
         if (erase_unique_ptr(m_keyboards, keyboard)) {
-            m_seat->set_keyboard(!m_keyboards.empty() ? m_keyboards.back()->raw() : nullptr);
+            auto it = std::ranges::find_if(std::views::reverse(m_keyboards),
+                                           [](const auto& kb) { return kb->raw()->keymap != nullptr; });
+            m_seat->set_keyboard(
+                it != m_keyboards.rend() ? (*it)->raw() : (!m_keyboards.empty() ? m_keyboards.back()->raw() : nullptr));
         }
         update_capabilities();
     }

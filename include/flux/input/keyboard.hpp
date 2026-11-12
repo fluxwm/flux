@@ -27,11 +27,13 @@ namespace flux::input {
     private:
         void on_modifiers();
         void on_key(wlr_keyboard_key_event* event);
+        void on_keymap();
         void on_destroy();
 
         Input& m_input;
         wlr_keyboard* m_wlr_keyboard = nullptr;
         KeyboardConfig m_config{};
+        bool m_is_virtual = false;
         bool m_numlock = false;
         std::vector<uint32_t> m_consumed_keycodes;
 
