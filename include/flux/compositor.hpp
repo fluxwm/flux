@@ -37,6 +37,9 @@ namespace flux {
         [[nodiscard]] wlr_renderer* renderer() const noexcept { return m_renderer; }
         [[nodiscard]] wlr_allocator* allocator() const noexcept { return m_allocator; }
         [[nodiscard]] const Config& config() const noexcept { return *m_config; }
+        [[nodiscard]] Input& input() noexcept { return *m_input; }
+        [[nodiscard]] const Input& input() const noexcept { return *m_input; }
+        [[nodiscard]] wlr_xwayland* xwayland() const noexcept { return m_xwayland; }
         [[nodiscard]] Scene& scene() noexcept { return *m_scene; }
         [[nodiscard]] const Scene& scene() const noexcept { return *m_scene; }
         [[nodiscard]] wlr_output_layout* output_layout() const noexcept { return m_output_layout; }
@@ -68,15 +71,19 @@ namespace flux {
         void focus_surface(wlr_surface* surface);
         void refocus();
         void focus_layer(Layer* layer);
-        void create_popup(wlr_xdg_popup* popup);
         void dismiss_popups(wlr_scene_tree* root = nullptr, wlr_scene_tree* except_root = nullptr);
         void update_cursor_focus() noexcept;
 
         // Collection management
         void map_window(Window* window);
         void unmap_window(Window* window);
+        void create_window(wlr_xwayland_surface* xsurface);
         void remove_window(Window* window);
+        void create_popup(wlr_xdg_popup* popup);
+        void create_popup(wlr_xwayland_surface* xsurface);
         void remove_popup(Popup* popup);
+        void recreate_as_popup(Window* window);
+        void recreate_as_window(Popup* popup);
         void remove_output(Output* output);
         void on_animation_finished();
 
@@ -101,6 +108,7 @@ namespace flux {
         wlr_ext_foreign_toplevel_list_v1* m_foreign_toplevel_list = nullptr;
         wlr_ext_workspace_manager_v1* m_workspace_manager = nullptr;
         wlr_tearing_control_manager_v1* m_tearing_control_mgr = nullptr;
+        wlr_xwayland* m_xwayland = nullptr;
 
         std::unique_ptr<Config> m_config;
         std::unique_ptr<Scene> m_scene;
@@ -114,6 +122,7 @@ namespace flux {
         uint32_t m_saved_workspace_id = 1;
 
         ListenerGroup m_listeners;
+        ListenerGroup m_xwayland_listeners;
     };
 
 }

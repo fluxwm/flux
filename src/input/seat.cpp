@@ -22,10 +22,8 @@ namespace flux::input {
             int lx = 0;
             int ly = 0;
             bool found = false;
-            if (auto* toplevel = wlr_xdg_toplevel_try_from_wlr_surface(constraint->surface)) {
-                if (auto* win = Window::try_from(toplevel)) {
-                    found = wlr_scene_node_coords(&win->scene_tree()->node, &lx, &ly);
-                }
+            if (auto* win = Window::try_from(constraint->surface)) {
+                found = wlr_scene_node_coords(&win->scene_tree()->node, &lx, &ly);
             } else if (auto* layer = Layer::try_from(constraint->surface)) {
                 if (layer->scene_tree()) {
                     found = wlr_scene_node_coords(&layer->scene_tree()->node, &lx, &ly);

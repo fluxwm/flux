@@ -98,6 +98,22 @@ namespace flux::input {
         } else if (!m_input.seat().focused_pointer_surface()) {
             set_xcursor("default");
         }
+        if (auto* xwayland = m_input.compositor().xwayland()) {
+            set_xwayland_cursor(xwayland);
+        }
+    }
+
+    void Cursor::set_xwayland_cursor(wlr_xwayland* xwayland) {
+        if (!xwayland || !m_cursor_mgr) {
+            return;
+        }
+        wlr_xcursor* xcursor = wlr_xcursor_manager_get_xcursor(m_cursor_mgr, "default", 1);
+        if (xcursor && xcursor->image_count > 0) {
+            wlr_xcursor_image* image = xcursor->images[0];
+            wlr_buffer* buffer = wlr_xcursor_image_get_buffer(image);
+            wlr_xwayland_set_cursor(xwayland, buffer, static_cast<int32_t>(image->hotspot_x),
+                                    static_cast<int32_t>(image->hotspot_y));
+        }
     }
 
     void Cursor::start_grab(Window* window, uint32_t button) {
@@ -239,6 +255,11 @@ namespace flux::input {
                 }
             } else if (surface != nullptr) {
                 if (auto* layer = Layer::try_from(root_popup_parent(surface)); layer && layer->is_focusable()) {
+                    m_input.compositor().focus_surface(surface);
+                } else if (auto* xsurf = wlr_xwayland_surface_try_from_wlr_surface(surface);
+                           xsurf && xsurf->override_redirect &&
+                           wlr_xwayland_surface_override_redirect_wants_focus(xsurf)) {
+                    wlr_xwayland_surface_activate(xsurf, true);
                     m_input.compositor().focus_surface(surface);
                 } else {
                     m_input.compositor().focus_window(m_input.compositor().focused_window());

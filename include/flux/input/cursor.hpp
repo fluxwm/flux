@@ -42,6 +42,7 @@ namespace flux::input {
         void update_focus();
         void cancel_grab(const Window* window = nullptr);
         void apply_config(const CursorConfig& config);
+        void set_xwayland_cursor(wlr_xwayland* xwayland);
 
     private:
         void on_motion(wlr_pointer_motion_event* event);

@@ -16,6 +16,7 @@ namespace flux {
     class Window {
     public:
         Window(Compositor& compositor, wlr_xdg_toplevel* xdg_toplevel);
+        Window(Compositor& compositor, wlr_xwayland_surface* xwayland_surface);
         ~Window();
 
         Window(const Window&) = delete;
@@ -29,8 +30,37 @@ namespace flux {
             return static_cast<Window*>(tree->node.data);
         }
 
+        [[nodiscard]] static Window* try_from(wlr_xwayland_surface* xsurface) noexcept {
+            if (!xsurface || xsurface->override_redirect || !xsurface->data) {
+                return nullptr;
+            }
+            auto* tree = static_cast<wlr_scene_tree*>(xsurface->data);
+            return static_cast<Window*>(tree->node.data);
+        }
+
+        [[nodiscard]] static Window* try_from(wlr_surface* surface) noexcept {
+            if (!surface) {
+                return nullptr;
+            }
+            wlr_surface* root = wlr_surface_get_root_surface(surface);
+            if (!root) {
+                return nullptr;
+            }
+            if (auto* toplevel = wlr_xdg_toplevel_try_from_wlr_surface(root)) {
+                return try_from(toplevel);
+            }
+            if (auto* xsurface = wlr_xwayland_surface_try_from_wlr_surface(root)) {
+                return try_from(xsurface);
+            }
+            return nullptr;
+        }
+
         [[nodiscard]] wlr_scene_tree* scene_tree() const noexcept { return m_scene_tree; }
-        [[nodiscard]] wlr_surface* surface() const noexcept { return m_xdg_toplevel->base->surface; }
+        [[nodiscard]] wlr_surface* surface() const noexcept {
+            return m_xdg_toplevel ? m_xdg_toplevel->base->surface
+                                  : (m_xwayland_surface ? m_xwayland_surface->surface : nullptr);
+        }
+        [[nodiscard]] wlr_xwayland_surface* xwayland_surface() const noexcept { return m_xwayland_surface; }
         [[nodiscard]] std::string_view title() const noexcept { return m_title; }
         [[nodiscard]] std::string_view app_id() const noexcept { return m_app_id; }
         [[nodiscard]] bool is_maximized() const noexcept { return m_maximized; }
@@ -38,7 +68,10 @@ namespace flux {
         [[nodiscard]] bool is_floating() const noexcept { return !m_fullscreen && !m_maximized && m_floating; }
         [[nodiscard]] bool is_tiled() const noexcept { return !m_fullscreen && !m_maximized && !m_floating; }
         [[nodiscard]] bool is_placed() const noexcept { return m_placed; }
-        [[nodiscard]] bool is_mapped() const noexcept { return surface()->mapped; }
+        [[nodiscard]] bool is_mapped() const noexcept {
+            const auto* s = surface();
+            return s && s->mapped;
+        }
         [[nodiscard]] wlr_box geometry_box() const noexcept;
         [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
         [[nodiscard]] uint32_t workspace_id() const noexcept { return m_workspace_id; }
@@ -64,24 +97,39 @@ namespace flux {
         void set_decoration(wlr_xdg_toplevel_decoration_v1* decoration);
         void raise_to_top() noexcept { wlr_scene_node_raise_to_top(&m_scene_tree->node); }
         void lower_to_bottom() noexcept { wlr_scene_node_lower_to_bottom(&m_scene_tree->node); }
-        void close() noexcept { wlr_xdg_toplevel_send_close(m_xdg_toplevel); }
+        void close() noexcept {
+            if (m_xdg_toplevel) {
+                wlr_xdg_toplevel_send_close(m_xdg_toplevel);
+            } else if (m_xwayland_surface) {
+                wlr_xwayland_surface_close(m_xwayland_surface);
+            }
+        }
 
     private:
         [[nodiscard]] bool wants_floating() const noexcept;
+        void on_associate();
+        void on_dissociate();
         void on_map();
         void on_unmap();
         void on_commit();
         void on_destroy();
+        void on_request_configure(wlr_xwayland_surface_configure_event* event);
+        void on_request_activate();
         void on_request_maximize();
         void on_request_fullscreen();
         void on_request_decoration_mode();
         void on_destroy_decoration();
         void on_set_title();
         void on_set_app_id();
+        void on_set_parent();
+        void on_set_hints();
+        void on_set_override_redirect();
+        bool move_scene_tree(int x, int y) noexcept;
         void update_foreign_toplevel() noexcept;
 
         Compositor& m_compositor;
         wlr_xdg_toplevel* m_xdg_toplevel = nullptr;
+        wlr_xwayland_surface* m_xwayland_surface = nullptr;
         wlr_xdg_toplevel_decoration_v1* m_decoration = nullptr;
         wlr_scene_tree* m_scene_tree = nullptr;
         bool m_maximized = false;
@@ -101,6 +149,7 @@ namespace flux {
         std::array<wlr_scene_rect*, 4> m_borders{};
 
         ListenerGroup m_listeners;
+        ListenerGroup m_surface_listeners;
         ListenerGroup m_decoration_listeners;
     };
 

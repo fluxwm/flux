@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <fcntl.h>
 #include <ranges>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
 
@@ -23,6 +24,11 @@ namespace flux {
 
     Compositor::~Compositor() {
         cancel_animations();
+        if (m_xwayland) {
+            m_xwayland_listeners.clear();
+            wlr_xwayland_destroy(m_xwayland);
+            m_xwayland = nullptr;
+        }
         if (m_display) {
             wl_display_destroy_clients(m_display);
         }
@@ -55,8 +61,6 @@ namespace flux {
     }
 
     bool Compositor::init(std::optional<std::filesystem::path> config_path) {
-        signal(SIGCHLD, SIG_IGN);
-
         m_display = wl_display_create();
         if (!m_display) {
             wlr_log(WLR_ERROR, "failed to create wl_display");
@@ -71,6 +75,12 @@ namespace flux {
         for (const int sig : {SIGINT, SIGTERM}) {
             wl_event_loop_add_signal(event_loop, sig, on_signal, this);
         }
+        auto on_sigchld = [](int, void*) {
+            while (waitpid(-1, nullptr, WNOHANG) > 0) {
+            }
+            return 0;
+        };
+        wl_event_loop_add_signal(event_loop, SIGCHLD, on_sigchld, nullptr);
 
         m_config = std::make_unique<Config>(event_loop, config_path);
 
@@ -94,10 +104,27 @@ namespace flux {
             return false;
         }
 
-        wlr_compositor_create(m_display, 6, m_renderer);
+        auto* wlr_comp = wlr_compositor_create(m_display, 6, m_renderer);
         wlr_subcompositor_create(m_display);
         wlr_data_device_manager_create(m_display);
         wlr_primary_selection_v1_device_manager_create(m_display);
+        m_xwayland = wlr_xwayland_create(m_display, wlr_comp, true);
+        if (m_xwayland) {
+            setenv("DISPLAY", m_xwayland->display_name, 1);
+            wlr_log(WLR_INFO, "ready on X11 display: %s", m_xwayland->display_name);
+            m_xwayland_listeners.listen(&m_xwayland->events.ready, [this](void*) {
+                wlr_xwayland_set_seat(m_xwayland, m_input->seat().raw());
+                m_input->cursor().set_xwayland_cursor(m_xwayland);
+            });
+            m_xwayland_listeners.listen(&m_xwayland->events.new_surface, [this](void* data) {
+                auto* xsurface = static_cast<wlr_xwayland_surface*>(data);
+                if (xsurface->override_redirect) {
+                    create_popup(xsurface);
+                } else {
+                    create_window(xsurface);
+                }
+            });
+        }
         wlr_ext_data_control_manager_v1_create(m_display, 1);
         wlr_data_control_manager_v1_create(m_display);
         wlr_ext_image_copy_capture_manager_v1_create(m_display, 1);
@@ -144,7 +171,8 @@ namespace flux {
 
         auto* xdg_shell = wlr_xdg_shell_create(m_display, 7);
         m_listeners.listen(&xdg_shell->events.new_toplevel, this, &Compositor::on_new_window);
-        m_listeners.listen(&xdg_shell->events.new_popup, this, &Compositor::create_popup);
+        m_listeners.listen(&xdg_shell->events.new_popup,
+                           [this](void* d) { create_popup(static_cast<wlr_xdg_popup*>(d)); });
 
         auto* layer_shell = wlr_layer_shell_v1_create(m_display, 5);
         m_listeners.listen(&layer_shell->events.new_surface, this, &Compositor::on_new_layer);
@@ -193,6 +221,9 @@ namespace flux {
             std::vector<std::string> args = {
                 "--systemd", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE", "XDG_SESSION_DESKTOP",
             };
+            if (m_xwayland) {
+                args.emplace_back("DISPLAY");
+            }
             for (const auto& [name, value] : m_config->environment()) {
                 if (value && !std::ranges::contains(args, name)) {
                     args.push_back(name);
@@ -339,12 +370,12 @@ namespace flux {
             wlr_surface* prev_root = root_popup_parent(prev_surface);
             wlr_surface* new_root = surface ? root_popup_parent(surface) : nullptr;
             if (prev_root != new_root) {
-                if (wlr_xdg_toplevel* prev_toplevel = wlr_xdg_toplevel_try_from_wlr_surface(prev_root)) {
-                    if (Window* prev_window = Window::try_from(prev_toplevel)) {
-                        prev_window->set_activated(false);
-                    } else {
-                        wlr_xdg_toplevel_set_activated(prev_toplevel, false);
-                    }
+                if (Window* prev_window = Window::try_from(prev_root)) {
+                    prev_window->set_activated(false);
+                } else if (wlr_xdg_toplevel* prev_toplevel = wlr_xdg_toplevel_try_from_wlr_surface(prev_root)) {
+                    wlr_xdg_toplevel_set_activated(prev_toplevel, false);
+                } else if (auto* prev_xsurface = wlr_xwayland_surface_try_from_wlr_surface(prev_root)) {
+                    wlr_xwayland_surface_activate(prev_xsurface, false);
                 }
             }
         }
@@ -621,6 +652,36 @@ namespace flux {
         erase_unique_ptr(m_windows, window);
     }
 
+    void Compositor::create_window(wlr_xwayland_surface* xsurface) {
+        m_windows.push_back(std::make_unique<Window>(*this, xsurface));
+    }
+
+    void Compositor::create_popup(wlr_xwayland_surface* xsurface) {
+        m_popups.push_back(std::make_unique<Popup>(*this, xsurface));
+    }
+
+    void Compositor::recreate_as_popup(Window* window) {
+        if (!window) {
+            return;
+        }
+        auto* xsurface = window->xwayland_surface();
+        remove_window(window);
+        if (xsurface) {
+            create_popup(xsurface);
+        }
+    }
+
+    void Compositor::recreate_as_window(Popup* popup) {
+        if (!popup) {
+            return;
+        }
+        auto* xsurface = popup->xwayland_surface();
+        remove_popup(popup);
+        if (xsurface) {
+            create_window(xsurface);
+        }
+    }
+
     void Compositor::remove_popup(Popup* popup) {
         erase_unique_ptr(m_popups, popup);
     }
@@ -628,6 +689,9 @@ namespace flux {
     void Compositor::dismiss_popups(wlr_scene_tree* root, wlr_scene_tree* except_root) {
         while (true) {
             auto it = std::ranges::find_if(m_popups, [root, except_root](const auto& p) {
+                if (!p->raw()) {
+                    return false;
+                }
                 if (except_root && p->root_tree() == except_root) {
                     return false;
                 }
@@ -717,7 +781,7 @@ namespace flux {
             return;
         }
 
-        if (auto* window = Window::try_from(wlr_xdg_toplevel_try_from_wlr_surface(event->surface))) {
+        if (auto* window = Window::try_from(event->surface)) {
             focus_window(window);
         }
     }
