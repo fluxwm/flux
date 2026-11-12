@@ -37,6 +37,7 @@ namespace flux {
 
     private:
         void on_new_input(wlr_input_device* device);
+        void on_new_virtual_pointer(wlr_virtual_pointer_v1_new_pointer_event* event);
         void update_capabilities();
 
         Compositor& m_compositor;

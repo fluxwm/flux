@@ -26,6 +26,9 @@ namespace flux::input {
         [[nodiscard]] double y() const noexcept { return m_wlr_cursor ? m_wlr_cursor->y : 0.0; }
 
         void attach_device(wlr_input_device* device) noexcept { wlr_cursor_attach_input_device(m_wlr_cursor, device); }
+        void map_to_output(wlr_input_device* device, wlr_output* output) noexcept {
+            wlr_cursor_map_input_to_output(m_wlr_cursor, device, output);
+        }
         void set_xcursor(const char* name) noexcept {
             m_current_shape = (name && *name != '\0') ? name : "default";
             wlr_cursor_set_xcursor(m_wlr_cursor, m_cursor_mgr, m_current_shape);
@@ -43,6 +46,8 @@ namespace flux::input {
     private:
         void on_motion(wlr_pointer_motion_event* event);
         void on_motion_absolute(wlr_pointer_motion_absolute_event* event);
+        void handle_motion(wlr_input_device* device, uint32_t time_msec, double dx, double dy, double unaccel_dx,
+                           double unaccel_dy);
         void on_button(wlr_pointer_button_event* event);
         void on_axis(wlr_pointer_axis_event* event);
         void on_frame();

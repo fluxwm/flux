@@ -9,6 +9,9 @@ namespace flux {
         : m_compositor(compositor), m_seat(std::make_unique<input::Seat>(*this, compositor.display())),
           m_cursor(std::make_unique<input::Cursor>(*this)) {
         m_listeners.listen(&m_compositor.backend()->events.new_input, this, &Input::on_new_input);
+
+        auto* virtual_pointer_mgr = wlr_virtual_pointer_manager_v1_create(compositor.display());
+        m_listeners.listen(&virtual_pointer_mgr->events.new_virtual_pointer, this, &Input::on_new_virtual_pointer);
     }
 
     void Input::on_new_input(wlr_input_device* device) {
@@ -33,6 +36,14 @@ namespace flux {
             } else {
                 m_compositor.refocus();
             }
+        }
+    }
+
+    void Input::on_new_virtual_pointer(wlr_virtual_pointer_v1_new_pointer_event* event) {
+        auto* device = &event->new_pointer->pointer.base;
+        on_new_input(device);
+        if (event->suggested_output) {
+            m_cursor->map_to_output(device, event->suggested_output);
         }
     }
 

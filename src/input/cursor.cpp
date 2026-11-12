@@ -160,36 +160,33 @@ namespace flux::input {
         return true;
     }
 
-    void Cursor::on_motion(wlr_pointer_motion_event* event) {
+    void Cursor::handle_motion(wlr_input_device* device, uint32_t time_msec, double dx, double dy, double unaccel_dx,
+                               double unaccel_dy) {
         m_input.seat().notify_activity();
-        double dx = event->delta_x;
-        double dy = event->delta_y;
+        wlr_relative_pointer_manager_v1_send_relative_motion(m_relative_pointer_mgr, m_input.seat().raw(),
+                                                             static_cast<uint64_t>(time_msec) * 1000, dx, dy,
+                                                             unaccel_dx, unaccel_dy);
         if (apply_constraint(dx, dy)) {
-            wlr_cursor_move(m_wlr_cursor, &event->pointer->base, dx, dy);
+            wlr_cursor_move(m_wlr_cursor, device, dx, dy);
             if (!m_grab_window && !m_input.compositor().focused_window()) {
                 m_input.compositor().set_focused_output(nullptr);
             }
-            process_motion(event->time_msec);
+            process_motion(time_msec);
         }
-        wlr_relative_pointer_manager_v1_send_relative_motion(
-            m_relative_pointer_mgr, m_input.seat().raw(), static_cast<uint64_t>(event->time_msec) * 1000,
-            event->delta_x, event->delta_y, event->unaccel_dx, event->unaccel_dy);
+    }
+
+    void Cursor::on_motion(wlr_pointer_motion_event* event) {
+        handle_motion(&event->pointer->base, event->time_msec, event->delta_x, event->delta_y, event->unaccel_dx,
+                      event->unaccel_dy);
     }
 
     void Cursor::on_motion_absolute(wlr_pointer_motion_absolute_event* event) {
-        m_input.seat().notify_activity();
         double lx = 0.0;
         double ly = 0.0;
         wlr_cursor_absolute_to_layout_coords(m_wlr_cursor, &event->pointer->base, event->x, event->y, &lx, &ly);
-        double dx = lx - m_wlr_cursor->x;
-        double dy = ly - m_wlr_cursor->y;
-        if (apply_constraint(dx, dy)) {
-            wlr_cursor_move(m_wlr_cursor, &event->pointer->base, dx, dy);
-            if (!m_grab_window && !m_input.compositor().focused_window()) {
-                m_input.compositor().set_focused_output(nullptr);
-            }
-            process_motion(event->time_msec);
-        }
+        const double dx = lx - m_wlr_cursor->x;
+        const double dy = ly - m_wlr_cursor->y;
+        handle_motion(&event->pointer->base, event->time_msec, dx, dy, dx, dy);
     }
 
     void Cursor::on_button(wlr_pointer_button_event* event) {
