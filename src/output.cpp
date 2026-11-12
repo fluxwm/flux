@@ -53,6 +53,7 @@ namespace flux {
     }
 
     Output::~Output() {
+        m_listeners.clear();
         m_animation.cancel();
         for (auto& layer : m_layers) {
             wlr_layer_surface_v1* raw = layer->raw();
@@ -63,6 +64,15 @@ namespace flux {
         m_workspaces.clear();
         if (m_workspace_group) {
             wlr_ext_workspace_group_handle_v1_destroy(m_workspace_group);
+            m_workspace_group = nullptr;
+        }
+        if (m_scene_output) {
+            wlr_scene_output_destroy(m_scene_output);
+            m_scene_output = nullptr;
+        }
+        if (m_wlr_output && m_compositor.output_layout()) {
+            wlr_output_layout_remove(m_compositor.output_layout(), m_wlr_output);
+            m_wlr_output = nullptr;
         }
     }
 
