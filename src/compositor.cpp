@@ -748,6 +748,16 @@ namespace flux {
             m_saved_workspace_id = output->active_workspace().id();
         }
 
+        std::vector<Window*> focus_order;
+        if (target) {
+            for (const auto& ws : target->workspaces()) {
+                focus_order.insert(focus_order.end(), ws->focus_stack().begin(), ws->focus_stack().end());
+            }
+            for (const auto& ws : output->workspaces()) {
+                focus_order.insert(focus_order.end(), ws->focus_stack().begin(), ws->focus_stack().end());
+            }
+        }
+
         for (const auto& win : m_windows) {
             if (win->output() != output) {
                 continue;
@@ -757,6 +767,12 @@ namespace flux {
             }
             win->set_workspace(target ? &target->workspace(win->workspace_id()) : nullptr);
             win->set_placed(false);
+        }
+
+        for (Window* win : std::views::reverse(focus_order)) {
+            if (win->workspace()) {
+                win->workspace()->promote(win);
+            }
         }
 
         erase_unique_ptr(m_outputs, output);
