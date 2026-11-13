@@ -133,6 +133,7 @@ namespace flux {
         wlr_xwayland_surface* m_xwayland_surface = nullptr;
         wlr_xdg_toplevel_decoration_v1* m_decoration = nullptr;
         wlr_scene_tree* m_scene_tree = nullptr;
+        wlr_scene_tree* m_subsurface_tree = nullptr;
         bool m_maximized = false;
         bool m_fullscreen = false;
         bool m_floating = false;

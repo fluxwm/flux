@@ -152,9 +152,9 @@ namespace flux {
     }
 
     void Window::on_associate() {
-        m_surface_listeners.clear();
+        on_dissociate();
         if (m_xwayland_surface && m_xwayland_surface->surface) {
-            wlr_scene_subsurface_tree_create(m_scene_tree, m_xwayland_surface->surface);
+            m_subsurface_tree = wlr_scene_subsurface_tree_create(m_scene_tree, m_xwayland_surface->surface);
             m_surface_listeners.listen(&m_xwayland_surface->surface->events.map, this, &Window::on_map);
             m_surface_listeners.listen(&m_xwayland_surface->surface->events.unmap, this, &Window::on_unmap);
             m_surface_listeners.listen(&m_xwayland_surface->surface->events.commit, this, &Window::on_commit);
@@ -166,6 +166,10 @@ namespace flux {
 
     void Window::on_dissociate() {
         m_surface_listeners.clear();
+        if (m_subsurface_tree) {
+            wlr_scene_node_destroy(&m_subsurface_tree->node);
+            m_subsurface_tree = nullptr;
+        }
     }
 
     void Window::on_map() {
@@ -683,9 +687,6 @@ namespace flux {
         if (!was_resizing && is_mapped()) {
             if (Output* out = m_compositor.focused_output(); out && output() != out) {
                 set_output(out);
-                if (m_workspace) {
-                    m_workspace->arrange();
-                }
                 m_compositor.refocus();
             }
         }
