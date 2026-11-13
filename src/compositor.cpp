@@ -246,35 +246,40 @@ namespace flux {
         wl_display_terminate(m_display);
     }
 
-    bool Compositor::handle_keybinding(uint32_t modifiers, xkb_keysym_t sym) {
+    KeybindResult Compositor::handle_keybinding(uint32_t modifiers, xkb_keysym_t sym, bool is_repeat) {
         if (m_session && sym >= XKB_KEY_XF86Switch_VT_1 && sym <= XKB_KEY_XF86Switch_VT_12) {
             wlr_session_change_vt(m_session, sym - XKB_KEY_XF86Switch_VT_1 + 1);
-            return true;
+            return {.handled = true, .repeat = false};
         }
 
-        if (exclusive_layer()) {
-            return false;
-        }
-
-        constexpr uint32_t clean_mask = WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT | WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT;
-        const uint32_t clean_mods = modifiers & clean_mask;
+        const bool is_locked = (exclusive_layer() != nullptr);
+        const uint32_t clean_mods = modifiers & key_modifier_mask;
         const xkb_keysym_t lower_sym = xkb_keysym_to_lower(sym);
 
         for (const auto& bind : m_config->keybinds()) {
+            if ((is_locked && !bind.locked) || (is_repeat && !bind.repeat)) {
+                continue;
+            }
             if (bind.modifiers == clean_mods && xkb_keysym_to_lower(bind.keysym) == lower_sym) {
                 for (const auto& action : bind.actions) {
                     execute_action(action);
                 }
-                return true;
+                return {.handled = true, .repeat = bind.repeat};
             }
         }
-        return false;
+        return {.handled = false, .repeat = false};
     }
 
     void Compositor::execute_action(const Action& action) {
         std::visit(
             [this](const auto& act) {
                 using T = std::decay_t<decltype(act)>;
+                if constexpr (!std::is_same_v<T, action::Quit> && !std::is_same_v<T, action::Spawn>) {
+                    if (exclusive_layer()) {
+                        return;
+                    }
+                }
+
                 if constexpr (std::is_same_v<T, action::Quit>) {
                     quit();
                 } else if constexpr (std::is_same_v<T, action::CloseWindow>) {

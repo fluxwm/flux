@@ -108,10 +108,15 @@ namespace flux {
                                 action::FullscreenWindow, action::ToggleFloating, action::FocusWindow, action::Spawn,
                                 action::FocusWorkspace, action::MoveToWorkspace>;
 
+    constexpr uint32_t key_modifier_mask =
+        WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT | WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT;
+
     struct Keybind {
         uint32_t modifiers = 0;
         xkb_keysym_t keysym = XKB_KEY_NoSymbol;
         std::vector<Action> actions;
+        bool repeat = false;
+        bool locked = false;
     };
 
     class Config {

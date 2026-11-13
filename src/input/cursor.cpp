@@ -250,8 +250,7 @@ namespace flux::input {
                 m_input.compositor().focus_window(window);
 
                 wlr_keyboard* keyboard = m_input.seat().keyboard();
-                constexpr uint32_t mask = WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT | WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT;
-                const uint32_t mods = keyboard ? (wlr_keyboard_get_modifiers(keyboard) & mask) : 0;
+                const uint32_t mods = keyboard ? (wlr_keyboard_get_modifiers(keyboard) & key_modifier_mask) : 0;
                 if (mods == WLR_MODIFIER_LOGO && (event->button == btn_left || event->button == btn_right) &&
                     window->is_floating()) {
                     m_input.seat().notify_activity();

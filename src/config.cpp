@@ -236,6 +236,25 @@ namespace flux {
                     continue;
                 }
 
+                bool repeat = false;
+                bool locked = false;
+
+                for (const auto& arg : bind_node.args()) {
+                    if (arg.type() != kdl::Type::String) {
+                        wlr_log(WLR_ERROR, "invalid argument on bind '%s'", combo.c_str());
+                        continue;
+                    }
+                    std::string_view flag = u8_view(arg.as<std::u8string_view>());
+                    if (iequals(flag, "repeat")) {
+                        repeat = true;
+                    } else if (iequals(flag, "locked")) {
+                        locked = true;
+                    } else {
+                        wlr_log(WLR_ERROR, "unknown flag '%.*s' on bind '%s'", static_cast<int>(flag.size()),
+                                flag.data(), combo.c_str());
+                    }
+                }
+
                 std::vector<Action> actions;
                 for (const auto& action_node : bind_node.children()) {
                     auto action_opt = parse_action(action_node);
@@ -254,6 +273,8 @@ namespace flux {
                         .modifiers = modifiers,
                         .keysym = keysym,
                         .actions = std::move(actions),
+                        .repeat = repeat,
+                        .locked = locked,
                     });
                 }
             }

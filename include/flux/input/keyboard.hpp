@@ -15,7 +15,7 @@ namespace flux::input {
     class Keyboard {
     public:
         Keyboard(Input& input, wlr_input_device* device, const KeyboardConfig& config);
-        ~Keyboard() = default;
+        ~Keyboard();
 
         Keyboard(const Keyboard&) = delete;
         Keyboard& operator=(const Keyboard&) = delete;
@@ -30,12 +30,22 @@ namespace flux::input {
         void on_keymap();
         void on_destroy();
 
+        void start_repeat(uint32_t keycode, uint32_t modifiers, xkb_keysym_t sym);
+        void stop_repeat();
+        int on_repeat_timer();
+
         Input& m_input;
         wlr_keyboard* m_wlr_keyboard = nullptr;
         KeyboardConfig m_config{};
         bool m_is_virtual = false;
         bool m_numlock = false;
         std::vector<uint32_t> m_consumed_keycodes;
+
+        wl_event_source* m_repeat_timer = nullptr;
+        bool m_repeating = false;
+        uint32_t m_repeat_keycode = 0;
+        uint32_t m_repeat_modifiers = 0;
+        xkb_keysym_t m_repeat_sym = XKB_KEY_NoSymbol;
 
         ListenerGroup m_listeners;
     };

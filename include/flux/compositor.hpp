@@ -19,6 +19,11 @@ namespace flux {
     class Layer;
     class Input;
 
+    struct KeybindResult {
+        bool handled = false;
+        bool repeat = false;
+    };
+
     class Compositor {
     public:
         Compositor();
@@ -57,7 +62,7 @@ namespace flux {
         [[nodiscard]] bool is_workspace_swiping() const noexcept { return m_swipe_output != nullptr; }
 
         // Window management & interactions
-        bool handle_keybinding(uint32_t modifiers, xkb_keysym_t sym);
+        KeybindResult handle_keybinding(uint32_t modifiers, xkb_keysym_t sym, bool is_repeat = false);
         void focus_window(Window* window);
         void focus_window_in_direction(Direction direction);
         void focus_workspace(uint32_t id) { focus_workspace(focused_output(), id); }

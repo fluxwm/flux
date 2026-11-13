@@ -12,6 +12,12 @@ namespace flux::input {
           m_is_virtual(wlr_input_device_get_virtual_keyboard(device) != nullptr) {
         apply_config(config);
 
+        wl_event_loop* loop = wl_display_get_event_loop(m_input.compositor().display());
+        if (loop) {
+            m_repeat_timer = wl_event_loop_add_timer(
+                loop, [](void* data) -> int { return static_cast<Keyboard*>(data)->on_repeat_timer(); }, this);
+        }
+
         m_listeners.listen(&m_wlr_keyboard->events.modifiers, this, &Keyboard::on_modifiers);
         m_listeners.listen(&m_wlr_keyboard->events.key, this, &Keyboard::on_key);
         m_listeners.listen(&m_wlr_keyboard->events.keymap, this, &Keyboard::on_keymap);
@@ -22,7 +28,14 @@ namespace flux::input {
         }
     }
 
+    Keyboard::~Keyboard() {
+        if (m_repeat_timer) {
+            wl_event_source_remove(m_repeat_timer);
+        }
+    }
+
     void Keyboard::apply_config(const KeyboardConfig& config) {
+        stop_repeat();
         if (m_is_virtual) {
             if (m_wlr_keyboard->repeat_info.rate != config.repeat_rate ||
                 m_wlr_keyboard->repeat_info.delay != config.repeat_delay) {
@@ -90,41 +103,97 @@ namespace flux::input {
     void Keyboard::on_modifiers() {
         m_input.seat().set_keyboard(m_wlr_keyboard);
         m_input.seat().notify_modifiers(&m_wlr_keyboard->modifiers);
+
+        if (m_repeating) {
+            const uint32_t cur_mods = wlr_keyboard_get_modifiers(m_wlr_keyboard) & key_modifier_mask;
+            if (cur_mods != m_repeat_modifiers) {
+                stop_repeat();
+            }
+        }
+    }
+
+    void Keyboard::start_repeat(uint32_t keycode, uint32_t modifiers, xkb_keysym_t sym) {
+        const int32_t rate = m_wlr_keyboard->repeat_info.rate;
+        const int32_t delay = m_wlr_keyboard->repeat_info.delay;
+        if (rate <= 0 || delay <= 0 || !m_repeat_timer) {
+            return;
+        }
+
+        m_repeat_keycode = keycode;
+        m_repeat_modifiers = modifiers & key_modifier_mask;
+        m_repeat_sym = sym;
+        m_repeating = true;
+        wl_event_source_timer_update(m_repeat_timer, delay);
+    }
+
+    void Keyboard::stop_repeat() {
+        if (m_repeating) {
+            m_repeating = false;
+            m_repeat_keycode = 0;
+            m_repeat_modifiers = 0;
+            m_repeat_sym = XKB_KEY_NoSymbol;
+            wl_event_source_timer_update(m_repeat_timer, 0);
+        }
+    }
+
+    int Keyboard::on_repeat_timer() {
+        if (!m_repeating) {
+            return 0;
+        }
+
+        m_input.seat().notify_activity();
+        const auto res = m_input.compositor().handle_keybinding(m_repeat_modifiers, m_repeat_sym, true);
+        const int32_t rate = m_wlr_keyboard->repeat_info.rate;
+        if (res.handled && rate > 0 && m_repeating) {
+            wl_event_source_timer_update(m_repeat_timer, std::max(1, 1000 / rate));
+        } else {
+            stop_repeat();
+        }
+        return 0;
     }
 
     void Keyboard::on_key(wlr_keyboard_key_event* event) {
         m_input.seat().notify_activity();
-        uint32_t keycode = event->keycode + 8;
+        const uint32_t keycode = event->keycode + 8;
         const xkb_keysym_t* syms = nullptr;
-        int nsyms = m_wlr_keyboard->xkb_state ? xkb_state_key_get_syms(m_wlr_keyboard->xkb_state, keycode, &syms) : 0;
+        const int nsyms =
+            m_wlr_keyboard->xkb_state ? xkb_state_key_get_syms(m_wlr_keyboard->xkb_state, keycode, &syms) : 0;
 
         bool handled = false;
-        uint32_t modifiers = wlr_keyboard_get_modifiers(m_wlr_keyboard);
+        const uint32_t modifiers = wlr_keyboard_get_modifiers(m_wlr_keyboard);
 
         if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-            for (int i = 0; i < nsyms; ++i) {
-                if (m_input.compositor().handle_keybinding(modifiers, syms[i])) {
-                    handled = true;
-                    break;
-                }
-            }
+            stop_repeat();
 
-            if (!handled && m_wlr_keyboard->keymap && m_wlr_keyboard->xkb_state) {
-                xkb_layout_index_t layout = xkb_state_key_get_layout(m_wlr_keyboard->xkb_state, keycode);
-                const xkb_keysym_t* raw_syms = nullptr;
-                int n_raw = xkb_keymap_key_get_syms_by_level(m_wlr_keyboard->keymap, keycode, layout, 0, &raw_syms);
-                for (int i = 0; i < n_raw; ++i) {
-                    if (m_input.compositor().handle_keybinding(modifiers, raw_syms[i])) {
-                        handled = true;
-                        break;
+            auto try_syms = [&](const xkb_keysym_t* list, int count) {
+                for (int i = 0; i < count; ++i) {
+                    if (const auto res = m_input.compositor().handle_keybinding(modifiers, list[i]); res.handled) {
+                        if (res.repeat) {
+                            start_repeat(event->keycode, modifiers, list[i]);
+                        }
+                        return true;
                     }
                 }
+                return false;
+            };
+
+            handled = try_syms(syms, nsyms);
+            if (!handled && m_wlr_keyboard->keymap && m_wlr_keyboard->xkb_state) {
+                const xkb_layout_index_t layout = xkb_state_key_get_layout(m_wlr_keyboard->xkb_state, keycode);
+                const xkb_keysym_t* raw_syms = nullptr;
+                const int n_raw =
+                    xkb_keymap_key_get_syms_by_level(m_wlr_keyboard->keymap, keycode, layout, 0, &raw_syms);
+                handled = try_syms(raw_syms, n_raw);
             }
 
             if (handled && !std::ranges::contains(m_consumed_keycodes, event->keycode)) {
                 m_consumed_keycodes.push_back(event->keycode);
             }
         } else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
+            if (m_repeating && event->keycode == m_repeat_keycode) {
+                stop_repeat();
+            }
+
             handled = std::erase(m_consumed_keycodes, event->keycode) > 0;
         }
 
@@ -135,6 +204,7 @@ namespace flux::input {
     }
 
     void Keyboard::on_keymap() {
+        stop_repeat();
         m_input.seat().set_keyboard(m_wlr_keyboard);
     }
 

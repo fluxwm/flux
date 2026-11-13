@@ -94,23 +94,23 @@ binds {
     Super+Shift+9       { move-window-to-workspace 9; }
 
     // Volume controls (PipeWire / WirePlumber)
-    XF86AudioRaiseVolume  { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+" "-l" "1.0"; }
-    XF86AudioLowerVolume  { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-" "-l" "1.0"; }
-    XF86AudioMute         { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
-    XF86AudioMicMute      { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "toggle"; }
+    XF86AudioRaiseVolume repeat locked { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+" "-l" "1.0"; }
+    XF86AudioLowerVolume repeat locked { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-" "-l" "1.0"; }
+    XF86AudioMute               locked { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
+    XF86AudioMicMute            locked { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "toggle"; }
 
     // Media playback (MPRIS / playerctl)
-    XF86AudioPlay         { spawn "playerctl" "play-pause"; }
-    XF86AudioPause        { spawn "playerctl" "play-pause"; }
-    XF86AudioStop         { spawn "playerctl" "stop"; }
-    XF86AudioPrev         { spawn "playerctl" "previous"; }
-    XF86AudioNext         { spawn "playerctl" "next"; }
+    XF86AudioPlay  locked { spawn "playerctl" "play-pause"; }
+    XF86AudioPause locked { spawn "playerctl" "play-pause"; }
+    XF86AudioStop  locked { spawn "playerctl" "stop"; }
+    XF86AudioPrev  locked { spawn "playerctl" "previous"; }
+    XF86AudioNext  locked { spawn "playerctl" "next"; }
 
     // Brightness controls (brightnessctl)
-    XF86MonBrightnessUp   { spawn "brightnessctl" "-e4" "set" "+5%"; }
-    XF86MonBrightnessDown { spawn "brightnessctl" "-e4" "set" "5%-"; }
-    XF86KbdBrightnessUp   { spawn "brightnessctl" "-d" "*kbd_backlight*" "set" "+10%"; }
-    XF86KbdBrightnessDown { spawn "brightnessctl" "-d" "*kbd_backlight*" "set" "10%-"; }
+    XF86MonBrightnessUp   repeat locked { spawn "brightnessctl" "-e4" "set" "+5%"; }
+    XF86MonBrightnessDown repeat locked { spawn "brightnessctl" "-e4" "set" "5%-"; }
+    XF86KbdBrightnessUp   repeat locked { spawn "brightnessctl" "-d" "*kbd_backlight*" "set" "+10%"; }
+    XF86KbdBrightnessDown repeat locked { spawn "brightnessctl" "-d" "*kbd_backlight*" "set" "10%-"; }
 
     Ctrl+Alt+Delete     { quit; }
 }
