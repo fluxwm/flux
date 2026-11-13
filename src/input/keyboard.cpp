@@ -10,6 +10,7 @@ namespace flux::input {
     Keyboard::Keyboard(Input& input, wlr_input_device* device, const KeyboardConfig& config)
         : m_input(input), m_wlr_keyboard(wlr_keyboard_from_input_device(device)),
           m_is_virtual(wlr_input_device_get_virtual_keyboard(device) != nullptr) {
+        m_wlr_keyboard->data = this;
         apply_config(config);
 
         wl_event_loop* loop = wl_display_get_event_loop(m_input.compositor().display());
@@ -29,9 +30,16 @@ namespace flux::input {
     }
 
     Keyboard::~Keyboard() {
+        if (m_wlr_keyboard) {
+            m_wlr_keyboard->data = nullptr;
+        }
         if (m_repeat_timer) {
             wl_event_source_remove(m_repeat_timer);
         }
+    }
+
+    bool Keyboard::is_consumed(uint32_t keycode) const noexcept {
+        return std::ranges::contains(m_consumed_keycodes, keycode);
     }
 
     void Keyboard::apply_config(const KeyboardConfig& config) {

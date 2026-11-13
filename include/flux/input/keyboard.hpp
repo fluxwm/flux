@@ -21,6 +21,7 @@ namespace flux::input {
         Keyboard& operator=(const Keyboard&) = delete;
 
         [[nodiscard]] wlr_keyboard* raw() const noexcept { return m_wlr_keyboard; }
+        [[nodiscard]] bool is_consumed(uint32_t keycode) const noexcept;
 
         void apply_config(const KeyboardConfig& config);
 
