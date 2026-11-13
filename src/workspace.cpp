@@ -113,9 +113,10 @@ namespace flux {
     }
 
     void Workspace::prepare_slide() noexcept {
-        for (Window* w : m_focus_stack) {
+        for (Window* w : std::views::reverse(m_focus_stack)) {
             if (w->is_fullscreen()) {
                 w->reparent_to_workspace();
+                w->raise_to_top();
             }
         }
         wlr_ext_workspace_handle_v1_set_active(m_handle, false);
@@ -224,6 +225,9 @@ namespace flux {
             if (w->is_floating()) {
                 w->raise_to_top();
             }
+        }
+        if (top_fullscreen && is_busy_output) {
+            top_fullscreen->raise_to_top();
         }
     }
 
