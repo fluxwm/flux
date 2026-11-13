@@ -107,10 +107,8 @@ binds {
     XF86AudioNext  locked { spawn "playerctl" "next"; }
 
     // Brightness controls (brightnessctl)
-    XF86MonBrightnessUp   repeat locked { spawn "brightnessctl" "-e4" "set" "+5%"; }
-    XF86MonBrightnessDown repeat locked { spawn "brightnessctl" "-e4" "set" "5%-"; }
-    XF86KbdBrightnessUp   repeat locked { spawn "brightnessctl" "-d" "*kbd_backlight*" "set" "+10%"; }
-    XF86KbdBrightnessDown repeat locked { spawn "brightnessctl" "-d" "*kbd_backlight*" "set" "10%-"; }
+    XF86MonBrightnessUp   repeat locked { spawn "brightnessctl" "-n1" "-e4" "set" "+5%"; }
+    XF86MonBrightnessDown repeat locked { spawn "brightnessctl" "-n1" "-e4" "set" "5%-"; }
 
     Ctrl+Alt+Delete     { quit; }
 }
