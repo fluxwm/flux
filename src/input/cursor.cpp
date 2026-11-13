@@ -242,8 +242,9 @@ namespace flux::input {
             wlr_surface* surface = nullptr;
             Window* window =
                 m_input.compositor().scene().window_at(m_wlr_cursor->x, m_wlr_cursor->y, &surface, &sx, &sy);
-            if (auto* excl = m_input.compositor().exclusive_layer()) {
-                if (surface && root_popup_parent(surface) == excl->surface()) {
+            if (const auto* excl = m_input.compositor().exclusive_layer()) {
+                const auto* layer = Layer::try_from(root_popup_parent(surface));
+                if (layer && layer->is_mapped() && layer->is_exclusive() && layer->layer() == excl->layer()) {
                     m_input.compositor().focus_surface(surface);
                 }
             } else if (window != nullptr) {
@@ -329,6 +330,10 @@ namespace flux::input {
             return;
         }
 
+        if (Output* out = m_input.compositor().focused_output(); out && out->animation().is_active()) {
+            return;
+        }
+
         if (!m_input.compositor().exclusive_layer()) {
             if (auto* constraint = m_input.seat().active_constraint();
                 constraint && constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED) {
@@ -340,8 +345,9 @@ namespace flux::input {
         double sy = 0.0;
         wlr_surface* surface = m_input.compositor().scene().surface_at(m_wlr_cursor->x, m_wlr_cursor->y, &sx, &sy);
         if (surface) {
-            if (auto* excl = m_input.compositor().exclusive_layer()) {
-                if (root_popup_parent(surface) != excl->surface()) {
+            if (const auto* excl = m_input.compositor().exclusive_layer()) {
+                const auto* layer = Layer::try_from(root_popup_parent(surface));
+                if (!layer || !layer->is_mapped() || !layer->is_exclusive() || layer->layer() != excl->layer()) {
                     m_input.seat().clear_pointer_focus();
                     return;
                 }
