@@ -53,7 +53,7 @@ namespace flux {
     }
 
     void Popup::update_position() noexcept {
-        if (m_wrapper_tree) {
+        if (m_wrapper_tree && m_root_tree) {
             int root_lx = 0;
             int root_ly = 0;
             wlr_scene_node_coords(&m_root_tree->node, &root_lx, &root_ly);

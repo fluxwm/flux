@@ -180,9 +180,14 @@ namespace flux {
             }
             if (m_xwayland_surface->fullscreen) {
                 m_fullscreen = true;
+                m_maximized = false;
                 m_placed = false;
                 wlr_xwayland_surface_set_fullscreen(m_xwayland_surface, true);
+            } else if (m_xwayland_surface->maximized_horz && m_xwayland_surface->maximized_vert) {
+                m_maximized = true;
+                m_placed = false;
             }
+            wlr_xwayland_surface_set_maximized(m_xwayland_surface, m_maximized, m_maximized);
         }
 
         const wlr_ext_foreign_toplevel_handle_v1_state state{
@@ -295,8 +300,11 @@ namespace flux {
                 wlr_xdg_surface_schedule_configure(m_xdg_toplevel->base);
             }
         } else if (m_xwayland_surface) {
-            if (m_maximized != (m_xwayland_surface->maximized_horz && m_xwayland_surface->maximized_vert)) {
+            if (!m_fullscreen &&
+                m_maximized != (m_xwayland_surface->maximized_horz && m_xwayland_surface->maximized_vert)) {
                 toggle_maximize();
+            } else {
+                wlr_xwayland_surface_set_maximized(m_xwayland_surface, m_maximized, m_maximized);
             }
         }
     }
@@ -315,10 +323,12 @@ namespace flux {
         } else if (m_xwayland_surface) {
             wlr_xwayland_surface_set_maximized(m_xwayland_surface, m_maximized, m_maximized);
         }
-        if (m_workspace) {
-            m_workspace->arrange();
+        if (is_mapped()) {
+            if (m_workspace) {
+                m_workspace->arrange();
+            }
+            m_compositor.refocus();
         }
-        m_compositor.refocus();
     }
 
     void Window::set_floating(bool floating) {
@@ -347,7 +357,12 @@ namespace flux {
 
         const bool floating = !is_floating();
         m_floating_override = true;
-        m_maximized = false;
+        if (m_maximized) {
+            m_maximized = false;
+            if (m_xwayland_surface) {
+                wlr_xwayland_surface_set_maximized(m_xwayland_surface, false, false);
+            }
+        }
         set_floating(floating);
     }
 

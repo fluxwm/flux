@@ -635,11 +635,16 @@ namespace flux {
         }
 
         if (wlr_surface* focused = m_input->seat().focused_surface()) {
-            if (auto* layer = Layer::try_from(root_popup_parent(focused));
-                layer && layer->is_mapped() && layer->is_focusable()) {
-                restack_windows();
-                m_input->cursor().update_focus();
-                return;
+            wlr_surface* root = root_popup_parent(focused);
+            if (root && root->mapped) {
+                const auto* layer = Layer::try_from(root);
+                const auto* xsurf = wlr_xwayland_surface_try_from_wlr_surface(root);
+                if ((layer && layer->is_focusable()) ||
+                    (xsurf && xsurf->override_redirect && wlr_xwayland_surface_override_redirect_wants_focus(xsurf))) {
+                    restack_windows();
+                    m_input->cursor().update_focus();
+                    return;
+                }
             }
         }
 
