@@ -25,11 +25,11 @@ namespace flux {
             };
 
             if (shrinking) {
-                wlr_scene_subsurface_tree_set_clip(&ws.tree()->node, &clip);
+                ws.set_clip(&clip);
                 wlr_scene_node_set_position(&ws.tree()->node, offset_x, 0);
             } else {
                 wlr_scene_node_set_position(&ws.tree()->node, offset_x, 0);
-                wlr_scene_subsurface_tree_set_clip(&ws.tree()->node, &clip);
+                ws.set_clip(&clip);
             }
             for (Window* win : ws.windows()) {
                 win->update_borders();

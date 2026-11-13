@@ -680,7 +680,9 @@ namespace flux {
     void Window::reparent_to_workspace() noexcept {
         wlr_scene_tree* target = m_workspace ? m_workspace->tree() : m_compositor.scene().windows();
         wlr_scene_node_reparent(&m_scene_tree->node, target);
-        wlr_scene_subsurface_tree_set_clip(&m_scene_tree->node, nullptr);
+        if (surface()) {
+            wlr_scene_subsurface_tree_set_clip(&m_scene_tree->node, nullptr);
+        }
     }
 
     void Window::update_foreign_toplevel() noexcept {

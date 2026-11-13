@@ -79,13 +79,23 @@ namespace flux {
         }
     }
 
+    void Workspace::set_clip(const wlr_box* clip) noexcept {
+        wlr_scene_node* node = nullptr;
+        wl_list_for_each(node, &m_tree->children, link) {
+            if (const auto* win = static_cast<const Window*>(node->data); win && win->surface()) {
+                wlr_scene_subsurface_tree_set_clip(&m_tree->node, clip);
+                return;
+            }
+        }
+    }
+
     void Workspace::activate() noexcept {
         wlr_ext_workspace_handle_v1_set_active(m_handle, true);
         if (m_output.animation().is_busy()) {
             return;
         }
         wlr_scene_node_set_position(&m_tree->node, 0, 0);
-        wlr_scene_subsurface_tree_set_clip(&m_tree->node, nullptr);
+        set_clip(nullptr);
         wlr_scene_node_set_enabled(&m_tree->node, true);
         for (Window* w : m_windows) {
             w->update_borders();
@@ -96,7 +106,7 @@ namespace flux {
         prepare_slide();
         wlr_scene_node_set_enabled(&m_tree->node, false);
         wlr_scene_node_set_position(&m_tree->node, 0, 0);
-        wlr_scene_subsurface_tree_set_clip(&m_tree->node, nullptr);
+        set_clip(nullptr);
         for (Window* w : m_windows) {
             w->update_borders();
         }
@@ -176,7 +186,7 @@ namespace flux {
                 .width = full.width,
                 .height = full.height,
             };
-            wlr_scene_subsurface_tree_set_clip(&m_tree->node, &clip);
+            set_clip(&clip);
         }
     }
 
