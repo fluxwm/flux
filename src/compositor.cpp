@@ -705,7 +705,7 @@ namespace flux {
 
     void Compositor::dismiss_popups(wlr_scene_tree* root, wlr_scene_tree* except_root) {
         while (true) {
-            auto it = std::ranges::find_if(m_popups, [root, except_root](const auto& p) {
+            auto it = std::ranges::find_if(std::views::reverse(m_popups), [root, except_root](const auto& p) {
                 if (!p->raw()) {
                     return false;
                 }
@@ -714,7 +714,7 @@ namespace flux {
                 }
                 return !root || p->root_tree() == root;
             });
-            if (it == m_popups.end()) {
+            if (it == m_popups.rend()) {
                 break;
             }
             wlr_xdg_popup_destroy((*it)->raw());

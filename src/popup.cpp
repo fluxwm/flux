@@ -46,6 +46,9 @@ namespace flux {
     Popup::~Popup() {
         m_surface_listeners.clear();
         m_listeners.clear();
+        if (m_xdg_popup && m_xdg_popup->base) {
+            m_xdg_popup->base->data = nullptr;
+        }
         if (m_wrapper_tree) {
             wlr_scene_node_destroy(&m_wrapper_tree->node);
             m_wrapper_tree = nullptr;
