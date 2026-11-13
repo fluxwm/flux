@@ -46,6 +46,7 @@ namespace flux {
         m_listeners.listen(&xdg_toplevel->events.request_fullscreen, this, &Window::on_request_fullscreen);
         m_listeners.listen(&xdg_toplevel->events.set_title, this, &Window::on_set_title);
         m_listeners.listen(&xdg_toplevel->events.set_app_id, this, &Window::on_set_app_id);
+        m_listeners.listen(&xdg_toplevel->events.set_parent, this, &Window::on_set_parent);
     }
 
     Window::Window(Compositor& compositor, wlr_xwayland_surface* xwayland_surface)
@@ -214,6 +215,7 @@ namespace flux {
         m_floating_override = false;
         m_placed = false;
         m_resize_edges = WLR_EDGE_NONE;
+        m_floating_box = {};
         m_activated = false;
         update_borders();
 
@@ -223,9 +225,6 @@ namespace flux {
 
     void Window::on_commit() {
         if (m_xdg_toplevel && m_xdg_toplevel->base->initial_commit) {
-            if (auto* parent = Window::try_from(m_xdg_toplevel->parent); parent && parent->output()) {
-                set_output(parent->output());
-            }
             on_request_decoration_mode();
             wlr_xdg_toplevel_set_wm_capabilities(m_xdg_toplevel, WLR_XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN);
             m_floating = wants_floating();
@@ -243,7 +242,7 @@ namespace flux {
             return;
         }
 
-        if (m_resize_edges != WLR_EDGE_NONE) {
+        if (m_xdg_toplevel && m_resize_edges != WLR_EDGE_NONE) {
             if (is_floating()) {
                 const wlr_box box = geometry_box();
                 const int x =
@@ -252,22 +251,13 @@ namespace flux {
                     (m_resize_edges & WLR_EDGE_TOP) ? (m_grab_box.y + m_grab_box.height - box.height) : m_grab_box.y;
                 set_position(x, y);
             }
-            if (!m_resizing && ((m_xdg_toplevel && !m_xdg_toplevel->current.resizing) || m_xwayland_surface)) {
+            if (!m_resizing && !m_xdg_toplevel->current.resizing) {
                 m_resize_edges = WLR_EDGE_NONE;
             }
         }
 
         if (!m_floating && !m_floating_override && wants_floating()) {
-            if (m_xdg_toplevel) {
-                if (auto* parent = Window::try_from(m_xdg_toplevel->parent); parent && parent->output()) {
-                    set_output(parent->output());
-                }
-            } else if (m_xwayland_surface && m_xwayland_surface->parent) {
-                if (auto* parent = Window::try_from(m_xwayland_surface->parent); parent && parent->output()) {
-                    set_output(parent->output());
-                }
-            }
-            set_floating(true);
+            on_set_parent();
         } else if (is_mapped() && is_floating() && !m_placed && m_workspace) {
             center(m_workspace->output().usable_area());
         }
@@ -285,6 +275,8 @@ namespace flux {
             update_borders();
         } else if (m_workspace) {
             m_workspace->arrange();
+            wlr_xwayland_surface_configure(m_xwayland_surface, m_xwayland_surface->x, m_xwayland_surface->y,
+                                           m_xwayland_surface->width, m_xwayland_surface->height);
         }
     }
 
@@ -314,6 +306,10 @@ namespace flux {
             return;
         }
 
+        if (m_xwayland_surface && is_floating()) {
+            m_floating_box = geometry_box();
+        }
+
         m_maximized = !m_maximized;
         m_placed = false;
         if (m_xdg_toplevel) {
@@ -322,6 +318,7 @@ namespace flux {
             }
         } else if (m_xwayland_surface) {
             wlr_xwayland_surface_set_maximized(m_xwayland_surface, m_maximized, m_maximized);
+            restore_floating_box();
         }
         if (is_mapped()) {
             if (m_workspace) {
@@ -331,10 +328,35 @@ namespace flux {
         }
     }
 
+    void Window::restore_floating_box() noexcept {
+        if (!m_xwayland_surface || !is_mapped() || !is_floating()) {
+            return;
+        }
+        if (m_floating_box.width <= 0 || m_floating_box.height <= 0) {
+            if (!m_floating_override || !m_workspace) {
+                return;
+            }
+            const wlr_box& usable = m_workspace->output().usable_area();
+            const int w = std::max(1, (usable.width * 2) / 3);
+            const int h = std::max(1, (usable.height * 2) / 3);
+            m_floating_box = {
+                .x = usable.x + ((usable.width - w) / 2),
+                .y = usable.y + ((usable.height - h) / 2),
+                .width = w,
+                .height = h,
+            };
+        }
+        m_placed = true;
+        set_geometry(m_floating_box);
+    }
+
     void Window::set_floating(bool floating) {
+        if (!floating && m_xwayland_surface && is_floating()) {
+            m_floating_box = geometry_box();
+        }
         m_floating = floating;
         m_placed = false;
-        if (m_xdg_toplevel) {
+        if (m_xdg_toplevel && m_xdg_toplevel->base->initialized) {
             constexpr uint32_t edges = WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT;
             wlr_xdg_toplevel_set_tiled(m_xdg_toplevel, m_floating ? 0 : edges);
             if (is_floating()) {
@@ -342,6 +364,7 @@ namespace flux {
             }
         }
         if (is_mapped()) {
+            restore_floating_box();
             if (m_workspace) {
                 m_workspace->arrange();
             }
@@ -384,6 +407,10 @@ namespace flux {
             return;
         }
 
+        if (fullscreen && m_xwayland_surface && is_floating()) {
+            m_floating_box = geometry_box();
+        }
+
         m_fullscreen = fullscreen;
         m_placed = false;
         update_borders();
@@ -408,6 +435,7 @@ namespace flux {
                 }
             } else if (m_xwayland_surface) {
                 wlr_xwayland_surface_set_fullscreen(m_xwayland_surface, false);
+                restore_floating_box();
             }
         }
 
@@ -648,6 +676,8 @@ namespace flux {
             m_resizing = false;
             if (m_xdg_toplevel && m_xdg_toplevel->base->initialized) {
                 wlr_xdg_toplevel_set_resizing(m_xdg_toplevel, false);
+            } else {
+                m_resize_edges = WLR_EDGE_NONE;
             }
         }
         if (!was_resizing && is_mapped()) {
@@ -671,8 +701,13 @@ namespace flux {
         }
         Workspace* old_ws = m_workspace;
         set_workspace(output ? &output->active_workspace() : nullptr);
-        if (is_mapped() && old_ws) {
-            old_ws->arrange();
+        if (is_mapped()) {
+            if (old_ws) {
+                old_ws->arrange();
+            }
+            if (m_workspace) {
+                m_workspace->arrange();
+            }
         }
     }
 
@@ -732,10 +767,13 @@ namespace flux {
     }
 
     void Window::on_set_parent() {
-        if (m_xwayland_surface && m_xwayland_surface->parent) {
-            if (auto* parent = Window::try_from(m_xwayland_surface->parent); parent && parent->output()) {
-                set_output(parent->output());
-            }
+        Window* parent = m_xdg_toplevel ? Window::try_from(m_xdg_toplevel->parent)
+                                        : (m_xwayland_surface ? Window::try_from(m_xwayland_surface->parent) : nullptr);
+        if (parent && parent->output()) {
+            set_output(parent->output());
+        }
+        if (!m_floating && !m_floating_override && wants_floating()) {
+            set_floating(true);
         }
     }
 

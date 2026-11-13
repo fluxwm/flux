@@ -124,6 +124,7 @@ namespace flux {
         void on_set_parent();
         void on_set_hints();
         void on_set_override_redirect();
+        void restore_floating_box() noexcept;
         bool move_scene_tree(int x, int y) noexcept;
         void update_foreign_toplevel() noexcept;
 
@@ -141,6 +142,7 @@ namespace flux {
         bool m_activated = false;
         uint32_t m_resize_edges = WLR_EDGE_NONE;
         wlr_box m_grab_box{};
+        wlr_box m_floating_box{};
         Workspace* m_workspace = nullptr;
         uint32_t m_workspace_id = 1;
         std::string m_title;
