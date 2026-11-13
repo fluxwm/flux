@@ -79,6 +79,7 @@ extern "C" {
 #include <xcb/xcb.h>
 #define class _class
 #include <wlr/xwayland.h>
+#include <wlr/xwayland/server.h>
 #undef class
 #include <xkbcommon/xkbcommon.h>
 #undef namespace

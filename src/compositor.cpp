@@ -75,12 +75,19 @@ namespace flux {
         for (const int sig : {SIGINT, SIGTERM}) {
             wl_event_loop_add_signal(event_loop, sig, on_signal, this);
         }
-        auto on_sigchld = [](int, void*) {
-            while (waitpid(-1, nullptr, WNOHANG) > 0) {
+        auto on_sigchld = [](int, void* data) {
+            auto* self = static_cast<Compositor*>(data);
+            siginfo_t info{};
+            while (waitid(P_ALL, 0, &info, WEXITED | WNOHANG | WNOWAIT) == 0 && info.si_pid > 0) {
+                if (self->xwayland() && self->xwayland()->server && info.si_pid == self->xwayland()->server->pid) {
+                    break;
+                }
+                waitpid(info.si_pid, nullptr, 0);
+                info = {};
             }
             return 0;
         };
-        wl_event_loop_add_signal(event_loop, SIGCHLD, on_sigchld, nullptr);
+        wl_event_loop_add_signal(event_loop, SIGCHLD, on_sigchld, this);
 
         m_config = std::make_unique<Config>(event_loop, config_path);
 
