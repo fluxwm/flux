@@ -28,6 +28,8 @@ namespace flux {
 
         m_listeners.listen(&xdg_popup->base->surface->events.commit, this, &Popup::on_commit);
         m_listeners.listen(&xdg_popup->events.reposition, this, &Popup::on_reposition);
+        m_listeners.listen(&xdg_popup->base->surface->events.map, this, &Popup::on_map);
+        m_listeners.listen(&xdg_popup->base->surface->events.unmap, this, &Popup::on_unmap);
     }
 
     Popup::Popup(Compositor& compositor, wlr_xwayland_surface* xsurface)
@@ -128,28 +130,37 @@ namespace flux {
     }
 
     void Popup::on_map() {
-        if (m_wrapper_tree) {
-            wlr_scene_node_destroy(&m_wrapper_tree->node);
+        if (m_xwayland_surface) {
+            if (m_wrapper_tree) {
+                wlr_scene_node_destroy(&m_wrapper_tree->node);
+            }
+            m_wrapper_tree =
+                wlr_scene_subsurface_tree_create(m_compositor.scene().popups(), m_xwayland_surface->surface);
+            if (m_wrapper_tree) {
+                wlr_scene_node_set_position(&m_wrapper_tree->node, m_xwayland_surface->x, m_xwayland_surface->y);
+            }
+            if (wlr_xwayland_surface_override_redirect_wants_focus(m_xwayland_surface) &&
+                !m_compositor.exclusive_layer()) {
+                wlr_xwayland_surface_activate(m_xwayland_surface, true);
+                m_compositor.focus_surface(m_xwayland_surface->surface);
+            }
         }
-        m_wrapper_tree = wlr_scene_subsurface_tree_create(m_compositor.scene().popups(), m_xwayland_surface->surface);
-        if (m_wrapper_tree) {
-            wlr_scene_node_set_position(&m_wrapper_tree->node, m_xwayland_surface->x, m_xwayland_surface->y);
-        }
-        if (wlr_xwayland_surface_override_redirect_wants_focus(m_xwayland_surface) && !m_compositor.exclusive_layer()) {
-            wlr_xwayland_surface_activate(m_xwayland_surface, true);
-            m_compositor.focus_surface(m_xwayland_surface->surface);
-        }
+        m_compositor.update_cursor_focus();
     }
 
     void Popup::on_unmap() {
-        if (m_wrapper_tree) {
-            wlr_scene_node_destroy(&m_wrapper_tree->node);
-            m_wrapper_tree = nullptr;
+        if (m_xwayland_surface) {
+            if (m_wrapper_tree) {
+                wlr_scene_node_destroy(&m_wrapper_tree->node);
+                m_wrapper_tree = nullptr;
+            }
+            if (m_xwayland_surface->surface &&
+                m_compositor.input().seat().focused_surface() == m_xwayland_surface->surface) {
+                m_compositor.refocus();
+                return;
+            }
         }
-        if (m_xwayland_surface && m_xwayland_surface->surface &&
-            m_compositor.input().seat().focused_surface() == m_xwayland_surface->surface) {
-            m_compositor.refocus();
-        }
+        m_compositor.update_cursor_focus();
     }
 
     void Popup::on_request_configure(wlr_xwayland_surface_configure_event* event) {

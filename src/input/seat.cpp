@@ -217,6 +217,7 @@ namespace flux::input {
         m_active_constraint = nullptr;
         m_constraint_listeners.clear();
         warp_to_hint(m_input, constraint);
+        m_input.cursor().update_focus();
     }
 
 }

@@ -701,7 +701,9 @@ namespace flux {
     }
 
     void Compositor::remove_popup(Popup* popup) {
-        erase_unique_ptr(m_popups, popup);
+        if (erase_unique_ptr(m_popups, popup)) {
+            update_cursor_focus();
+        }
     }
 
     void Compositor::dismiss_popups(wlr_scene_tree* root, wlr_scene_tree* except_root) {
