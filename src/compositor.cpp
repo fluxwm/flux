@@ -579,7 +579,7 @@ namespace flux {
     }
 
     Output* Compositor::focused_output() const noexcept {
-        if (m_focused_output) {
+        if (m_focused_output && m_focused_output->is_enabled()) {
             return m_focused_output;
         }
         wlr_output* wlr_out =
@@ -588,7 +588,11 @@ namespace flux {
             wlr_out = wlr_output_layout_get_center_output(m_output_layout);
         }
         Output* out = output_from_wlr(wlr_out);
-        return out ? out : (m_outputs.empty() ? nullptr : m_outputs.front().get());
+        if (out && out->is_enabled()) {
+            return out;
+        }
+        auto it = std::ranges::find_if(m_outputs, [](const auto& o) { return o->is_enabled(); });
+        return it != m_outputs.end() ? it->get() : nullptr;
     }
 
     void Compositor::map_window(Window* window) {
@@ -882,12 +886,28 @@ namespace flux {
             return;
         }
 
-        if (!enable && (m_swipe_output == output || output->animation().is_busy())) {
-            if (m_swipe_output == output) {
-                cancel_workspace_swipe();
+        if (!enable) {
+            if (m_swipe_output == output || output->animation().is_busy()) {
+                if (m_swipe_output == output) {
+                    cancel_workspace_swipe();
+                }
+                output->animation().cancel();
+                on_animation_finished();
             }
-            output->animation().cancel();
-            on_animation_finished();
+            if (m_focused_output == output) {
+                m_focused_output = nullptr;
+            }
+            if (!m_focused_output) {
+                refocus();
+            }
+        } else {
+            for (const auto& win : m_windows) {
+                if (!win->workspace()) {
+                    win->set_workspace(&output->workspace(win->workspace_id()));
+                }
+            }
+            output->arrange_layers();
+            refocus();
         }
     }
 
