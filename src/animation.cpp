@@ -1,6 +1,5 @@
 #include "flux/animation.hpp"
 #include "flux/output.hpp"
-#include "flux/window.hpp"
 #include "flux/workspace.hpp"
 
 #include <algorithm>
@@ -12,29 +11,6 @@ namespace flux {
         double elapsed_seconds(const timespec& from, const timespec& to) noexcept {
             return static_cast<double>(to.tv_sec - from.tv_sec) +
                    (static_cast<double>(to.tv_nsec - from.tv_nsec) * 1e-9);
-        }
-
-        void apply_workspace_offset(Workspace& ws, int offset_x, const wlr_box& output_box) noexcept {
-            const int old_x = ws.tree()->node.x;
-            const bool shrinking = !ws.tree()->node.enabled || std::abs(offset_x) >= std::abs(old_x);
-            const wlr_box clip{
-                .x = output_box.x - offset_x,
-                .y = output_box.y,
-                .width = output_box.width,
-                .height = output_box.height,
-            };
-
-            if (shrinking) {
-                ws.set_clip(&clip);
-                wlr_scene_node_set_position(&ws.tree()->node, offset_x, 0);
-            } else {
-                wlr_scene_node_set_position(&ws.tree()->node, offset_x, 0);
-                ws.set_clip(&clip);
-            }
-            for (Window* win : ws.windows()) {
-                win->update_borders();
-            }
-            wlr_scene_node_set_enabled(&ws.tree()->node, true);
         }
     }
 
@@ -89,18 +65,13 @@ namespace flux {
     }
 
     void WorkspaceAnimation::apply_positions(int current_x) noexcept {
-        if (!m_current && !m_outgoing) {
-            return;
-        }
-
-        const Output& output = m_current ? m_current->output() : m_outgoing->output();
-        const wlr_box output_box = output.layout_box();
-
         if (m_current) {
-            apply_workspace_offset(*m_current, current_x, output_box);
+            wlr_scene_node_set_position(&m_current->tree()->node, current_x, 0);
+            wlr_scene_node_set_enabled(&m_current->tree()->node, true);
         }
         if (m_outgoing && m_outgoing != m_current) {
-            apply_workspace_offset(*m_outgoing, current_x + m_outgoing_offset, output_box);
+            wlr_scene_node_set_position(&m_outgoing->tree()->node, current_x + m_outgoing_offset, 0);
+            wlr_scene_node_set_enabled(&m_outgoing->tree()->node, true);
         }
     }
 
@@ -210,11 +181,11 @@ namespace flux {
             return nullptr;
         }
 
-        m_swiping = false;
         if (!m_outgoing) {
             cancel();
             return nullptr;
         }
+        m_swiping = false;
 
         timespec now{};
         clock_gettime(CLOCK_MONOTONIC, &now);

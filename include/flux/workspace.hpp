@@ -33,7 +33,6 @@ namespace flux {
         void activate() noexcept;
         void deactivate() noexcept;
         void prepare_slide() noexcept;
-        void set_clip(const wlr_box* clip) noexcept;
 
         void promote(Window* window);
         void remove(Window* window) noexcept;

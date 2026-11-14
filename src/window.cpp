@@ -558,36 +558,21 @@ namespace flux {
         const int w = std::max(1, box.width);
         const int h = std::max(1, box.height);
 
-        std::array<wlr_box, 4> rects = {
-            wlr_box{.x = -bw, .y = -bw, .width = w + (2 * bw), .height = bw},
-            wlr_box{.x = -bw, .y = h, .width = w + (2 * bw), .height = bw},
-            wlr_box{.x = -bw, .y = 0, .width = bw, .height = h},
-            wlr_box{.x = w, .y = 0, .width = bw, .height = h},
-        };
+        wlr_scene_node_set_position(&m_borders[0]->node, -bw, -bw);
+        wlr_scene_rect_set_size(m_borders[0], w + (2 * bw), bw);
 
-        const bool clamp = m_workspace && m_workspace->output().animation().is_busy();
-        const wlr_box clip = clamp ? m_workspace->output().layout_box() : wlr_box{};
-        const int origin_x = clamp ? (m_workspace->tree()->node.x + m_scene_tree->node.x) : 0;
-        const int origin_y = clamp ? m_scene_tree->node.y : 0;
+        wlr_scene_node_set_position(&m_borders[1]->node, -bw, h);
+        wlr_scene_rect_set_size(m_borders[1], w + (2 * bw), bw);
 
-        for (size_t i = 0; i < 4; ++i) {
-            auto& r = rects[i];
-            if (clamp) {
-                const int x1 = std::max(origin_x + r.x, clip.x);
-                const int y1 = std::max(origin_y + r.y, clip.y);
-                const int x2 = std::min(origin_x + r.x + r.width, clip.x + clip.width);
-                const int y2 = std::min(origin_y + r.y + r.height, clip.y + clip.height);
-                if (x1 >= x2 || y1 >= y2) {
-                    wlr_scene_node_set_enabled(&m_borders[i]->node, false);
-                    continue;
-                }
-                r = {.x = x1 - origin_x, .y = y1 - origin_y, .width = x2 - x1, .height = y2 - y1};
-            }
+        wlr_scene_node_set_position(&m_borders[2]->node, -bw, 0);
+        wlr_scene_rect_set_size(m_borders[2], bw, h);
 
-            wlr_scene_node_set_position(&m_borders[i]->node, r.x, r.y);
-            wlr_scene_rect_set_size(m_borders[i], r.width, r.height);
-            wlr_scene_rect_set_color(m_borders[i], color.data());
-            wlr_scene_node_set_enabled(&m_borders[i]->node, true);
+        wlr_scene_node_set_position(&m_borders[3]->node, w, 0);
+        wlr_scene_rect_set_size(m_borders[3], bw, h);
+
+        for (auto* border : m_borders) {
+            wlr_scene_rect_set_color(border, color.data());
+            wlr_scene_node_set_enabled(&border->node, true);
         }
     }
 
@@ -727,9 +712,6 @@ namespace flux {
     void Window::reparent_to_workspace() noexcept {
         wlr_scene_tree* target = m_workspace ? m_workspace->tree() : m_compositor.scene().windows();
         wlr_scene_node_reparent(&m_scene_tree->node, target);
-        if (surface()) {
-            wlr_scene_subsurface_tree_set_clip(&m_scene_tree->node, nullptr);
-        }
     }
 
     void Window::update_foreign_toplevel() noexcept {
