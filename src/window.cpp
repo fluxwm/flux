@@ -531,14 +531,25 @@ namespace flux {
             wlr_xdg_toplevel_set_activated(m_xdg_toplevel, activated);
         } else if (m_xwayland_surface) {
             wlr_xwayland_surface_activate(m_xwayland_surface, activated);
-            if (activated) {
-                if (m_xwayland_surface->minimized) {
-                    wlr_xwayland_surface_set_minimized(m_xwayland_surface, false);
-                }
-                wlr_xwayland_surface_restack(m_xwayland_surface, nullptr, XCB_STACK_MODE_ABOVE);
+            if (activated && m_xwayland_surface->minimized) {
+                wlr_xwayland_surface_set_minimized(m_xwayland_surface, false);
             }
         }
         update_borders();
+    }
+
+    void Window::raise_to_top() noexcept {
+        wlr_scene_node_raise_to_top(&m_scene_tree->node);
+        if (m_xwayland_surface && m_workspace && &m_workspace->output().active_workspace() == m_workspace) {
+            wlr_xwayland_surface_restack(m_xwayland_surface, nullptr, XCB_STACK_MODE_ABOVE);
+        }
+    }
+
+    void Window::lower_to_bottom() noexcept {
+        wlr_scene_node_lower_to_bottom(&m_scene_tree->node);
+        if (m_xwayland_surface && m_workspace && &m_workspace->output().active_workspace() == m_workspace) {
+            wlr_xwayland_surface_restack(m_xwayland_surface, nullptr, XCB_STACK_MODE_BELOW);
+        }
     }
 
     void Window::update_borders() noexcept {

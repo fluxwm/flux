@@ -186,6 +186,9 @@ namespace flux {
         if (m_outgoing && m_outgoing != target) {
             m_outgoing->deactivate();
         }
+        if (target && m_outgoing != target) {
+            target->restack();
+        }
         m_outgoing = target;
         apply_positions(offset);
 

@@ -95,8 +95,8 @@ namespace flux {
         void update_grab(int dx, int dy);
         void end_grab() noexcept;
         void set_decoration(wlr_xdg_toplevel_decoration_v1* decoration);
-        void raise_to_top() noexcept { wlr_scene_node_raise_to_top(&m_scene_tree->node); }
-        void lower_to_bottom() noexcept { wlr_scene_node_lower_to_bottom(&m_scene_tree->node); }
+        void raise_to_top() noexcept;
+        void lower_to_bottom() noexcept;
         void close() noexcept {
             if (m_xdg_toplevel) {
                 wlr_xdg_toplevel_send_close(m_xdg_toplevel);

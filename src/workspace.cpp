@@ -204,9 +204,11 @@ namespace flux {
             }
         }
 
+        const bool is_active_ws = (&m_output.active_workspace() == this) && !is_busy_output;
+
         for (Window* w : m_focus_stack) {
             if (w->is_fullscreen()) {
-                if (w == top_fullscreen && !is_busy_output) {
+                if (w == top_fullscreen && is_active_ws) {
                     wlr_scene_node_reparent(&w->scene_tree()->node, m_output.compositor().scene().fullscreen());
                 } else {
                     w->reparent_to_workspace();
@@ -226,7 +228,7 @@ namespace flux {
                 w->raise_to_top();
             }
         }
-        if (top_fullscreen && is_busy_output) {
+        if (top_fullscreen) {
             top_fullscreen->raise_to_top();
         }
     }

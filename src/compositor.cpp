@@ -506,6 +506,7 @@ namespace flux {
 
         old_ws->arrange();
         new_ws.arrange();
+        new_ws.restack();
         refocus();
     }
 
