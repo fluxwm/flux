@@ -162,16 +162,16 @@ namespace flux::input {
 
     void Keyboard::on_key(wlr_keyboard_key_event* event) {
         m_input.seat().notify_activity();
-        const uint32_t keycode = event->keycode + 8;
-        const xkb_keysym_t* syms = nullptr;
-        const int nsyms =
-            m_wlr_keyboard->xkb_state ? xkb_state_key_get_syms(m_wlr_keyboard->xkb_state, keycode, &syms) : 0;
-
         bool handled = false;
-        const uint32_t modifiers = wlr_keyboard_get_modifiers(m_wlr_keyboard);
 
         if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
             stop_repeat();
+
+            const uint32_t keycode = event->keycode + 8;
+            const xkb_keysym_t* syms = nullptr;
+            const int nsyms =
+                m_wlr_keyboard->xkb_state ? xkb_state_key_get_syms(m_wlr_keyboard->xkb_state, keycode, &syms) : 0;
+            const uint32_t modifiers = wlr_keyboard_get_modifiers(m_wlr_keyboard);
 
             auto try_syms = [&](const xkb_keysym_t* list, int count) {
                 for (int i = 0; i < count; ++i) {
@@ -187,11 +187,24 @@ namespace flux::input {
 
             handled = try_syms(syms, nsyms);
             if (!handled && m_wlr_keyboard->keymap && m_wlr_keyboard->xkb_state) {
-                const xkb_layout_index_t layout = xkb_state_key_get_layout(m_wlr_keyboard->xkb_state, keycode);
-                const xkb_keysym_t* raw_syms = nullptr;
-                const int n_raw =
-                    xkb_keymap_key_get_syms_by_level(m_wlr_keyboard->keymap, keycode, layout, 0, &raw_syms);
-                handled = try_syms(raw_syms, n_raw);
+                auto try_layout = [&](xkb_layout_index_t layout) {
+                    const xkb_keysym_t* raw_syms = nullptr;
+                    const int n_raw =
+                        xkb_keymap_key_get_syms_by_level(m_wlr_keyboard->keymap, keycode, layout, 0, &raw_syms);
+                    return try_syms(raw_syms, n_raw);
+                };
+
+                const xkb_layout_index_t active_layout = xkb_state_key_get_layout(m_wlr_keyboard->xkb_state, keycode);
+                if (xkb_state_key_get_level(m_wlr_keyboard->xkb_state, keycode, active_layout) != 0) {
+                    handled = try_layout(active_layout);
+                }
+
+                const xkb_layout_index_t num_layouts = xkb_keymap_num_layouts_for_key(m_wlr_keyboard->keymap, keycode);
+                for (xkb_layout_index_t l = 0; !handled && l < num_layouts; ++l) {
+                    if (l != active_layout) {
+                        handled = try_layout(l);
+                    }
+                }
             }
 
             if (handled && !std::ranges::contains(m_consumed_keycodes, event->keycode)) {
