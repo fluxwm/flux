@@ -78,14 +78,7 @@ namespace flux {
         }
         auto on_sigchld = [](int, void* data) {
             auto* self = static_cast<Compositor*>(data);
-            siginfo_t info{};
-            while (waitid(P_ALL, 0, &info, WEXITED | WNOHANG | WNOWAIT) == 0 && info.si_pid > 0) {
-                if (self->xwayland() && self->xwayland()->server && info.si_pid == self->xwayland()->server->pid) {
-                    break;
-                }
-                waitpid(info.si_pid, nullptr, 0);
-                info = {};
-            }
+            std::erase_if(self->m_spawned_pids, [](pid_t pid) { return waitpid(pid, nullptr, WNOHANG) != 0; });
             return 0;
         };
         wl_event_loop_add_signal(event_loop, SIGCHLD, on_sigchld, this);
@@ -372,6 +365,8 @@ namespace flux {
             execvp(action.program.c_str(), const_cast<char* const*>(argv.data()));
             _exit(1);
         }
+
+        m_spawned_pids.push_back(pid);
     }
 
     void Compositor::focus_surface(wlr_surface* surface) {

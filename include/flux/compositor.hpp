@@ -9,6 +9,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <sys/types.h>
 #include <vector>
 
 namespace flux {
@@ -124,6 +125,7 @@ namespace flux {
         std::vector<std::unique_ptr<Window>> m_windows;
         std::vector<std::unique_ptr<Popup>> m_popups;
         std::vector<Window*> m_orphaned_focus_order;
+        std::vector<pid_t> m_spawned_pids;
         Output* m_swipe_output = nullptr;
         uint32_t m_saved_workspace_id = 1;
 
