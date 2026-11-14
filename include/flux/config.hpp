@@ -152,6 +152,7 @@ namespace flux {
         std::filesystem::path m_real_filename;
         int m_inotify_fd = -1;
         wl_event_source* m_inotify_source = nullptr;
+        std::vector<int> m_watch_descriptors;
         std::function<void()> m_on_reload;
 
         bool m_middle_click_paste = true;

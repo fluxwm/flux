@@ -594,11 +594,24 @@ namespace flux {
             return;
         }
 
+        for (int wd : m_watch_descriptors) {
+            inotify_rm_watch(m_inotify_fd, wd);
+        }
+        m_watch_descriptors.clear();
+
+        auto add_watch = [this](const std::filesystem::path& p, uint32_t mask) {
+            if (const int wd = inotify_add_watch(m_inotify_fd, p.c_str(), mask); wd >= 0) {
+                m_watch_descriptors.push_back(wd);
+                return true;
+            }
+            return false;
+        };
+
         constexpr uint32_t watch_mask = IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE;
         const auto parent_dir = m_path.parent_path();
-        if (!parent_dir.empty() && inotify_add_watch(m_inotify_fd, parent_dir.c_str(), watch_mask) < 0) {
+        if (!parent_dir.empty() && !add_watch(parent_dir, watch_mask)) {
             if (const auto grandparent = parent_dir.parent_path(); !grandparent.empty()) {
-                inotify_add_watch(m_inotify_fd, grandparent.c_str(), watch_mask);
+                add_watch(grandparent, watch_mask);
             }
         }
 
@@ -610,7 +623,7 @@ namespace flux {
                 m_real_filename = real_path.filename();
             }
             if (real_path.has_parent_path() && real_path.parent_path() != parent_dir) {
-                inotify_add_watch(m_inotify_fd, real_path.parent_path().c_str(), IN_CLOSE_WRITE | IN_MOVED_TO);
+                add_watch(real_path.parent_path(), IN_CLOSE_WRITE | IN_MOVED_TO);
             }
         }
     }
