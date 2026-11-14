@@ -30,6 +30,8 @@ namespace flux {
         m_listeners.listen(&xdg_popup->events.reposition, this, &Popup::on_reposition);
         m_listeners.listen(&xdg_popup->base->surface->events.map, this, &Popup::on_map);
         m_listeners.listen(&xdg_popup->base->surface->events.unmap, this, &Popup::on_unmap);
+
+        update_position();
     }
 
     Popup::Popup(Compositor& compositor, wlr_xwayland_surface* xsurface)
@@ -61,19 +63,18 @@ namespace flux {
         if (m_wrapper_tree && m_root_tree) {
             int root_lx = 0;
             int root_ly = 0;
-            wlr_scene_node_coords(&m_root_tree->node, &root_lx, &root_ly);
+            const bool visible = wlr_scene_node_coords(&m_root_tree->node, &root_lx, &root_ly);
             wlr_scene_node_set_position(&m_wrapper_tree->node, root_lx, root_ly);
+            wlr_scene_node_set_enabled(&m_wrapper_tree->node, visible);
         }
     }
 
     void Popup::unconstrain() {
+        update_position();
+
         int root_lx = 0;
         int root_ly = 0;
         wlr_scene_node_coords(&m_root_tree->node, &root_lx, &root_ly);
-
-        if (m_wrapper_tree) {
-            wlr_scene_node_set_position(&m_wrapper_tree->node, root_lx, root_ly);
-        }
 
         wlr_output* wlr_out = wlr_output_layout_output_at(m_compositor.output_layout(), root_lx, root_ly);
         Output* output = m_compositor.output_from_wlr(wlr_out);

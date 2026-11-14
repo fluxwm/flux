@@ -86,12 +86,13 @@ namespace flux {
         }
         wlr_scene_node_set_position(&m_tree->node, 0, 0);
         wlr_scene_node_set_enabled(&m_tree->node, true);
+        m_output.compositor().update_popup_positions();
     }
 
     void Workspace::deactivate() noexcept {
-        prepare_slide();
         wlr_scene_node_set_enabled(&m_tree->node, false);
         wlr_scene_node_set_position(&m_tree->node, 0, 0);
+        prepare_slide();
     }
 
     void Workspace::prepare_slide() noexcept {
@@ -212,6 +213,8 @@ namespace flux {
         if (top_fullscreen) {
             top_fullscreen->raise_to_top();
         }
+
+        m_output.compositor().update_popup_positions();
     }
 
     Window* Workspace::window_in_direction(Direction direction) const {

@@ -749,6 +749,12 @@ namespace flux {
         }
     }
 
+    void Compositor::update_popup_positions() noexcept {
+        for (const auto& popup : m_popups) {
+            popup->update_position();
+        }
+    }
+
     void Compositor::remove_output(Output* output) {
         if (!output) {
             return;

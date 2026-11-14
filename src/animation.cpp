@@ -1,4 +1,5 @@
 #include "flux/animation.hpp"
+#include "flux/compositor.hpp"
 #include "flux/output.hpp"
 #include "flux/workspace.hpp"
 
@@ -72,6 +73,9 @@ namespace flux {
         if (m_outgoing && m_outgoing != m_current) {
             wlr_scene_node_set_position(&m_outgoing->tree()->node, current_x + m_outgoing_offset, 0);
             wlr_scene_node_set_enabled(&m_outgoing->tree()->node, true);
+        }
+        if (m_current) {
+            m_current->output().compositor().update_popup_positions();
         }
     }
 

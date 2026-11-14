@@ -78,6 +78,7 @@ namespace flux {
         void refocus();
         void focus_layer(Layer* layer);
         void dismiss_popups(wlr_scene_tree* root = nullptr, wlr_scene_tree* except_root = nullptr);
+        void update_popup_positions() noexcept;
         void update_cursor_focus() noexcept;
 
         // Collection management

@@ -2,7 +2,6 @@
 #include "flux/compositor.hpp"
 #include "flux/config.hpp"
 #include "flux/layer.hpp"
-#include "flux/popup.hpp"
 #include "flux/util.hpp"
 #include "flux/workspace.hpp"
 
@@ -192,9 +191,7 @@ namespace flux {
         set_usable_area(usable_area);
         configure(false);
 
-        for (const auto& popup : m_compositor.popups()) {
-            popup->update_position();
-        }
+        m_compositor.update_popup_positions();
 
         for (const auto& ws : m_workspaces) {
             ws->arrange();
