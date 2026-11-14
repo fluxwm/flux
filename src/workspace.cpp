@@ -149,7 +149,7 @@ namespace flux {
                     .height = std::max(1, usable.height - (2 * bw)),
                 });
             } else if (w->is_floating()) {
-                if (!w->is_placed()) {
+                if (!w->is_placed() && !w->is_pending_center()) {
                     w->center(usable);
                 }
                 w->update_borders();

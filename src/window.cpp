@@ -15,6 +15,10 @@ namespace flux {
             return out ? &out->active_workspace() : nullptr;
         }
 
+        [[nodiscard]] constexpr bool serial_ge(uint32_t a, uint32_t b) noexcept {
+            return static_cast<int32_t>(a - b) >= 0;
+        }
+
     }
 
     Window::Window(Compositor& compositor, wlr_xdg_toplevel* xdg_toplevel)
@@ -217,8 +221,7 @@ namespace flux {
         }
         m_maximized = false;
         m_floating_override = false;
-        m_placed = false;
-        m_resize_edges = WLR_EDGE_NONE;
+        reset_placement_state();
         m_floating_box = {};
         m_activated = false;
         update_borders();
@@ -232,7 +235,7 @@ namespace flux {
             on_request_decoration_mode();
             wlr_xdg_toplevel_set_wm_capabilities(m_xdg_toplevel, WLR_XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN);
             m_floating = wants_floating();
-            if (!m_floating) {
+            if (!m_floating && !m_xdg_toplevel->requested.fullscreen) {
                 wlr_xdg_toplevel_set_tiled(m_xdg_toplevel,
                                            WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
             }
@@ -247,7 +250,7 @@ namespace flux {
         }
 
         if (m_xdg_toplevel && m_resize_edges != WLR_EDGE_NONE) {
-            if (is_floating()) {
+            if (is_floating() && (m_resize_edges & (WLR_EDGE_LEFT | WLR_EDGE_TOP))) {
                 const wlr_box box = geometry_box();
                 const int x =
                     (m_resize_edges & WLR_EDGE_LEFT) ? (m_grab_box.x + m_grab_box.width - box.width) : m_grab_box.x;
@@ -255,14 +258,21 @@ namespace flux {
                     (m_resize_edges & WLR_EDGE_TOP) ? (m_grab_box.y + m_grab_box.height - box.height) : m_grab_box.y;
                 set_position(x, y);
             }
-            if (!m_resizing && !m_xdg_toplevel->current.resizing) {
+            if (!m_resizing &&
+                (m_resize_serial == 0 || serial_ge(m_xdg_toplevel->base->current.configure_serial, m_resize_serial))) {
                 m_resize_edges = WLR_EDGE_NONE;
+                m_resize_serial = 0;
             }
+        }
+
+        if (m_pending_center_serial != 0 &&
+            serial_ge(m_xdg_toplevel->base->current.configure_serial, m_pending_center_serial)) {
+            m_pending_center_serial = 0;
         }
 
         if (!m_floating && !m_floating_override && wants_floating()) {
             on_set_parent();
-        } else if (is_mapped() && is_floating() && !m_placed && m_workspace) {
+        } else if (is_mapped() && is_floating() && !m_placed && m_workspace && !is_pending_center()) {
             center(m_workspace->output().usable_area());
         }
         update_borders();
@@ -308,21 +318,16 @@ namespace flux {
             return;
         }
 
-        if (m_xwayland_surface && is_floating()) {
-            m_floating_box = geometry_box();
-        }
+        save_floating_box();
 
         m_maximized = !m_maximized;
-        m_placed = false;
-        if (m_xdg_toplevel) {
-            if (!m_maximized && m_floating) {
-                wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
-            }
-        } else if (m_xwayland_surface) {
+        reset_placement_state();
+        if (m_xwayland_surface) {
             wlr_xwayland_surface_set_maximized(m_xwayland_surface, m_maximized, m_maximized);
-            restore_floating_box();
         }
         if (is_mapped()) {
+            m_compositor.dismiss_popups(m_scene_tree);
+            restore_floating_box();
             if (m_workspace) {
                 m_workspace->arrange();
             }
@@ -330,11 +335,41 @@ namespace flux {
         }
     }
 
+    void Window::save_floating_box() noexcept {
+        if (is_mapped() && is_floating() && m_placed && m_pending_center_serial == 0) {
+            m_floating_box = geometry_box();
+        }
+    }
+
+    void Window::reset_placement_state() noexcept {
+        m_placed = false;
+        m_resize_edges = WLR_EDGE_NONE;
+        m_resize_serial = 0;
+        m_pending_center_serial = 0;
+    }
+
     void Window::restore_floating_box() noexcept {
-        if (!m_xwayland_surface || !is_mapped() || !is_floating()) {
+        if (!is_mapped() || !is_floating()) {
             return;
         }
-        if (m_floating_box.width <= 0 || m_floating_box.height <= 0) {
+        if (m_floating_box.width > 0 && m_floating_box.height > 0) {
+            m_placed = true;
+            if (m_workspace) {
+                const wlr_box& usable = m_workspace->output().usable_area();
+                wlr_box intersection{};
+                if (usable.width > 0 && usable.height > 0 &&
+                    !wlr_box_intersection(&intersection, &m_floating_box, &usable)) {
+                    m_floating_box.width = std::min(m_floating_box.width, usable.width);
+                    m_floating_box.height = std::min(m_floating_box.height, usable.height);
+                    m_floating_box.x = usable.x + ((usable.width - m_floating_box.width) / 2);
+                    m_floating_box.y = usable.y + ((usable.height - m_floating_box.height) / 2);
+                }
+            }
+            set_geometry(m_floating_box);
+            return;
+        }
+
+        if (m_xwayland_surface) {
             if (!m_floating_override || !m_workspace) {
                 return;
             }
@@ -347,25 +382,23 @@ namespace flux {
                 .width = w,
                 .height = h,
             };
+            m_placed = true;
+            set_geometry(m_floating_box);
+        } else if (m_xdg_toplevel && m_xdg_toplevel->base->initialized) {
+            m_pending_center_serial = wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
         }
-        m_placed = true;
-        set_geometry(m_floating_box);
     }
 
     void Window::set_floating(bool floating) {
-        if (!floating && m_xwayland_surface && is_floating()) {
-            m_floating_box = geometry_box();
-        }
+        save_floating_box();
         m_floating = floating;
-        m_placed = false;
+        reset_placement_state();
         if (m_xdg_toplevel && m_xdg_toplevel->base->initialized) {
             constexpr uint32_t edges = WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT;
             wlr_xdg_toplevel_set_tiled(m_xdg_toplevel, m_floating ? 0 : edges);
-            if (is_floating()) {
-                wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
-            }
         }
         if (is_mapped()) {
+            m_compositor.dismiss_popups(m_scene_tree);
             restore_floating_box();
             if (m_workspace) {
                 m_workspace->arrange();
@@ -409,16 +442,15 @@ namespace flux {
             return;
         }
 
-        if (fullscreen && m_xwayland_surface && is_floating()) {
-            m_floating_box = geometry_box();
-        }
+        save_floating_box();
 
         m_fullscreen = fullscreen;
-        m_placed = false;
+        reset_placement_state();
         update_borders();
 
         if (m_fullscreen) {
             if (m_xdg_toplevel) {
+                wlr_xdg_toplevel_set_tiled(m_xdg_toplevel, 0);
                 if (m_xdg_toplevel->requested.fullscreen_output) {
                     if (Output* out = m_compositor.output_from_wlr(m_xdg_toplevel->requested.fullscreen_output)) {
                         set_output(out);
@@ -432,16 +464,18 @@ namespace flux {
             reparent_to_workspace();
             if (m_xdg_toplevel) {
                 wlr_xdg_toplevel_set_fullscreen(m_xdg_toplevel, false);
-                if (m_floating && !m_maximized) {
-                    wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
+                if (!m_floating) {
+                    constexpr uint32_t edges = WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT;
+                    wlr_xdg_toplevel_set_tiled(m_xdg_toplevel, edges);
                 }
             } else if (m_xwayland_surface) {
                 wlr_xwayland_surface_set_fullscreen(m_xwayland_surface, false);
-                restore_floating_box();
             }
         }
 
         if (is_mapped()) {
+            m_compositor.dismiss_popups(m_scene_tree);
+            restore_floating_box();
             if (m_fullscreen && m_workspace) {
                 m_workspace->promote(this);
             }
@@ -502,6 +536,11 @@ namespace flux {
     }
 
     void Window::set_geometry(const wlr_box& box) noexcept {
+        if (!m_resizing) {
+            m_resize_edges = WLR_EDGE_NONE;
+            m_resize_serial = 0;
+            m_pending_center_serial = 0;
+        }
         move_scene_tree(box.x, box.y);
         const int w = std::max(1, box.width);
         const int h = std::max(1, box.height);
@@ -606,14 +645,17 @@ namespace flux {
         if (box.width <= 0 || box.height <= 0) {
             return;
         }
+        m_placed = true;
         set_position(area.x + ((area.width - box.width) / 2), area.y + ((area.height - box.height) / 2));
     }
 
     void Window::start_grab(uint32_t edges) {
         m_compositor.dismiss_popups();
+        m_pending_center_serial = 0;
         m_placed = true;
         m_grab_box = geometry_box();
         m_resize_edges = edges;
+        m_resize_serial = 0;
         m_resizing = (edges != WLR_EDGE_NONE);
         if (m_resizing && m_xdg_toplevel) {
             wlr_xdg_toplevel_set_resizing(m_xdg_toplevel, true);
@@ -641,7 +683,10 @@ namespace flux {
         const int w = std::max(1, width);
         const int h = std::max(1, height);
         if (m_xdg_toplevel) {
-            wlr_xdg_toplevel_set_size(m_xdg_toplevel, w, h);
+            const uint32_t serial = wlr_xdg_toplevel_set_size(m_xdg_toplevel, w, h);
+            if (m_resize_edges & (WLR_EDGE_LEFT | WLR_EDGE_TOP)) {
+                m_resize_serial = serial;
+            }
         } else if (m_xwayland_surface) {
             int new_x = m_grab_box.x;
             int new_y = m_grab_box.y;
@@ -659,10 +704,15 @@ namespace flux {
         const bool was_resizing = m_resizing;
         if (m_resizing) {
             m_resizing = false;
+            bool clear_resize = true;
             if (m_xdg_toplevel && m_xdg_toplevel->base->initialized) {
                 wlr_xdg_toplevel_set_resizing(m_xdg_toplevel, false);
-            } else {
+                clear_resize = (m_resize_serial == 0 ||
+                                serial_ge(m_xdg_toplevel->base->current.configure_serial, m_resize_serial));
+            }
+            if (clear_resize) {
                 m_resize_edges = WLR_EDGE_NONE;
+                m_resize_serial = 0;
             }
         }
         if (!was_resizing && is_mapped()) {

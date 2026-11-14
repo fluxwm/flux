@@ -68,6 +68,7 @@ namespace flux {
         [[nodiscard]] bool is_floating() const noexcept { return !m_fullscreen && !m_maximized && m_floating; }
         [[nodiscard]] bool is_tiled() const noexcept { return !m_fullscreen && !m_maximized && !m_floating; }
         [[nodiscard]] bool is_placed() const noexcept { return m_placed; }
+        [[nodiscard]] bool is_pending_center() const noexcept { return m_pending_center_serial != 0; }
         [[nodiscard]] bool is_mapped() const noexcept {
             const auto* s = surface();
             return s && s->mapped;
@@ -124,6 +125,8 @@ namespace flux {
         void on_set_hints();
         void on_set_override_redirect();
         void restore_floating_box() noexcept;
+        void save_floating_box() noexcept;
+        void reset_placement_state() noexcept;
         bool move_scene_tree(int x, int y) noexcept;
         void update_foreign_toplevel() noexcept;
 
@@ -141,6 +144,8 @@ namespace flux {
         bool m_resizing = false;
         bool m_activated = false;
         uint32_t m_resize_edges = WLR_EDGE_NONE;
+        uint32_t m_resize_serial = 0;
+        uint32_t m_pending_center_serial = 0;
         wlr_box m_grab_box{};
         wlr_box m_floating_box{};
         Workspace* m_workspace = nullptr;
