@@ -36,6 +36,7 @@ namespace flux {
         m_listeners.clear();
 
         m_popups.clear();
+        m_orphaned_focus_order.clear();
         m_windows.clear();
         m_outputs.clear();
         m_input.reset();
@@ -596,6 +597,7 @@ namespace flux {
     }
 
     void Compositor::unmap_window(Window* window) {
+        std::erase(m_orphaned_focus_order, window);
         m_input->cursor().cancel_grab(window);
         dismiss_popups(window->scene_tree());
         Workspace* ws = window->workspace();
@@ -662,6 +664,7 @@ namespace flux {
 
     void Compositor::remove_window(Window* window) {
         if (window) {
+            std::erase(m_orphaned_focus_order, window);
             if (window->is_mapped()) {
                 unmap_window(window);
             } else {
@@ -757,6 +760,12 @@ namespace flux {
             for (const auto& ws : output->workspaces()) {
                 focus_order.insert(focus_order.end(), ws->focus_stack().begin(), ws->focus_stack().end());
             }
+        } else {
+            m_orphaned_focus_order.clear();
+            for (const auto& ws : output->workspaces()) {
+                m_orphaned_focus_order.insert(m_orphaned_focus_order.end(), ws->focus_stack().begin(),
+                                              ws->focus_stack().end());
+            }
         }
 
         for (const auto& win : m_windows) {
@@ -803,6 +812,12 @@ namespace flux {
                 win->set_workspace(&new_out->workspace(win->workspace_id()));
             }
         }
+        for (Window* win : std::views::reverse(m_orphaned_focus_order)) {
+            if (win->is_mapped() && win->workspace()) {
+                win->workspace()->promote(win);
+            }
+        }
+        m_orphaned_focus_order.clear();
         for (const auto& out : m_outputs) {
             out->arrange_layers();
         }
