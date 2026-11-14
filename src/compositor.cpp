@@ -431,12 +431,17 @@ namespace flux {
             return false;
         }
 
-        m_focused_output = nullptr;
-        Output* out = focused_output();
+        wlr_output* wlr_out =
+            wlr_output_layout_output_at(m_output_layout, m_input->cursor().x(), m_input->cursor().y());
+        Output* out = output_from_wlr(wlr_out);
         if (!out || !out->is_enabled()) {
+            out = focused_output();
+        }
+        if (!out) {
             return false;
         }
 
+        m_focused_output = nullptr;
         m_swipe_output = out;
         out->animation().begin_swipe(*out);
         dismiss_popups();
