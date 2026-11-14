@@ -217,6 +217,7 @@ namespace flux {
 
         if (m_fullscreen) {
             m_fullscreen = false;
+            wlr_scene_node_set_enabled(&m_scene_tree->node, true);
             reparent_to_workspace();
         }
         m_maximized = false;
@@ -461,6 +462,7 @@ namespace flux {
                 wlr_xwayland_surface_set_fullscreen(m_xwayland_surface, true);
             }
         } else {
+            wlr_scene_node_set_enabled(&m_scene_tree->node, true);
             reparent_to_workspace();
             if (m_xdg_toplevel) {
                 wlr_xdg_toplevel_set_fullscreen(m_xdg_toplevel, false);

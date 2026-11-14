@@ -95,12 +95,7 @@ namespace flux {
     }
 
     void Workspace::prepare_slide() noexcept {
-        for (Window* w : std::views::reverse(m_focus_stack)) {
-            if (w->is_fullscreen()) {
-                w->reparent_to_workspace();
-                w->raise_to_top();
-            }
-        }
+        restack();
         wlr_ext_workspace_handle_v1_set_active(m_handle, false);
     }
 
@@ -111,6 +106,9 @@ namespace flux {
         if (!std::ranges::contains(m_windows, window)) {
             m_windows.push_back(window);
         }
+        if (!window->is_floating()) {
+            m_active_fullscreen = window->is_fullscreen() ? window : nullptr;
+        }
         if (focused_window() == window) {
             return;
         }
@@ -119,6 +117,9 @@ namespace flux {
     }
 
     void Workspace::remove(Window* window) noexcept {
+        if (m_active_fullscreen == window) {
+            m_active_fullscreen = nullptr;
+        }
         std::erase(m_focus_stack, window);
         std::erase(m_windows, window);
     }
@@ -165,11 +166,21 @@ namespace flux {
 
     void Workspace::restack() {
         const bool is_busy_output = m_output.animation().is_busy();
-        Window* top_fullscreen = nullptr;
-        for (Window* w : m_focus_stack) {
-            if (w->is_fullscreen()) {
-                top_fullscreen = w;
-                break;
+        Window* focused = focused_window();
+        Window* top_fullscreen = (focused && focused->is_fullscreen()) ? focused : nullptr;
+
+        if (m_active_fullscreen && !m_active_fullscreen->is_fullscreen()) {
+            m_active_fullscreen = nullptr;
+        }
+        if (focused && !focused->is_floating()) {
+            m_active_fullscreen = top_fullscreen;
+        }
+        if (!m_active_fullscreen && std::ranges::none_of(m_focus_stack, [](const Window* w) {
+                return !w->is_fullscreen() && !w->is_floating();
+            })) {
+            auto it = std::ranges::find_if(m_focus_stack, &Window::is_fullscreen);
+            if (it != m_focus_stack.end()) {
+                m_active_fullscreen = *it;
             }
         }
 
@@ -182,10 +193,14 @@ namespace flux {
                 } else {
                     w->reparent_to_workspace();
                 }
-            }
-            if (!w->is_floating() && w != top_fullscreen) {
+                wlr_scene_node_set_enabled(&w->scene_tree()->node, w == m_active_fullscreen);
+            } else if (!w->is_floating()) {
                 w->raise_to_top();
             }
+        }
+
+        if (m_active_fullscreen && m_active_fullscreen != top_fullscreen) {
+            m_active_fullscreen->raise_to_top();
         }
 
         for (Window* w : std::views::reverse(m_focus_stack)) {

@@ -51,6 +51,7 @@ namespace flux {
         Output& m_output;
         wlr_scene_tree* m_tree = nullptr;
         wlr_ext_workspace_handle_v1* m_handle = nullptr;
+        Window* m_active_fullscreen = nullptr;
         std::vector<Window*> m_focus_stack;
         std::vector<Window*> m_windows;
     };
