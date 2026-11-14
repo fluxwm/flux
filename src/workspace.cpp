@@ -216,7 +216,7 @@ namespace flux {
 
     Window* Workspace::window_in_direction(Direction direction) const {
         Window* focused = focused_window();
-        if (!focused || !focused->is_tiled()) {
+        if (!focused || focused->is_fullscreen() || focused->is_maximized()) {
             return nullptr;
         }
 
@@ -226,6 +226,34 @@ namespace flux {
                 tiled.push_back(w);
             }
         }
+        const bool is_monocle = m_output.compositor().config().layout().mode == Layout::Monocle;
+        auto top_stack_window = [&] -> Window* {
+            auto stack_it =
+                std::ranges::find_if(m_focus_stack, [&](const Window* w) { return w != tiled[0] && w->is_tiled(); });
+            return (stack_it != m_focus_stack.end()) ? *stack_it : tiled[1];
+        };
+
+        if (focused->is_floating()) {
+            if (m_active_fullscreen) {
+                return m_active_fullscreen;
+            }
+            auto bg_it =
+                std::ranges::find_if(m_focus_stack, [](const Window* w) { return w->is_tiled() || w->is_maximized(); });
+            if (bg_it == m_focus_stack.end()) {
+                return nullptr;
+            }
+            if ((*bg_it)->is_maximized() || tiled.size() <= 1 || is_monocle) {
+                return *bg_it;
+            }
+            if (direction == Direction::Left) {
+                return tiled[0];
+            }
+            if (direction == Direction::Right) {
+                return top_stack_window();
+            }
+            return *bg_it;
+        }
+
         if (tiled.size() <= 1) {
             return nullptr;
         }
@@ -237,7 +265,7 @@ namespace flux {
         const size_t idx = static_cast<size_t>(std::distance(tiled.begin(), it));
         auto wrap = [&](Window* target) -> Window* { return m_output.adjacent_output(direction) ? nullptr : target; };
 
-        if (m_output.compositor().config().layout().mode == Layout::Monocle) {
+        if (is_monocle) {
             const bool at_edge = (direction == Direction::Left || direction == Direction::Right) ||
                                  (direction == Direction::Up && idx == 0) ||
                                  (direction == Direction::Down && idx == tiled.size() - 1);
@@ -249,11 +277,8 @@ namespace flux {
 
         if (idx == 0) {
             switch (direction) {
-                case Direction::Right: {
-                    auto stack_it = std::ranges::find_if(
-                        m_focus_stack, [focused](const Window* w) { return w != focused && w->is_tiled(); });
-                    return (stack_it != m_focus_stack.end()) ? *stack_it : tiled[1];
-                }
+                case Direction::Right:
+                    return top_stack_window();
                 case Direction::Left:
                     return nullptr;
                 case Direction::Down:
