@@ -701,14 +701,35 @@ namespace flux {
         } else if (m_resize_edges & WLR_EDGE_BOTTOM) {
             height += dy;
         }
-        const int w = std::max(1, width);
-        const int h = std::max(1, height);
+        int w = std::max(1, width);
+        int h = std::max(1, height);
+        auto clamp_size = [&](int min_w, int min_h, int max_w, int max_h) {
+            w = std::max(w, min_w);
+            h = std::max(h, min_h);
+            if (max_w >= std::max(1, min_w)) {
+                w = std::min(w, max_w);
+            }
+            if (max_h >= std::max(1, min_h)) {
+                h = std::min(h, max_h);
+            }
+        };
+
         if (m_xdg_toplevel) {
-            const uint32_t serial = wlr_xdg_toplevel_set_size(m_xdg_toplevel, w, h);
-            if (m_resize_edges & (WLR_EDGE_LEFT | WLR_EDGE_TOP)) {
-                m_resize_serial = serial;
+            const auto& s = m_xdg_toplevel->current;
+            clamp_size(s.min_width, s.min_height, s.max_width, s.max_height);
+            const int cur_w = m_xdg_toplevel->scheduled.width > 0 ? m_xdg_toplevel->scheduled.width : m_grab_box.width;
+            const int cur_h =
+                m_xdg_toplevel->scheduled.height > 0 ? m_xdg_toplevel->scheduled.height : m_grab_box.height;
+            if (w != cur_w || h != cur_h) {
+                const uint32_t serial = wlr_xdg_toplevel_set_size(m_xdg_toplevel, w, h);
+                if (m_resize_edges & (WLR_EDGE_LEFT | WLR_EDGE_TOP)) {
+                    m_resize_serial = serial;
+                }
             }
         } else if (m_xwayland_surface) {
+            if (const auto* hints = m_xwayland_surface->size_hints) {
+                clamp_size(hints->min_width, hints->min_height, hints->max_width, hints->max_height);
+            }
             int new_x = m_grab_box.x;
             int new_y = m_grab_box.y;
             if (m_resize_edges & WLR_EDGE_LEFT) {
