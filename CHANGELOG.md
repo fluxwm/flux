@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.9.0](https://github.com/fluxwm/flux/compare/v0.8.0...v0.9.0) (2026-11-14)
+
+
+### Features
+
+* add native XWayland support ([8a34e06](https://github.com/fluxwm/flux/commit/8a34e06de4d84c59ec0c071b686d88dbf1304455))
+* add repeat and locked keybind options ([5e92727](https://github.com/fluxwm/flux/commit/5e92727774070f7429920130579501ee034993b2))
+* add virtual-keyboard-unstable-v1 protocol support ([6dbb4f8](https://github.com/fluxwm/flux/commit/6dbb4f89c9b1fbad55fbe5f5cf41158c228e6b60))
+* add wayland drag-and-drop support ([cf26374](https://github.com/fluxwm/flux/commit/cf26374496cecb4b959b4392fda9e2f5aaa44139))
+* add wlr-output-power-management-unstable-v1 protocol support ([7a19be3](https://github.com/fluxwm/flux/commit/7a19be33c1b5113da996ab55768bc488236d3202))
+* add wlr-virtual-pointer-unstable-v1 protocol support ([4924886](https://github.com/fluxwm/flux/commit/49248860d7e2202797ffaa671fe2eb96aadfb3a8))
+
+
+### Bug Fixes
+
+* avoid reaping XWayland server process in SIGCHLD handler ([f2930e2](https://github.com/fluxwm/flux/commit/f2930e20c37267d69e50da2fd95e8055b3319dea))
+* clean up scene output and layout on output destruction ([398135c](https://github.com/fluxwm/flux/commit/398135ce2e5b4911000cb0e9a2c63940d9cc039f))
+* clean up XWayland subsurface tree on dissociate and remove redundant arrange ([66a2cde](https://github.com/fluxwm/flux/commit/66a2cde16fc90fae67062f05093e85f89fd1f09a))
+* clip sliding workspaces and window borders to output bounds ([174256f](https://github.com/fluxwm/flux/commit/174256fd0a10f3fd5203f8484e0b23d96e70fe96))
+* configure XWayland geometry with target box and restack all tiled windows ([fa3db36](https://github.com/fluxwm/flux/commit/fa3db36a21629662fd2a09edf70fd8b207ad38a5))
+* destroy child popups before parents and clear XDG surface data ([cc96b9e](https://github.com/fluxwm/flux/commit/cc96b9e1aef9afad27c672c58cddf6e1242f293c))
+* fallback to surface input region for uncommitted pointer constraints ([a74a8da](https://github.com/fluxwm/flux/commit/a74a8dab8859eff907fac005fca7350061fdbb1f))
+* filter consumed keybind keycodes from keyboard enter events ([d3528f6](https://github.com/fluxwm/flux/commit/d3528f6c0c38df7f52ad151c7e8760b211d3d215))
+* guard subsurface tree clipping against empty workspace trees ([da39c98](https://github.com/fluxwm/flux/commit/da39c98b1d04dce0d4136ffa2574670e8c88f9a9))
+* keep fullscreen windows above floating windows during workspace animations ([7da01d1](https://github.com/fluxwm/flux/commit/7da01d10a575e563aa38007f6e1b8de9fce3cfdc))
+* preserve focus stack order across workspaces on output removal ([217cdec](https://github.com/fluxwm/flux/commit/217cdec3363b85e8f9a53374ebb340116a9e6bde))
+* preserve focus stack order when reconnecting outputs ([af556dc](https://github.com/fluxwm/flux/commit/af556dce9edf86bcb3886cbb26c8f45af0e260bf))
+* preserve pointer focus on layer surfaces during workspace animations ([6431801](https://github.com/fluxwm/flux/commit/643180119c5530fc8a4173da0d8fb5e3bc352528))
+* preserve XWayland floating geometry and correct window state transitions ([0665514](https://github.com/fluxwm/flux/commit/06655141a1b75bf956821827e464e29e5f965820))
+* refresh cursor focus on popup transitions and constraint destruction ([52cf91e](https://github.com/fluxwm/flux/commit/52cf91e14e059a25ac9d56e4c9980b5dab76ebdc))
+* reject unknown modifiers and empty tokens in keybind combos ([7736576](https://github.com/fluxwm/flux/commit/7736576841a01925b4ca78363698a447e439015a))
+* remove stale inotify watch descriptors on config watch updates ([9460258](https://github.com/fluxwm/flux/commit/9460258d6f56d204da0590fbdc80147ae5d0ba52))
+* remove subsurface workspace clipping and border clamping during animations ([622da11](https://github.com/fluxwm/flux/commit/622da11c6d6658e98c2a8f841e6f1be58077759e))
+* reset placement and refocus when parent window moves across outputs ([7aaff19](https://github.com/fluxwm/flux/commit/7aaff1959f586f8aac2bc8e787e0683c2e7c1e82))
+* suppress pointer focus during animations and allow multi-output exclusive layers ([1720929](https://github.com/fluxwm/flux/commit/17209296e37099f258ea2709a2620ea0f702cd92))
+* synchronize xwayland maximize state and guard override-redirect popups ([9a7b8bd](https://github.com/fluxwm/flux/commit/9a7b8bdc5ba96a65876abd2ffa8a49822de76abe))
+* synchronize XWayland stacking order and restack inactive workspaces ([3f1dec7](https://github.com/fluxwm/flux/commit/3f1dec77fd83ab505b7f7ccb477a9480c52490f5))
+
 ## [0.8.0](https://github.com/fluxwm/flux/compare/v0.7.0...v0.8.0) (2026-11-11)
 
 
