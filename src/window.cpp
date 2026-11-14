@@ -206,6 +206,8 @@ namespace flux {
         m_ext_toplevel_handle = wlr_ext_foreign_toplevel_handle_v1_create(m_compositor.foreign_toplevel_list(), &state);
 
         m_compositor.map_window(this);
+        m_committed_width = surface()->current.width;
+        m_committed_height = surface()->current.height;
         update_borders();
     }
 
@@ -224,6 +226,8 @@ namespace flux {
         m_floating_override = false;
         reset_placement_state();
         m_floating_box = {};
+        m_committed_width = 0;
+        m_committed_height = 0;
         m_activated = false;
         update_borders();
 
@@ -249,6 +253,9 @@ namespace flux {
             }
             return;
         }
+
+        const int old_x = m_scene_tree->node.x;
+        const int old_y = m_scene_tree->node.y;
 
         if (m_xdg_toplevel && m_resize_edges != WLR_EDGE_NONE) {
             if (is_floating() && (m_resize_edges & (WLR_EDGE_LEFT | WLR_EDGE_TOP))) {
@@ -277,6 +284,18 @@ namespace flux {
             center(m_workspace->output().usable_area());
         }
         update_borders();
+
+        if (is_mapped()) {
+            const auto* s = surface();
+            const bool size_changed =
+                (s->current.width != m_committed_width || s->current.height != m_committed_height);
+            const bool pos_changed = (m_scene_tree->node.x != old_x || m_scene_tree->node.y != old_y);
+            m_committed_width = s->current.width;
+            m_committed_height = s->current.height;
+            if ((size_changed || pos_changed) && !m_resizing) {
+                m_compositor.update_cursor_focus();
+            }
+        }
     }
 
     void Window::on_destroy() {
