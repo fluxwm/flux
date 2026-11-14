@@ -416,7 +416,6 @@ namespace flux {
         Workspace& new_ws = output->workspace(id);
         output->set_active_workspace(&new_ws);
         if (output->is_enabled()) {
-            m_input->seat().clear_pointer_focus();
             output->animation().start(old_ws, new_ws, std::max(1, output->layout_box().width));
             wlr_output_schedule_frame(output->raw());
         } else {

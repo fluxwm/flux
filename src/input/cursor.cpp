@@ -330,10 +330,6 @@ namespace flux::input {
             return;
         }
 
-        if (Output* out = m_input.compositor().focused_output(); out && out->animation().is_active()) {
-            return;
-        }
-
         if (!m_input.compositor().exclusive_layer()) {
             if (auto* constraint = m_input.seat().active_constraint();
                 constraint && constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED) {
@@ -369,6 +365,10 @@ namespace flux::input {
                 !m_grab_window->is_floating() || m_grab_window != m_input.compositor().focused_window()) {
                 end_grab();
             }
+            return;
+        }
+
+        if (Output* out = m_input.compositor().focused_output(); out && out->animation().is_active()) {
             return;
         }
 
