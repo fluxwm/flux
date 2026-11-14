@@ -73,6 +73,7 @@ namespace flux::input {
         uint32_t m_grab_button = 0;
         double m_grab_x = 0.0;
         double m_grab_y = 0.0;
+        bool m_swiping_workspace = false;
         ListenerGroup m_listeners;
     };
 

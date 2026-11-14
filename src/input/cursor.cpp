@@ -287,8 +287,12 @@ namespace flux::input {
 
     void Cursor::on_swipe_begin(wlr_pointer_swipe_begin_event* event) {
         m_input.seat().notify_activity();
+        if (m_swiping_workspace) {
+            return;
+        }
         if (event->fingers == 3 && !m_grab_window && !m_input.seat().is_drag_active() &&
             m_input.compositor().begin_workspace_swipe()) {
+            m_swiping_workspace = true;
             m_input.seat().clear_pointer_focus();
             return;
         }
@@ -298,7 +302,7 @@ namespace flux::input {
 
     void Cursor::on_swipe_update(wlr_pointer_swipe_update_event* event) {
         m_input.seat().notify_activity();
-        if (m_input.compositor().is_workspace_swiping()) {
+        if (m_swiping_workspace) {
             m_input.compositor().update_workspace_swipe(event->dx);
             return;
         }
@@ -308,7 +312,8 @@ namespace flux::input {
 
     void Cursor::on_swipe_end(wlr_pointer_swipe_end_event* event) {
         m_input.seat().notify_activity();
-        if (m_input.compositor().is_workspace_swiping()) {
+        if (m_swiping_workspace) {
+            m_swiping_workspace = false;
             m_input.compositor().end_workspace_swipe();
             return;
         }
