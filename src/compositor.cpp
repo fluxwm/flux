@@ -617,12 +617,30 @@ namespace flux {
             ZWLR_LAYER_SHELL_V1_LAYER_TOP,
         };
 
+        const bool has_enabled = std::ranges::any_of(m_outputs, &Output::is_enabled);
+
+        auto find_in_output = [&](const Output* out, zwlr_layer_shell_v1_layer layer) -> Layer* {
+            if (!out || (has_enabled && !out->is_enabled())) {
+                return nullptr;
+            }
+            for (const auto& ls : std::views::reverse(out->layers())) {
+                if (ls->is_mapped() && ls->layer() == layer && ls->is_exclusive()) {
+                    return ls.get();
+                }
+            }
+            return nullptr;
+        };
+
         for (auto layer : layers) {
+            if (auto* excl = find_in_output(m_focused_output, layer)) {
+                return excl;
+            }
             for (const auto& out : m_outputs) {
-                for (const auto& ls : std::views::reverse(out->layers())) {
-                    if (ls->is_mapped() && ls->layer() == layer && ls->is_exclusive()) {
-                        return ls.get();
-                    }
+                if (out.get() == m_focused_output) {
+                    continue;
+                }
+                if (auto* excl = find_in_output(out.get(), layer)) {
+                    return excl;
                 }
             }
         }
@@ -653,7 +671,7 @@ namespace flux {
             if (root && root->mapped) {
                 const auto* layer = Layer::try_from(root);
                 const auto* xsurf = wlr_xwayland_surface_try_from_wlr_surface(root);
-                if ((layer && layer->is_focusable()) ||
+                if ((layer && layer->is_focusable() && layer->output()->is_enabled()) ||
                     (xsurf && xsurf->override_redirect && wlr_xwayland_surface_override_redirect_wants_focus(xsurf))) {
                     restack_windows();
                     m_input->cursor().update_focus();
@@ -892,9 +910,7 @@ namespace flux {
             if (m_focused_output == output) {
                 m_focused_output = nullptr;
             }
-            if (!m_focused_output) {
-                refocus();
-            }
+            refocus();
         } else {
             for (const auto& win : m_windows) {
                 if (!win->workspace()) {

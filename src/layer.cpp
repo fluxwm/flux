@@ -54,8 +54,8 @@ namespace flux {
         m_output.arrange_layers();
 
         if (is_focusable()) {
-            auto* excl = m_output.compositor().exclusive_layer();
-            if (!excl || excl == this) {
+            const auto* excl = m_output.compositor().exclusive_layer();
+            if (excl == this || (m_output.is_enabled() && (!excl || (is_exclusive() && layer() >= excl->layer())))) {
                 m_output.compositor().focus_layer(this);
             }
         }

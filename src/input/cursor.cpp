@@ -189,7 +189,7 @@ namespace flux::input {
                                                              unaccel_dx, unaccel_dy);
         if (apply_constraint(dx, dy)) {
             wlr_cursor_move(m_wlr_cursor, device, dx, dy);
-            if (!m_grab_window && !m_input.compositor().focused_window()) {
+            if (!m_grab_window && !m_input.compositor().focused_window() && !m_input.compositor().exclusive_layer()) {
                 m_input.compositor().set_focused_output(nullptr);
             }
             process_motion(time_msec);
@@ -231,10 +231,13 @@ namespace flux::input {
         }
 
         if (event->state == WL_POINTER_BUTTON_STATE_PRESSED) {
-            m_input.compositor().set_focused_output(nullptr);
-            if (Output* out = m_input.compositor().focused_output(); out && out->animation().is_active()) {
-                out->animation().cancel();
-                m_input.compositor().on_animation_finished();
+            const auto* excl = m_input.compositor().exclusive_layer();
+            if (!excl) {
+                m_input.compositor().set_focused_output(nullptr);
+                if (Output* out = m_input.compositor().focused_output(); out && out->animation().is_active()) {
+                    out->animation().cancel();
+                    m_input.compositor().on_animation_finished();
+                }
             }
 
             double sx = 0.0;
@@ -242,9 +245,10 @@ namespace flux::input {
             wlr_surface* surface = nullptr;
             Window* window =
                 m_input.compositor().scene().window_at(m_wlr_cursor->x, m_wlr_cursor->y, &surface, &sx, &sy);
-            if (const auto* excl = m_input.compositor().exclusive_layer()) {
+            if (excl) {
                 const auto* layer = Layer::try_from(root_popup_parent(surface));
                 if (layer && layer->is_mapped() && layer->is_exclusive() && layer->layer() == excl->layer()) {
+                    m_input.compositor().set_focused_output(layer->output());
                     m_input.compositor().focus_surface(surface);
                 }
             } else if (window != nullptr) {
