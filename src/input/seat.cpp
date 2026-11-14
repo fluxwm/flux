@@ -19,18 +19,44 @@ namespace flux::input {
             }
             const double sx = constraint->current.cursor_hint.x;
             const double sy = constraint->current.cursor_hint.y;
-            int lx = 0;
-            int ly = 0;
-            bool found = false;
+
+            struct Finder {
+                const wlr_surface* target;
+                int lx = 0;
+                int ly = 0;
+                bool found = false;
+            } finder{.target = constraint->surface};
+
+            auto callback = [](wlr_scene_buffer* buffer, int bx, int by, void* data) {
+                auto* f = static_cast<Finder*>(data);
+                if (!f->found) {
+                    if (auto* scene_surf = wlr_scene_surface_try_from_buffer(buffer);
+                        scene_surf && scene_surf->surface == f->target) {
+                        f->lx = bx;
+                        f->ly = by;
+                        f->found = true;
+                    }
+                }
+            };
+
+            wlr_scene_tree* tree = nullptr;
             if (auto* win = Window::try_from(constraint->surface)) {
-                found = wlr_scene_node_coords(&win->scene_tree()->node, &lx, &ly);
-            } else if (auto* layer = Layer::try_from(constraint->surface)) {
-                if (layer->scene_tree()) {
-                    found = wlr_scene_node_coords(&layer->scene_tree()->node, &lx, &ly);
+                tree = win->scene_tree();
+            } else if (auto* layer = Layer::try_from(wlr_surface_get_root_surface(constraint->surface))) {
+                tree = layer->scene_tree();
+            }
+
+            if (tree) {
+                wlr_scene_node_for_each_buffer(&tree->node, callback, &finder);
+            } else {
+                wlr_scene_node_for_each_buffer(&input.compositor().scene().window_popups()->node, callback, &finder);
+                if (!finder.found) {
+                    wlr_scene_node_for_each_buffer(&input.compositor().scene().popups()->node, callback, &finder);
                 }
             }
-            if (found) {
-                input.cursor().warp(lx + sx, ly + sy);
+
+            if (finder.found) {
+                input.cursor().warp(finder.lx + sx, finder.ly + sy);
                 wlr_seat_pointer_warp(constraint->seat, sx, sy);
             }
         }
