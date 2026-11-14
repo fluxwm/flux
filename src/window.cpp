@@ -781,11 +781,15 @@ namespace flux {
     void Window::on_set_parent() {
         Window* parent = m_xdg_toplevel ? Window::try_from(m_xdg_toplevel->parent)
                                         : (m_xwayland_surface ? Window::try_from(m_xwayland_surface->parent) : nullptr);
-        if (parent && parent->output()) {
+        const bool output_changed = parent && parent->output() && parent->output() != output();
+        if (output_changed) {
+            m_placed = false;
             set_output(parent->output());
         }
         if (!m_floating && !m_floating_override && wants_floating()) {
             set_floating(true);
+        } else if (output_changed && is_mapped()) {
+            m_compositor.refocus();
         }
     }
 
