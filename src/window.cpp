@@ -279,8 +279,6 @@ namespace flux {
             update_borders();
         } else if (m_workspace) {
             m_workspace->arrange();
-            wlr_xwayland_surface_configure(m_xwayland_surface, m_xwayland_surface->x, m_xwayland_surface->y,
-                                           m_xwayland_surface->width, m_xwayland_surface->height);
         }
     }
 
@@ -510,14 +508,8 @@ namespace flux {
         if (m_xdg_toplevel) {
             wlr_xdg_toplevel_set_size(m_xdg_toplevel, w, h);
         } else if (m_xwayland_surface) {
-            if (m_xwayland_surface->x != static_cast<int16_t>(box.x) ||
-                m_xwayland_surface->y != static_cast<int16_t>(box.y) ||
-                m_xwayland_surface->width != static_cast<uint16_t>(w) ||
-                m_xwayland_surface->height != static_cast<uint16_t>(h) || !is_mapped()) {
-                wlr_xwayland_surface_configure(m_xwayland_surface, static_cast<int16_t>(box.x),
-                                               static_cast<int16_t>(box.y), static_cast<uint16_t>(w),
-                                               static_cast<uint16_t>(h));
-            }
+            wlr_xwayland_surface_configure(m_xwayland_surface, static_cast<int16_t>(box.x), static_cast<int16_t>(box.y),
+                                           static_cast<uint16_t>(w), static_cast<uint16_t>(h));
         }
         update_borders();
     }
@@ -542,13 +534,6 @@ namespace flux {
         wlr_scene_node_raise_to_top(&m_scene_tree->node);
         if (m_xwayland_surface && m_workspace && &m_workspace->output().active_workspace() == m_workspace) {
             wlr_xwayland_surface_restack(m_xwayland_surface, nullptr, XCB_STACK_MODE_ABOVE);
-        }
-    }
-
-    void Window::lower_to_bottom() noexcept {
-        wlr_scene_node_lower_to_bottom(&m_scene_tree->node);
-        if (m_xwayland_surface && m_workspace && &m_workspace->output().active_workspace() == m_workspace) {
-            wlr_xwayland_surface_restack(m_xwayland_surface, nullptr, XCB_STACK_MODE_BELOW);
         }
     }
 

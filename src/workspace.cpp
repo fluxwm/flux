@@ -194,19 +194,16 @@ namespace flux {
     void Workspace::restack() {
         const bool is_busy_output = m_output.animation().is_busy();
         Window* top_fullscreen = nullptr;
-        Window* top_non_floating = nullptr;
         for (Window* w : m_focus_stack) {
-            if (w->is_fullscreen() && !top_fullscreen) {
+            if (w->is_fullscreen()) {
                 top_fullscreen = w;
-            }
-            if (!w->is_floating() && !top_non_floating) {
-                top_non_floating = w;
+                break;
             }
         }
 
         const bool is_active_ws = (&m_output.active_workspace() == this) && !is_busy_output;
 
-        for (Window* w : m_focus_stack) {
+        for (Window* w : std::views::reverse(m_focus_stack)) {
             if (w->is_fullscreen()) {
                 if (w == top_fullscreen && is_active_ws) {
                     wlr_scene_node_reparent(&w->scene_tree()->node, m_output.compositor().scene().fullscreen());
@@ -214,12 +211,8 @@ namespace flux {
                     w->reparent_to_workspace();
                 }
             }
-            if (!w->is_floating()) {
-                if (w == top_non_floating) {
-                    w->raise_to_top();
-                } else if (!w->is_tiled()) {
-                    w->lower_to_bottom();
-                }
+            if (!w->is_floating() && w != top_fullscreen) {
+                w->raise_to_top();
             }
         }
 
@@ -228,6 +221,7 @@ namespace flux {
                 w->raise_to_top();
             }
         }
+
         if (top_fullscreen) {
             top_fullscreen->raise_to_top();
         }
