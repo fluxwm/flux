@@ -135,7 +135,7 @@ namespace flux {
                 wlr_scene_node_destroy(&m_wrapper_tree->node);
             }
             m_wrapper_tree =
-                wlr_scene_subsurface_tree_create(m_compositor.scene().popups(), m_xwayland_surface->surface);
+                wlr_scene_subsurface_tree_create(m_compositor.scene().window_popups(), m_xwayland_surface->surface);
             if (m_wrapper_tree) {
                 wlr_scene_node_set_position(&m_wrapper_tree->node, m_xwayland_surface->x, m_xwayland_surface->y);
             }
