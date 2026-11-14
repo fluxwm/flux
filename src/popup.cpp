@@ -51,7 +51,21 @@ namespace flux {
         m_surface_listeners.clear();
         m_listeners.clear();
         if (m_xdg_popup && m_xdg_popup->base) {
-            m_xdg_popup->base->data = nullptr;
+            if (auto* self_tree = static_cast<wlr_scene_tree*>(m_xdg_popup->base->data)) {
+                m_xdg_popup->base->data = nullptr;
+                for (const auto& popup : m_compositor.popups()) {
+                    if (!popup->raw() || !popup->raw()->base) {
+                        continue;
+                    }
+                    for (auto* tree = static_cast<wlr_scene_tree*>(popup->raw()->base->data); tree;
+                         tree = tree->node.parent) {
+                        if (tree == self_tree) {
+                            popup->raw()->base->data = nullptr;
+                            break;
+                        }
+                    }
+                }
+            }
         }
         if (m_wrapper_tree) {
             wlr_scene_node_destroy(&m_wrapper_tree->node);
