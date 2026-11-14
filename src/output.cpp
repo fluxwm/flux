@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <ctime>
+#include <utility>
 
 namespace flux {
 
@@ -54,25 +55,21 @@ namespace flux {
 
     Output::~Output() {
         m_listeners.clear();
+        if (m_scene_output) {
+            wlr_scene_output_destroy(m_scene_output);
+        }
+        if (m_wlr_output && m_compositor.output_layout()) {
+            wlr_output_layout_remove(m_compositor.output_layout(), m_wlr_output);
+        }
         m_animation.cancel();
-        for (auto& layer : m_layers) {
+        for (auto& layer : std::exchange(m_layers, {})) {
             wlr_layer_surface_v1* raw = layer->raw();
             layer.reset();
             wlr_layer_surface_v1_destroy(raw);
         }
-        m_layers.clear();
         m_workspaces.clear();
         if (m_workspace_group) {
             wlr_ext_workspace_group_handle_v1_destroy(m_workspace_group);
-            m_workspace_group = nullptr;
-        }
-        if (m_scene_output) {
-            wlr_scene_output_destroy(m_scene_output);
-            m_scene_output = nullptr;
-        }
-        if (m_wlr_output && m_compositor.output_layout()) {
-            wlr_output_layout_remove(m_compositor.output_layout(), m_wlr_output);
-            m_wlr_output = nullptr;
         }
     }
 
