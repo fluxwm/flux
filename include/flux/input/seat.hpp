@@ -80,7 +80,6 @@ namespace flux::input {
         void update_pointer_constraint();
         void set_active_constraint(wlr_pointer_constraint_v1* constraint);
         void on_destroy_constraint();
-        void clear_keyboard_focus() noexcept { wlr_seat_keyboard_notify_clear_focus(m_wlr_seat); }
 
         Input& m_input;
         wlr_seat* m_wlr_seat = nullptr;

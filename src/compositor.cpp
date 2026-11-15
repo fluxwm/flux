@@ -380,8 +380,6 @@ namespace flux {
             if (prev_root != new_root) {
                 if (Window* prev_window = Window::try_from(prev_root)) {
                     prev_window->set_activated(false);
-                } else if (wlr_xdg_toplevel* prev_toplevel = wlr_xdg_toplevel_try_from_wlr_surface(prev_root)) {
-                    wlr_xdg_toplevel_set_activated(prev_toplevel, false);
                 } else if (auto* prev_xsurface = wlr_xwayland_surface_try_from_wlr_surface(prev_root)) {
                     wlr_xwayland_surface_activate(prev_xsurface, false);
                 }

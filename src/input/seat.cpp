@@ -174,7 +174,7 @@ namespace flux::input {
     void Seat::notify_keyboard_enter(wlr_surface* surface) noexcept {
         if (!surface) {
             set_active_constraint(nullptr);
-            clear_keyboard_focus();
+            wlr_seat_keyboard_notify_clear_focus(m_wlr_seat);
             return;
         }
         wlr_keyboard* keyboard = wlr_seat_get_keyboard(m_wlr_seat);
