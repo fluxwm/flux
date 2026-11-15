@@ -150,6 +150,8 @@ namespace flux {
         wlr_box m_floating_box{};
         int m_committed_width = 0;
         int m_committed_height = 0;
+        int m_border_width = 0;
+        int m_border_height = 0;
         Workspace* m_workspace = nullptr;
         uint32_t m_workspace_id = 1;
         std::string m_title;

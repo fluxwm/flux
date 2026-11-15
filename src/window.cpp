@@ -228,6 +228,8 @@ namespace flux {
         m_floating_box = {};
         m_committed_width = 0;
         m_committed_height = 0;
+        m_border_width = 0;
+        m_border_height = 0;
         m_activated = false;
         update_borders();
 
@@ -278,14 +280,16 @@ namespace flux {
             m_pending_center_serial = 0;
         }
 
-        if (!m_floating && !m_floating_override && wants_floating()) {
+        if (m_xdg_toplevel && !m_floating && !m_floating_override && wants_floating()) {
             on_set_parent();
         } else if (is_mapped() && is_floating() && !m_placed && m_workspace && !is_pending_center()) {
             center(m_workspace->output().usable_area());
         }
-        update_borders();
 
         if (is_mapped()) {
+            if (const wlr_box box = geometry_box(); box.width != m_border_width || box.height != m_border_height) {
+                update_borders();
+            }
             const auto* s = surface();
             const bool size_changed =
                 (s->current.width != m_committed_width || s->current.height != m_committed_height);
@@ -601,11 +605,18 @@ namespace flux {
         const auto& layout_cfg = m_compositor.config().layout();
         const auto& border_cfg = layout_cfg.border;
 
-        const bool smart_solitary =
-            layout_cfg.gaps.smart && (m_maximized || (is_tiled() && (!m_workspace || m_workspace->is_solitary())));
+        const bool mapped = is_mapped();
+        if (mapped) {
+            const wlr_box box = geometry_box();
+            m_border_width = box.width;
+            m_border_height = box.height;
+        }
+
+        const bool smart_solitary = mapped && layout_cfg.gaps.smart &&
+                                    (m_maximized || (is_tiled() && (!m_workspace || m_workspace->is_solitary())));
 
         const auto& color = m_activated ? border_cfg.active_color : border_cfg.inactive_color;
-        const bool visible = is_mapped() && !m_fullscreen && border_cfg.width > 0 && !smart_solitary && color[3] > 0.0f;
+        const bool visible = mapped && !m_fullscreen && border_cfg.width > 0 && !smart_solitary && color[3] > 0.0f;
         if (!visible) {
             for (auto* border : m_borders) {
                 wlr_scene_node_set_enabled(&border->node, false);
@@ -614,9 +625,8 @@ namespace flux {
         }
 
         const int bw = border_cfg.width;
-        const wlr_box box = geometry_box();
-        const int w = std::max(1, box.width);
-        const int h = std::max(1, box.height);
+        const int w = std::max(1, m_border_width);
+        const int h = std::max(1, m_border_height);
 
         wlr_scene_node_set_position(&m_borders[0]->node, -bw, -bw);
         wlr_scene_rect_set_size(m_borders[0], w + (2 * bw), bw);
