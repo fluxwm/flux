@@ -339,11 +339,10 @@ namespace flux::input {
             return;
         }
 
-        if (!m_input.compositor().exclusive_layer()) {
-            if (auto* constraint = m_input.seat().active_constraint();
-                constraint && constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED) {
-                return;
-            }
+        if (const auto* constraint = m_input.seat().active_constraint();
+            constraint && constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED &&
+            !m_input.compositor().exclusive_layer()) {
+            return;
         }
 
         double sx = 0.0;
