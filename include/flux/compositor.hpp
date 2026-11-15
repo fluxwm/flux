@@ -53,6 +53,11 @@ namespace flux {
         [[nodiscard]] Output* focused_output() const noexcept;
         void set_focused_output(Output* output) noexcept { m_focused_output = output; }
         [[nodiscard]] Layer* exclusive_layer() const noexcept;
+        [[nodiscard]] bool is_session_locked() const noexcept { return m_session_locked; }
+        [[nodiscard]] bool is_locked() const noexcept { return m_session_locked || exclusive_layer() != nullptr; }
+        [[nodiscard]] Output* output_from_lock_surface(wlr_surface* surface) const noexcept;
+        void sync_session_lock();
+        void check_session_locked_done();
         [[nodiscard]] bool allows_tearing(const Output* output) const noexcept;
         [[nodiscard]] wlr_ext_foreign_toplevel_list_v1* foreign_toplevel_list() const noexcept {
             return m_foreign_toplevel_list;
@@ -100,6 +105,12 @@ namespace flux {
         void on_new_output(wlr_output* output);
         void on_new_window(wlr_xdg_toplevel* toplevel);
         void on_new_layer(wlr_layer_surface_v1* layer_surface);
+        void on_new_session_lock(wlr_session_lock_v1* lock);
+        void on_session_lock_new_surface(wlr_session_lock_surface_v1* lock_surface);
+        void on_session_lock_unlock();
+        void on_session_lock_destroy();
+        void clear_session_lock_timer();
+        void send_session_locked();
         void on_request_activate(wlr_xdg_activation_v1_request_activate_event* event);
         void on_workspace_commit(wlr_ext_workspace_v1_commit_event* event);
         void on_output_power_set_mode(wlr_output_power_v1_set_mode_event* event);
@@ -120,6 +131,12 @@ namespace flux {
         std::unique_ptr<Config> m_config;
         std::unique_ptr<Scene> m_scene;
         std::unique_ptr<Input> m_input;
+        wlr_session_lock_v1* m_session_lock = nullptr;
+        bool m_session_locked = false;
+        bool m_session_locked_sent = false;
+        bool m_session_lock_unlocked = false;
+        wl_event_source* m_session_lock_timer = nullptr;
+        ListenerGroup m_session_lock_listeners;
 
         std::vector<std::unique_ptr<Output>> m_outputs;
         Output* m_focused_output = nullptr;

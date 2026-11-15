@@ -24,6 +24,17 @@ namespace flux {
 
     Compositor::~Compositor() {
         cancel_animations();
+        clear_session_lock_timer();
+        m_session_lock_listeners.clear();
+        m_session_lock = nullptr;
+        m_session_locked = false;
+        m_session_locked_sent = false;
+        m_session_lock_unlocked = false;
+
+        for (const auto& out : m_outputs) {
+            out->destroy_lock_surface();
+        }
+
         if (m_xwayland) {
             m_xwayland_listeners.clear();
             wlr_xwayland_destroy(m_xwayland);
@@ -47,14 +58,14 @@ namespace flux {
         if (m_output_layout) {
             wlr_output_layout_destroy(m_output_layout);
         }
+        if (m_backend) {
+            wlr_backend_destroy(m_backend);
+        }
         if (m_allocator) {
             wlr_allocator_destroy(m_allocator);
         }
         if (m_renderer) {
             wlr_renderer_destroy(m_renderer);
-        }
-        if (m_backend) {
-            wlr_backend_destroy(m_backend);
         }
         if (m_display) {
             wl_display_destroy(m_display);
@@ -181,6 +192,9 @@ namespace flux {
         auto* xdg_activation = wlr_xdg_activation_v1_create(m_display);
         m_listeners.listen(&xdg_activation->events.request_activate, this, &Compositor::on_request_activate);
 
+        auto* session_lock_mgr = wlr_session_lock_manager_v1_create(m_display);
+        m_listeners.listen(&session_lock_mgr->events.new_lock, this, &Compositor::on_new_session_lock);
+
         auto* xdg_decoration_mgr = wlr_xdg_decoration_manager_v1_create(m_display);
         m_listeners.listen(&xdg_decoration_mgr->events.new_toplevel_decoration, [](void* data) {
             auto* decoration = static_cast<wlr_xdg_toplevel_decoration_v1*>(data);
@@ -253,12 +267,12 @@ namespace flux {
             return {.handled = true, .repeat = false};
         }
 
-        const bool is_locked = (exclusive_layer() != nullptr);
+        const bool locked = is_locked();
         const uint32_t clean_mods = modifiers & key_modifier_mask;
         const xkb_keysym_t lower_sym = xkb_keysym_to_lower(sym);
 
         for (const auto& bind : m_config->keybinds()) {
-            if ((is_locked && !bind.locked) || (is_repeat && !bind.repeat)) {
+            if ((locked && !bind.locked) || (is_repeat && !bind.repeat)) {
                 continue;
             }
             if (bind.modifiers == clean_mods && bind.keysym == lower_sym) {
@@ -276,7 +290,7 @@ namespace flux {
             [this](const auto& act) {
                 using T = std::decay_t<decltype(act)>;
                 if constexpr (!std::is_same_v<T, action::Quit> && !std::is_same_v<T, action::Spawn>) {
-                    if (exclusive_layer()) {
+                    if (is_locked()) {
                         return;
                     }
                 }
@@ -389,12 +403,15 @@ namespace flux {
     }
 
     Window* Compositor::focused_window() const noexcept {
+        if (is_locked()) {
+            return nullptr;
+        }
         Output* out = focused_output();
         return out ? out->active_workspace().focused_window() : nullptr;
     }
 
     void Compositor::focus_workspace(Output* output, uint32_t id) {
-        if (exclusive_layer() || id == 0 || !output || output->active_workspace().id() == id) {
+        if (is_locked() || id == 0 || !output || output->active_workspace().id() == id) {
             return;
         }
 
@@ -420,7 +437,7 @@ namespace flux {
     }
 
     bool Compositor::begin_workspace_swipe() {
-        if (m_swipe_output || !m_config->gestures().workspace_swipe || exclusive_layer()) {
+        if (m_swipe_output || !m_config->gestures().workspace_swipe || is_locked()) {
             return false;
         }
 
@@ -485,7 +502,7 @@ namespace flux {
 
     void Compositor::move_to_workspace(Window* window, uint32_t id) {
         Workspace* old_ws = window ? window->workspace() : nullptr;
-        if (exclusive_layer() || !old_ws || id == 0 || old_ws->id() == id) {
+        if (is_locked() || !old_ws || id == 0 || old_ws->id() == id) {
             return;
         }
 
@@ -515,7 +532,7 @@ namespace flux {
     }
 
     void Compositor::focus_window(Window* window) {
-        if (exclusive_layer()) {
+        if (is_locked()) {
             return;
         }
 
@@ -546,7 +563,7 @@ namespace flux {
     }
 
     void Compositor::focus_window_in_direction(Direction direction) {
-        if (exclusive_layer()) {
+        if (is_locked()) {
             return;
         }
 
@@ -647,7 +664,7 @@ namespace flux {
     }
 
     bool Compositor::allows_tearing(const Output* output) const noexcept {
-        if (!output || exclusive_layer() || !m_popups.empty()) {
+        if (!output || is_locked() || !m_popups.empty()) {
             return false;
         }
 
@@ -658,6 +675,31 @@ namespace flux {
     }
 
     void Compositor::refocus() {
+        if (is_session_locked()) {
+            wlr_surface* target = nullptr;
+            if (m_session_lock) {
+                if (!m_focused_output || !m_focused_output->is_enabled()) {
+                    m_focused_output = focused_output();
+                }
+                if (m_focused_output && m_focused_output->is_lock_surface_mapped()) {
+                    target = m_focused_output->lock_surface()->surface;
+                } else if (const auto* out = output_from_lock_surface(m_input->seat().focused_surface());
+                           out && out->is_enabled()) {
+                    target = m_input->seat().focused_surface();
+                } else {
+                    for (const auto& out : m_outputs) {
+                        if (out->is_enabled() && out->is_lock_surface_mapped()) {
+                            target = out->lock_surface()->surface;
+                            break;
+                        }
+                    }
+                }
+            }
+            focus_surface(target);
+            m_input->cursor().update_focus();
+            return;
+        }
+
         if (auto* excl = exclusive_layer()) {
             restack_windows();
             focus_layer(excl);
@@ -821,6 +863,7 @@ namespace flux {
             remaining->arrange_layers();
         }
 
+        sync_session_lock();
         refocus();
     }
 
@@ -846,6 +889,7 @@ namespace flux {
         for (const auto& out : m_outputs) {
             out->arrange_layers();
         }
+        sync_session_lock();
         refocus();
     }
 
@@ -914,7 +958,6 @@ namespace flux {
             if (m_focused_output == output) {
                 m_focused_output = nullptr;
             }
-            refocus();
         } else {
             for (const auto& win : m_windows) {
                 if (!win->workspace()) {
@@ -922,8 +965,9 @@ namespace flux {
                 }
             }
             output->arrange_layers();
-            refocus();
         }
+        sync_session_lock();
+        refocus();
     }
 
     void Compositor::create_popup(wlr_xdg_popup* popup) {
@@ -960,8 +1004,142 @@ namespace flux {
         output->add_layer(layer_surface);
     }
 
+    void Compositor::on_new_session_lock(wlr_session_lock_v1* lock) {
+        if (m_session_locked) {
+            wlr_log(WLR_ERROR, "session lock already active, rejecting new lock");
+            wlr_session_lock_v1_destroy(lock);
+            return;
+        }
+
+        m_session_lock = lock;
+        m_session_locked = true;
+        m_session_locked_sent = false;
+        m_session_lock_unlocked = false;
+
+        m_scene->set_session_lock_active(true);
+        m_scene->update_lock_background(m_outputs);
+
+        dismiss_popups();
+        cancel_animations();
+        refocus();
+
+        m_session_lock_listeners.listen(&lock->events.new_surface, this, &Compositor::on_session_lock_new_surface);
+        m_session_lock_listeners.listen(&lock->events.unlock, this, &Compositor::on_session_lock_unlock);
+        m_session_lock_listeners.listen(&lock->events.destroy, this, &Compositor::on_session_lock_destroy);
+
+        check_session_locked_done();
+
+        if (!m_session_locked_sent) {
+            wl_event_loop* loop = wl_display_get_event_loop(m_display);
+            if (loop) {
+                m_session_lock_timer = wl_event_loop_add_timer(
+                    loop,
+                    [](void* data) -> int {
+                        auto* comp = static_cast<Compositor*>(data);
+                        comp->send_session_locked();
+                        return 0;
+                    },
+                    this);
+                if (m_session_lock_timer) {
+                    wl_event_source_timer_update(m_session_lock_timer, 1000);
+                }
+            }
+        }
+    }
+
+    void Compositor::on_session_lock_new_surface(wlr_session_lock_surface_v1* lock_surface) {
+        Output* output = output_from_wlr(lock_surface->output);
+        if (!output) {
+            wlr_log(WLR_ERROR, "lock surface requested for unknown output");
+            return;
+        }
+        if (output->lock_surface()) {
+            wlr_log(WLR_ERROR, "duplicate lock surface requested for output");
+            return;
+        }
+        output->set_lock_surface(lock_surface);
+    }
+
+    void Compositor::on_session_lock_unlock() {
+        m_session_lock_unlocked = true;
+    }
+
+    void Compositor::on_session_lock_destroy() {
+        m_session_lock_listeners.clear();
+        clear_session_lock_timer();
+        m_session_lock = nullptr;
+
+        for (const auto& out : m_outputs) {
+            out->destroy_lock_surface();
+        }
+
+        if (m_session_lock_unlocked || !m_session_locked_sent) {
+            m_session_locked = false;
+            m_session_locked_sent = false;
+            m_scene->set_session_lock_active(false);
+        } else {
+            wlr_log(WLR_INFO, "session lock client died; session remains locked");
+        }
+        refocus();
+    }
+
+    void Compositor::clear_session_lock_timer() {
+        if (m_session_lock_timer) {
+            wl_event_source_remove(m_session_lock_timer);
+            m_session_lock_timer = nullptr;
+        }
+    }
+
+    void Compositor::check_session_locked_done() {
+        if (m_session_locked_sent || !m_session_lock) {
+            return;
+        }
+        for (const auto& out : m_outputs) {
+            if (!out->is_enabled()) {
+                continue;
+            }
+            if (!out->is_lock_surface_mapped()) {
+                return;
+            }
+        }
+        send_session_locked();
+    }
+
+    void Compositor::send_session_locked() {
+        if (m_session_locked_sent || !m_session_lock) {
+            return;
+        }
+        m_session_locked_sent = true;
+        clear_session_lock_timer();
+        wlr_session_lock_v1_send_locked(m_session_lock);
+    }
+
+    void Compositor::sync_session_lock() {
+        if (!m_session_locked) {
+            return;
+        }
+        m_scene->update_lock_background(m_outputs);
+        for (const auto& out : m_outputs) {
+            out->configure_lock_surface();
+        }
+        check_session_locked_done();
+    }
+
+    Output* Compositor::output_from_lock_surface(wlr_surface* surface) const noexcept {
+        if (!surface) {
+            return nullptr;
+        }
+        wlr_surface* root = wlr_surface_get_root_surface(surface);
+        for (const auto& out : m_outputs) {
+            if (out->lock_surface() && out->lock_surface()->surface == root) {
+                return out.get();
+            }
+        }
+        return nullptr;
+    }
+
     void Compositor::focus_layer(Layer* layer) {
-        if (!layer || !layer->is_mapped()) {
+        if (!layer || !layer->is_mapped() || is_session_locked()) {
             return;
         }
         if (layer->output()) {

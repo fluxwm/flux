@@ -46,10 +46,20 @@ namespace flux {
         void arrange_layers();
         [[nodiscard]] std::span<const std::unique_ptr<Layer>> layers() const noexcept { return m_layers; }
 
+        void set_lock_surface(wlr_session_lock_surface_v1* lock_surface);
+        void configure_lock_surface();
+        void destroy_lock_surface();
+        [[nodiscard]] wlr_session_lock_surface_v1* lock_surface() const noexcept { return m_lock_surface; }
+        [[nodiscard]] bool is_lock_surface_mapped() const noexcept {
+            return m_lock_surface && m_lock_surface->surface && m_lock_surface->surface->mapped;
+        }
+
     private:
         void on_frame();
         void on_request_state(const wlr_output_event_request_state* event);
         void on_destroy();
+        void on_lock_surface_map();
+        void on_lock_surface_destroy();
 
         Compositor& m_compositor;
         wlr_output* m_wlr_output = nullptr;
@@ -60,8 +70,13 @@ namespace flux {
         std::vector<std::unique_ptr<Layer>> m_layers;
         Workspace* m_active_workspace = nullptr;
         WorkspaceAnimation m_animation;
+        wlr_session_lock_surface_v1* m_lock_surface = nullptr;
+        wlr_scene_tree* m_scene_lock_surface = nullptr;
+        uint32_t m_lock_configured_width = 0;
+        uint32_t m_lock_configured_height = 0;
 
         ListenerGroup m_listeners;
+        ListenerGroup m_lock_surface_listeners;
     };
 
 }

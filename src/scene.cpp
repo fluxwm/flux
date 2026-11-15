@@ -1,4 +1,5 @@
 #include "flux/scene.hpp"
+#include "flux/output.hpp"
 #include "flux/window.hpp"
 
 namespace flux {
@@ -14,6 +15,10 @@ namespace flux {
         m_scene_overlay = wlr_scene_tree_create(&m_scene->tree);
         m_scene_popups = wlr_scene_tree_create(&m_scene->tree);
         m_scene_drag_icons = wlr_scene_tree_create(&m_scene->tree);
+        m_scene_lock = wlr_scene_tree_create(&m_scene->tree);
+        m_scene_lock_background = wlr_scene_tree_create(m_scene_lock);
+        m_scene_lock_surfaces = wlr_scene_tree_create(m_scene_lock);
+        wlr_scene_node_set_enabled(&m_scene_lock->node, false);
         m_scene_layout = wlr_scene_attach_output_layout(m_scene, output_layout);
 
         wlr_scene_set_gamma_control_manager_v1(m_scene, wlr_gamma_control_manager_v1_create(display));
@@ -50,7 +55,35 @@ namespace flux {
         return scene_output;
     }
 
+    void Scene::set_session_lock_active(bool active) {
+        wlr_scene_node_set_enabled(&m_scene_lock->node, active);
+    }
+
+    void Scene::update_lock_background(std::span<const std::unique_ptr<Output>> outputs) {
+        wlr_scene_node* child = nullptr;
+        wlr_scene_node* next = nullptr;
+        wl_list_for_each_safe(child, next, &m_scene_lock_background->children, link) {
+            wlr_scene_node_destroy(child);
+        }
+        static constexpr float black[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+        for (const auto& out : outputs) {
+            if (!out->is_enabled()) {
+                continue;
+            }
+            const wlr_box box = out->layout_box();
+            if (box.width <= 0 || box.height <= 0) {
+                continue;
+            }
+            auto* rect = wlr_scene_rect_create(m_scene_lock_background, box.width, box.height, black);
+            wlr_scene_node_set_position(&rect->node, box.x, box.y);
+        }
+    }
+
     wlr_scene_node* Scene::interactive_node_at(double lx, double ly, double* sx, double* sy) const {
+        if (m_scene_lock->node.enabled) {
+            return wlr_scene_node_at(&m_scene_lock->node, lx, ly, sx, sy);
+        }
+
         wlr_scene_node* node = nullptr;
         wl_list_for_each_reverse(node, &m_scene->tree.children, link) {
             if (node == &m_scene_drag_icons->node) {

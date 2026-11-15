@@ -2,6 +2,7 @@
 #include "flux/compositor.hpp"
 #include "flux/config.hpp"
 #include "flux/layer.hpp"
+#include "flux/scene.hpp"
 #include "flux/util.hpp"
 #include "flux/workspace.hpp"
 
@@ -53,6 +54,7 @@ namespace flux {
     }
 
     Output::~Output() {
+        destroy_lock_surface();
         m_listeners.clear();
         if (m_scene_output) {
             wlr_scene_output_destroy(m_scene_output);
@@ -117,7 +119,11 @@ namespace flux {
 
     void Output::on_request_state(const wlr_output_event_request_state* event) {
         if (wlr_output_commit_state(m_wlr_output, event->state)) {
+            m_compositor.sync_session_lock();
             arrange_layers();
+            if ((event->state->committed & WLR_OUTPUT_STATE_ENABLED) != 0) {
+                m_compositor.refocus();
+            }
         }
     }
 
@@ -198,6 +204,60 @@ namespace flux {
         }
 
         m_compositor.update_cursor_focus();
+    }
+
+    void Output::set_lock_surface(wlr_session_lock_surface_v1* lock_surface) {
+        m_lock_surface = lock_surface;
+        m_scene_lock_surface =
+            wlr_scene_subsurface_tree_create(m_compositor.scene().lock_surfaces(), m_lock_surface->surface);
+        m_lock_surface_listeners.listen(&m_lock_surface->surface->events.map, this, &Output::on_lock_surface_map);
+        m_lock_surface_listeners.listen(&m_lock_surface->events.destroy, this, &Output::on_lock_surface_destroy);
+        configure_lock_surface();
+    }
+
+    void Output::configure_lock_surface() {
+        if (!m_lock_surface) {
+            return;
+        }
+        const wlr_box box = layout_box();
+        wlr_scene_node_set_enabled(&m_scene_lock_surface->node, is_enabled());
+        wlr_scene_node_set_position(&m_scene_lock_surface->node, box.x, box.y);
+        int eff_width = 0;
+        int eff_height = 0;
+        if ((box.width <= 0 || box.height <= 0) && m_wlr_output) {
+            wlr_output_effective_resolution(m_wlr_output, &eff_width, &eff_height);
+        }
+        const uint32_t width =
+            box.width > 0 ? static_cast<uint32_t>(box.width) : (eff_width > 0 ? static_cast<uint32_t>(eff_width) : 1);
+        const uint32_t height = box.height > 0 ? static_cast<uint32_t>(box.height)
+                                               : (eff_height > 0 ? static_cast<uint32_t>(eff_height) : 1);
+        if (m_lock_configured_width == width && m_lock_configured_height == height) {
+            return;
+        }
+        m_lock_configured_width = width;
+        m_lock_configured_height = height;
+        wlr_session_lock_surface_v1_configure(m_lock_surface, width, height);
+    }
+
+    void Output::destroy_lock_surface() {
+        m_lock_surface_listeners.clear();
+        m_lock_surface = nullptr;
+        m_lock_configured_width = 0;
+        m_lock_configured_height = 0;
+        if (m_scene_lock_surface) {
+            wlr_scene_node_destroy(&m_scene_lock_surface->node);
+            m_scene_lock_surface = nullptr;
+        }
+    }
+
+    void Output::on_lock_surface_map() {
+        m_compositor.refocus();
+        m_compositor.check_session_locked_done();
+    }
+
+    void Output::on_lock_surface_destroy() {
+        destroy_lock_surface();
+        m_compositor.refocus();
     }
 
 }

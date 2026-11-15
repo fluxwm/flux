@@ -189,7 +189,7 @@ namespace flux::input {
                                                              unaccel_dx, unaccel_dy);
         if (apply_constraint(dx, dy)) {
             wlr_cursor_move(m_wlr_cursor, device, dx, dy);
-            if (!m_grab_window && !m_input.compositor().focused_window() && !m_input.compositor().exclusive_layer()) {
+            if (!m_grab_window && !m_input.compositor().focused_window() && !m_input.compositor().is_locked()) {
                 m_input.compositor().set_focused_output(nullptr);
             }
             process_motion(time_msec);
@@ -222,6 +222,22 @@ namespace flux::input {
 
         if (m_input.compositor().is_workspace_swiping()) {
             m_input.seat().notify_activity();
+            return;
+        }
+
+        if (m_input.compositor().is_session_locked()) {
+            if (event->state == WL_POINTER_BUTTON_STATE_PRESSED) {
+                double sx = 0.0;
+                double sy = 0.0;
+                if (wlr_surface* surface =
+                        m_input.compositor().scene().surface_at(m_wlr_cursor->x, m_wlr_cursor->y, &sx, &sy)) {
+                    if (auto* out = m_input.compositor().output_from_lock_surface(surface)) {
+                        m_input.compositor().set_focused_output(out);
+                        m_input.compositor().focus_surface(out->lock_surface()->surface);
+                    }
+                }
+            }
+            m_input.seat().notify_button(event->time_msec, event->button, event->state);
             return;
         }
 
@@ -340,8 +356,7 @@ namespace flux::input {
         }
 
         if (const auto* constraint = m_input.seat().active_constraint();
-            constraint && constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED &&
-            !m_input.compositor().exclusive_layer()) {
+            constraint && constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED && !m_input.compositor().is_locked()) {
             return;
         }
 
@@ -349,11 +364,13 @@ namespace flux::input {
         double sy = 0.0;
         wlr_surface* surface = m_input.compositor().scene().surface_at(m_wlr_cursor->x, m_wlr_cursor->y, &sx, &sy);
         if (surface) {
-            if (const auto* excl = m_input.compositor().exclusive_layer()) {
-                const auto* layer = Layer::try_from(root_popup_parent(surface));
-                if (!layer || !layer->is_mapped() || !layer->is_exclusive() || layer->layer() != excl->layer()) {
-                    m_input.seat().clear_pointer_focus();
-                    return;
+            if (!m_input.compositor().is_session_locked()) {
+                if (const auto* excl = m_input.compositor().exclusive_layer()) {
+                    const auto* layer = Layer::try_from(root_popup_parent(surface));
+                    if (!layer || !layer->is_mapped() || !layer->is_exclusive() || layer->layer() != excl->layer()) {
+                        m_input.seat().clear_pointer_focus();
+                        return;
+                    }
                 }
             }
             m_input.seat().notify_enter(surface, sx, sy);
@@ -369,8 +386,8 @@ namespace flux::input {
         }
 
         if (m_grab_window) {
-            if (m_input.compositor().exclusive_layer() || !m_grab_window->is_mapped() ||
-                !m_grab_window->is_floating() || m_grab_window != m_input.compositor().focused_window()) {
+            if (m_input.compositor().is_locked() || !m_grab_window->is_mapped() || !m_grab_window->is_floating() ||
+                m_grab_window != m_input.compositor().focused_window()) {
                 end_grab();
             }
             return;

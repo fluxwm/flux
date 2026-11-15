@@ -154,8 +154,7 @@ namespace flux {
             if (m_wrapper_tree) {
                 wlr_scene_node_set_position(&m_wrapper_tree->node, m_xwayland_surface->x, m_xwayland_surface->y);
             }
-            if (wlr_xwayland_surface_override_redirect_wants_focus(m_xwayland_surface) &&
-                !m_compositor.exclusive_layer()) {
+            if (wlr_xwayland_surface_override_redirect_wants_focus(m_xwayland_surface) && !m_compositor.is_locked()) {
                 wlr_xwayland_surface_activate(m_xwayland_surface, true);
                 m_compositor.focus_surface(m_xwayland_surface->surface);
             }

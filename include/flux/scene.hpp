@@ -2,8 +2,12 @@
 
 #include "flux/wlroots.hpp"
 
+#include <memory>
+#include <span>
+
 namespace flux {
 
+    class Output;
     class Window;
 
     class Scene {
@@ -25,7 +29,11 @@ namespace flux {
         [[nodiscard]] wlr_scene_tree* popups() const noexcept { return m_scene_popups; }
         [[nodiscard]] wlr_scene_tree* window_popups() const noexcept { return m_scene_window_popups; }
         [[nodiscard]] wlr_scene_tree* drag_icons() const noexcept { return m_scene_drag_icons; }
+        [[nodiscard]] wlr_scene_tree* lock_surfaces() const noexcept { return m_scene_lock_surfaces; }
         [[nodiscard]] wlr_scene_tree* layer_tree(zwlr_layer_shell_v1_layer layer) const noexcept;
+
+        void set_session_lock_active(bool active);
+        void update_lock_background(std::span<const std::unique_ptr<Output>> outputs);
 
         wlr_scene_output* attach_output(wlr_output* output, wlr_output_layout_output* layout_output);
 
@@ -45,6 +53,9 @@ namespace flux {
         wlr_scene_tree* m_scene_overlay = nullptr;
         wlr_scene_tree* m_scene_popups = nullptr;
         wlr_scene_tree* m_scene_drag_icons = nullptr;
+        wlr_scene_tree* m_scene_lock = nullptr;
+        wlr_scene_tree* m_scene_lock_background = nullptr;
+        wlr_scene_tree* m_scene_lock_surfaces = nullptr;
         wlr_scene_output_layout* m_scene_layout = nullptr;
     };
 
