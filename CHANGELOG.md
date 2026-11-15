@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.9.1](https://github.com/fluxwm/flux/compare/v0.9.0...v0.9.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* allow directional focus from floating windows to background windows ([54192dd](https://github.com/fluxwm/flux/commit/54192dde6086ce6f7090133680b3d377c7be9d69))
+* allow focusing tiled and floating windows over fullscreen windows ([6f0288b](https://github.com/fluxwm/flux/commit/6f0288bd7030d034d0a431102e14f5473e81fecb))
+* clamp interactive window resize dimensions to client size hints ([3a68ccc](https://github.com/fluxwm/flux/commit/3a68ccca45b83e491f0ee4b1b15e9bf8d5de425f))
+* clear descendant popup scene data on parent popup destruction ([4d0bd6c](https://github.com/fluxwm/flux/commit/4d0bd6c3b996357dcae321199aa666559d336b00))
+* detach scene output on teardown and prevent null layer dereference ([bbae388](https://github.com/fluxwm/flux/commit/bbae3880d48c90b6b48f02adebb4e1bb03da3ba5))
+* ignore disabled outputs and restore focus on output power changes ([16483e7](https://github.com/fluxwm/flux/commit/16483e7622e5ae33504b2fc01e29fc44d1e4df49))
+* place XWayland override-redirect popups in window popups layer ([46aa06f](https://github.com/fluxwm/flux/commit/46aa06f5f46eaab681f044860d881cb39fe49bda))
+* preserve floating placement on center and clear stale resize edges ([8f15f65](https://github.com/fluxwm/flux/commit/8f15f655c3ea8c4ab04ff4affe5de1c15130cb72))
+* prioritize enabled outputs and prevent exclusive layer input lockout ([ceae754](https://github.com/fluxwm/flux/commit/ceae75455891c86eb705aa03a716ee1af4ef9430))
+* refresh cursor focus when mapped window geometry changes on commit ([e652452](https://github.com/fluxwm/flux/commit/e6524529e9b99dc392ab3262f6c88bcdc4ea7db6))
+* resolve constrained surface buffer coordinates in warp_to_hint ([c0d50b8](https://github.com/fluxwm/flux/commit/c0d50b8340a0a25249c8c66e29d7e8348ddb991a))
+* resolve keybindings across all configured keyboard layouts ([b466636](https://github.com/fluxwm/flux/commit/b466636c90e2f06bd8620eafe76f959d6c35e3be))
+* suppress pointer gesture events when workspace swipe is cancelled ([c888219](https://github.com/fluxwm/flux/commit/c88821980108e01ec872343bf6722dcc5a5dd1d4))
+* synchronize popup visibility and positions across workspace transitions ([c0e2afa](https://github.com/fluxwm/flux/commit/c0e2afa72cc9659566bdef5f1582864846977920))
+* track spawned child PIDs to prevent XWayland SIGCHLD blocking ([3858546](https://github.com/fluxwm/flux/commit/38585462ebd8552e29f2afa412ed1e7b73ec9c98))
+* validate enabled output before clearing focus on workspace swipe ([8042cbb](https://github.com/fluxwm/flux/commit/8042cbb3667e53b4fe351eb0973a6fbd2ad0a8b9))
+
+
+### Performance Improvements
+
+* avoid heap allocation on focus enter and pre-lower keybind keysyms ([2af2682](https://github.com/fluxwm/flux/commit/2af268234956d074a8d1028846447531094679ec))
+* defer exclusive layer scan behind locked pointer constraint check ([011f1b7](https://github.com/fluxwm/flux/commit/011f1b79aa5068b221cb31410f205b1bc4691ae5))
+* restack workspace scene nodes top-down to avoid circular damage ([9398036](https://github.com/fluxwm/flux/commit/93980363c47db433e0e702a18f69f41ebc6bf53b))
+* skip redundant border updates and XWayland floating checks on commit ([57b63e9](https://github.com/fluxwm/flux/commit/57b63e94b5cecb726b8ca3ec12fc43a23b8f97d2))
+
+
+### Refactoring
+
+* remove unreachable XDG fallback and inline clear_keyboard_focus ([6bb8657](https://github.com/fluxwm/flux/commit/6bb865714b6b370bc90c5eaf74c4e9b9d6eaadac))
+
 ## [0.9.0](https://github.com/fluxwm/flux/compare/v0.8.0...v0.9.0) (2026-11-14)
 
 
