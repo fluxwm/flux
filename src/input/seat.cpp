@@ -6,6 +6,7 @@
 #include "flux/window.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 namespace flux::input {
@@ -179,15 +180,15 @@ namespace flux::input {
         wlr_keyboard* keyboard = wlr_seat_get_keyboard(m_wlr_seat);
         if (keyboard) {
             const auto* kb = static_cast<const Keyboard*>(keyboard->data);
-            std::vector<uint32_t> keycodes;
-            keycodes.reserve(keyboard->num_keycodes);
+            std::array<uint32_t, WLR_KEYBOARD_KEYS_CAP> keycodes{};
+            size_t count = 0;
             for (size_t i = 0; i < keyboard->num_keycodes; ++i) {
                 const uint32_t kc = keyboard->keycodes[i];
                 if (!kb || !kb->is_consumed(kc)) {
-                    keycodes.push_back(kc);
+                    keycodes[count++] = kc;
                 }
             }
-            wlr_seat_keyboard_notify_enter(m_wlr_seat, surface, keycodes.data(), keycodes.size(), &keyboard->modifiers);
+            wlr_seat_keyboard_notify_enter(m_wlr_seat, surface, keycodes.data(), count, &keyboard->modifiers);
         } else {
             wlr_seat_keyboard_notify_enter(m_wlr_seat, surface, nullptr, 0, nullptr);
         }

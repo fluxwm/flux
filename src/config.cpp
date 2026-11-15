@@ -77,7 +77,7 @@ namespace flux {
                 return false;
             }
 
-            keysym = xkb_keysym_from_name(key_name.c_str(), XKB_KEYSYM_CASE_INSENSITIVE);
+            keysym = xkb_keysym_to_lower(xkb_keysym_from_name(key_name.c_str(), XKB_KEYSYM_CASE_INSENSITIVE));
             return keysym != XKB_KEY_NoSymbol;
         }
 

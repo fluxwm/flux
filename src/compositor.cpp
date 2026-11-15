@@ -261,7 +261,7 @@ namespace flux {
             if ((is_locked && !bind.locked) || (is_repeat && !bind.repeat)) {
                 continue;
             }
-            if (bind.modifiers == clean_mods && xkb_keysym_to_lower(bind.keysym) == lower_sym) {
+            if (bind.modifiers == clean_mods && bind.keysym == lower_sym) {
                 for (const auto& action : bind.actions) {
                     execute_action(action);
                 }
