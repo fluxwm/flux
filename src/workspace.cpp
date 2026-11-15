@@ -6,7 +6,6 @@
 #include "flux/window.hpp"
 
 #include <algorithm>
-#include <ranges>
 #include <string>
 #include <vector>
 
@@ -185,33 +184,59 @@ namespace flux {
             }
         }
 
-        const bool is_active_ws = (&m_output.active_workspace() == this) && !is_busy_output;
+        const bool is_active_ws = &m_output.active_workspace() == this;
+        const bool in_fullscreen_layer = is_active_ws && !is_busy_output;
 
-        for (Window* w : std::views::reverse(m_focus_stack)) {
+        for (Window* w : m_focus_stack) {
             if (w->is_fullscreen()) {
-                if (w == top_fullscreen && is_active_ws) {
+                if (w == top_fullscreen && in_fullscreen_layer) {
                     wlr_scene_node_reparent(&w->scene_tree()->node, m_output.compositor().scene().fullscreen());
                 } else {
                     w->reparent_to_workspace();
                 }
                 wlr_scene_node_set_enabled(&w->scene_tree()->node, w == m_active_fullscreen);
-            } else if (!w->is_floating()) {
-                w->raise_to_top();
+            }
+        }
+
+        wlr_scene_node* prev = nullptr;
+        wlr_xwayland_surface* prev_xsurf = nullptr;
+        auto place = [&](Window* w) {
+            wlr_scene_node* node = &w->scene_tree()->node;
+            if (!prev) {
+                wlr_scene_node_raise_to_top(node);
+            } else {
+                wlr_scene_node_place_below(node, prev);
+            }
+            if (w != top_fullscreen || !in_fullscreen_layer) {
+                prev = node;
+            }
+            if (is_active_ws) {
+                if (auto* xsurf = w->xwayland_surface()) {
+                    wlr_xwayland_surface_restack(xsurf, prev_xsurf,
+                                                 prev_xsurf ? XCB_STACK_MODE_BELOW : XCB_STACK_MODE_ABOVE);
+                    prev_xsurf = xsurf;
+                }
+            }
+        };
+
+        if (top_fullscreen) {
+            place(top_fullscreen);
+        }
+
+        for (Window* w : m_focus_stack) {
+            if (w->is_floating()) {
+                place(w);
             }
         }
 
         if (m_active_fullscreen && m_active_fullscreen != top_fullscreen) {
-            m_active_fullscreen->raise_to_top();
+            place(m_active_fullscreen);
         }
 
-        for (Window* w : std::views::reverse(m_focus_stack)) {
-            if (w->is_floating()) {
-                w->raise_to_top();
+        for (Window* w : m_focus_stack) {
+            if (!w->is_floating() && !w->is_fullscreen()) {
+                place(w);
             }
-        }
-
-        if (top_fullscreen) {
-            top_fullscreen->raise_to_top();
         }
 
         m_output.compositor().update_popup_positions();

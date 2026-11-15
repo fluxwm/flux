@@ -594,13 +594,6 @@ namespace flux {
         update_borders();
     }
 
-    void Window::raise_to_top() noexcept {
-        wlr_scene_node_raise_to_top(&m_scene_tree->node);
-        if (m_xwayland_surface && m_workspace && &m_workspace->output().active_workspace() == m_workspace) {
-            wlr_xwayland_surface_restack(m_xwayland_surface, nullptr, XCB_STACK_MODE_ABOVE);
-        }
-    }
-
     void Window::update_borders() noexcept {
         const auto& layout_cfg = m_compositor.config().layout();
         const auto& border_cfg = layout_cfg.border;
