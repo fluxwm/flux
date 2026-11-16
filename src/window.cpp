@@ -89,7 +89,9 @@ namespace flux {
         m_listeners.listen(&xwayland_surface->events.set_override_redirect, this, &Window::on_set_override_redirect);
 
         if (xwayland_surface->x != 0 || xwayland_surface->y != 0) {
-            move_scene_tree(xwayland_surface->x, xwayland_surface->y);
+            m_target_x = xwayland_surface->x;
+            m_target_y = xwayland_surface->y;
+            snap_animation();
         }
 
         if (xwayland_surface->surface) {
@@ -206,12 +208,17 @@ namespace flux {
         m_ext_toplevel_handle = wlr_ext_foreign_toplevel_handle_v1_create(m_compositor.foreign_toplevel_list(), &state);
 
         m_compositor.map_window(this);
+        if (m_placed) {
+            m_has_initial_position = true;
+        }
         m_committed_width = surface()->current.width;
         m_committed_height = surface()->current.height;
         update_borders();
     }
 
     void Window::on_unmap() {
+        snap_animation();
+        m_has_initial_position = false;
         if (m_ext_toplevel_handle) {
             wlr_ext_foreign_toplevel_handle_v1_destroy(m_ext_toplevel_handle);
             m_ext_toplevel_handle = nullptr;
@@ -278,6 +285,14 @@ namespace flux {
         if (m_pending_center_serial != 0 &&
             serial_ge(m_xdg_toplevel->base->current.configure_serial, m_pending_center_serial)) {
             m_pending_center_serial = 0;
+            update_borders();
+        }
+
+        if (m_pending_move_serial != 0 &&
+            serial_ge(m_xdg_toplevel->base->current.configure_serial, m_pending_move_serial)) {
+            m_pending_move_serial = 0;
+            apply_position();
+            update_borders();
         }
 
         if (m_xdg_toplevel && !m_floating && !m_floating_override && wants_floating()) {
@@ -308,7 +323,12 @@ namespace flux {
 
     void Window::on_request_configure(wlr_xwayland_surface_configure_event* event) {
         if (!is_mapped() || is_floating()) {
-            move_scene_tree(event->x, event->y);
+            m_target_x = event->x;
+            m_target_y = event->y;
+            if (is_mapped()) {
+                m_has_initial_position = true;
+            }
+            snap_animation();
             wlr_xwayland_surface_configure(m_xwayland_surface, event->x, event->y, event->width, event->height);
             update_borders();
         } else if (m_workspace) {
@@ -360,8 +380,10 @@ namespace flux {
     }
 
     void Window::save_floating_box() noexcept {
-        if (is_mapped() && is_floating() && m_placed && m_pending_center_serial == 0) {
+        if (is_mapped() && is_floating() && m_placed && m_pending_center_serial == 0 && m_pending_move_serial == 0) {
             m_floating_box = geometry_box();
+            m_floating_box.x = m_target_x;
+            m_floating_box.y = m_target_y;
         }
     }
 
@@ -370,6 +392,7 @@ namespace flux {
         m_resize_edges = WLR_EDGE_NONE;
         m_resize_serial = 0;
         m_pending_center_serial = 0;
+        m_pending_move_serial = 0;
     }
 
     void Window::restore_floating_box() noexcept {
@@ -393,22 +416,7 @@ namespace flux {
             return;
         }
 
-        if (m_xwayland_surface) {
-            if (!m_floating_override || !m_workspace) {
-                return;
-            }
-            const wlr_box& usable = m_workspace->output().usable_area();
-            const int w = std::max(1, (usable.width * 2) / 3);
-            const int h = std::max(1, (usable.height * 2) / 3);
-            m_floating_box = {
-                .x = usable.x + ((usable.width - w) / 2),
-                .y = usable.y + ((usable.height - h) / 2),
-                .width = w,
-                .height = h,
-            };
-            m_placed = true;
-            set_geometry(m_floating_box);
-        } else if (m_xdg_toplevel && m_xdg_toplevel->base->initialized) {
+        if (m_xdg_toplevel && m_xdg_toplevel->base->initialized) {
             m_pending_center_serial = wlr_xdg_toplevel_set_size(m_xdg_toplevel, 0, 0);
         }
     }
@@ -439,6 +447,19 @@ namespace flux {
 
         const bool floating = !is_floating();
         m_floating_override = true;
+        if (floating && m_floating_box.width <= 0 && m_floating_box.height <= 0 && is_mapped() && m_workspace) {
+            const wlr_box& usable = m_workspace->output().usable_area();
+            const wlr_box cur = geometry_box();
+            const bool keep_size = !m_maximized && !m_workspace->is_solitary() && cur.width > 0 && cur.height > 0;
+            const int w = keep_size ? std::min(cur.width, usable.width) : std::max(1, (usable.width * 3) / 4);
+            const int h = keep_size ? std::min(cur.height, usable.height) : std::max(1, (usable.height * 3) / 4);
+            m_floating_box = {
+                .x = usable.x + ((usable.width - w) / 2),
+                .y = usable.y + ((usable.height - h) / 2),
+                .width = w,
+                .height = h,
+            };
+        }
         if (m_maximized) {
             m_maximized = false;
             if (m_xwayland_surface) {
@@ -470,7 +491,6 @@ namespace flux {
 
         m_fullscreen = fullscreen;
         reset_placement_state();
-        update_borders();
 
         if (m_fullscreen) {
             if (m_xdg_toplevel) {
@@ -511,6 +531,7 @@ namespace flux {
         } else if (m_fullscreen && m_workspace) {
             set_geometry(m_workspace->output().layout_box());
         }
+        update_borders();
     }
 
     void Window::set_decoration(wlr_xdg_toplevel_decoration_v1* decoration) {
@@ -548,15 +569,111 @@ namespace flux {
         return true;
     }
 
+    bool Window::can_animate() const noexcept {
+        if (!is_mapped() || !m_has_initial_position) {
+            return false;
+        }
+        if (m_grabbed || m_resizing || m_resize_edges != WLR_EDGE_NONE) {
+            return false;
+        }
+        if (m_compositor.is_workspace_swiping() || m_compositor.is_locked()) {
+            return false;
+        }
+        if (!m_workspace) {
+            return false;
+        }
+        Output& out = m_workspace->output();
+        if (!out.is_enabled() || out.animation().is_busy()) {
+            return false;
+        }
+        return m_workspace == &out.active_workspace();
+    }
+
+    void Window::apply_position() noexcept {
+        if (can_animate() &&
+            (m_animating || m_scene_tree->node.x != m_target_x || m_scene_tree->node.y != m_target_y)) {
+            if (!m_animating) {
+                m_spring_x.reset(m_scene_tree->node.x, 0.0);
+                m_spring_y.reset(m_scene_tree->node.y, 0.0);
+                clock_gettime(CLOCK_MONOTONIC, &m_last_animation_time);
+                m_animating = true;
+                if (auto* out = output(); out && out->raw()) {
+                    wlr_output_schedule_frame(out->raw());
+                }
+            }
+            m_spring_x.set_target(m_target_x);
+            m_spring_y.set_target(m_target_y);
+            if (m_spring_x.is_settled() && m_spring_y.is_settled()) {
+                snap_animation();
+            }
+        } else {
+            snap_animation();
+        }
+
+        if (is_mapped()) {
+            m_has_initial_position = true;
+        }
+    }
+
+    bool Window::step_animation(const timespec& now) noexcept {
+        if (!m_animating) {
+            return false;
+        }
+
+        const double dt = std::clamp(elapsed_seconds(m_last_animation_time, now), 0.0, 0.05);
+        m_last_animation_time = now;
+
+        m_spring_x.advance(dt);
+        m_spring_y.advance(dt);
+
+        if (m_spring_x.is_settled() && m_spring_y.is_settled()) {
+            snap_animation();
+            return false;
+        }
+
+        const int cur_x = static_cast<int>(std::round(m_spring_x.value()));
+        const int cur_y = static_cast<int>(std::round(m_spring_y.value()));
+        move_scene_tree(cur_x, cur_y);
+        return true;
+    }
+
+    void Window::snap_animation() noexcept {
+        m_animating = false;
+        const bool had_pending_move = (m_pending_move_serial != 0);
+        m_pending_move_serial = 0;
+        m_spring_x.reset(m_target_x, 0.0);
+        m_spring_y.reset(m_target_y, 0.0);
+        move_scene_tree(m_target_x, m_target_y);
+        if (had_pending_move) {
+            update_borders();
+        }
+    }
+
     void Window::set_position(int x, int y) noexcept {
-        if (!move_scene_tree(x, y)) {
+        if (!m_animating && m_target_x == x && m_target_y == y && m_scene_tree->node.x == x &&
+            m_scene_tree->node.y == y) {
+            if (is_mapped()) {
+                m_has_initial_position = true;
+            }
             return;
         }
+
+        m_target_x = x;
+        m_target_y = y;
+
+        const bool had_pending_move = (m_pending_move_serial != 0);
+        m_pending_move_serial = 0;
+
         if (m_xwayland_surface && is_mapped()) {
             const wlr_box box = geometry_box();
             wlr_xwayland_surface_configure(m_xwayland_surface, static_cast<int16_t>(x), static_cast<int16_t>(y),
                                            static_cast<uint16_t>(std::max(1, box.width)),
                                            static_cast<uint16_t>(std::max(1, box.height)));
+        }
+
+        apply_position();
+        if (had_pending_move) {
+            update_borders();
         }
     }
 
@@ -566,15 +683,30 @@ namespace flux {
             m_resize_serial = 0;
             m_pending_center_serial = 0;
         }
-        move_scene_tree(box.x, box.y);
+        m_target_x = box.x;
+        m_target_y = box.y;
         const int w = std::max(1, box.width);
         const int h = std::max(1, box.height);
         if (m_xdg_toplevel) {
-            wlr_xdg_toplevel_set_size(m_xdg_toplevel, w, h);
+            const wlr_box cur = geometry_box();
+            const uint32_t serial = wlr_xdg_toplevel_set_size(m_xdg_toplevel, w, h);
+            const bool shrinking =
+                (w < cur.width && w != m_xdg_toplevel->current.width && w >= m_xdg_toplevel->current.min_width) ||
+                (h < cur.height && h != m_xdg_toplevel->current.height && h >= m_xdg_toplevel->current.min_height);
+            if (!m_animating && can_animate() && (m_scene_tree->node.x != box.x || m_scene_tree->node.y != box.y) &&
+                shrinking) {
+                if (m_pending_move_serial == 0) {
+                    m_pending_move_serial = serial;
+                }
+                return;
+            }
         } else if (m_xwayland_surface) {
             wlr_xwayland_surface_configure(m_xwayland_surface, static_cast<int16_t>(box.x), static_cast<int16_t>(box.y),
                                            static_cast<uint16_t>(w), static_cast<uint16_t>(h));
         }
+
+        m_pending_move_serial = 0;
+        apply_position();
         update_borders();
     }
 
@@ -595,6 +727,10 @@ namespace flux {
     }
 
     void Window::update_borders() noexcept {
+        if (is_mapped() && !m_fullscreen && (m_pending_center_serial != 0 || m_pending_move_serial != 0)) {
+            return;
+        }
+
         const auto& layout_cfg = m_compositor.config().layout();
         const auto& border_cfg = layout_cfg.border;
 
@@ -677,6 +813,10 @@ namespace flux {
         m_compositor.dismiss_popups();
         m_pending_center_serial = 0;
         m_placed = true;
+        m_grabbed = true;
+        if (m_animating || m_pending_move_serial != 0) {
+            set_position(m_scene_tree->node.x, m_scene_tree->node.y);
+        }
         m_grab_box = geometry_box();
         m_resize_edges = edges;
         m_resize_serial = 0;
@@ -746,6 +886,7 @@ namespace flux {
     }
 
     void Window::end_grab() noexcept {
+        m_grabbed = false;
         const bool was_resizing = m_resizing;
         if (m_resizing) {
             m_resizing = false;
@@ -793,6 +934,7 @@ namespace flux {
             m_workspace_id = ws->id();
         }
         if (m_workspace != ws) {
+            snap_animation();
             if (m_workspace) {
                 m_workspace->remove(this);
             }
@@ -845,7 +987,7 @@ namespace flux {
                                         : (m_xwayland_surface ? Window::try_from(m_xwayland_surface->parent) : nullptr);
         const bool output_changed = parent && parent->output() && parent->output() != output();
         if (output_changed) {
-            m_placed = false;
+            set_placed(false);
             set_output(parent->output());
         }
         if (!m_floating && !m_floating_override && wants_floating()) {

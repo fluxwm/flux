@@ -8,13 +8,6 @@
 
 namespace flux {
 
-    namespace {
-        double elapsed_seconds(const timespec& from, const timespec& to) noexcept {
-            return static_cast<double>(to.tv_sec - from.tv_sec) +
-                   (static_cast<double>(to.tv_nsec - from.tv_nsec) * 1e-9);
-        }
-    }
-
     void Spring::advance(double dt) noexcept {
         if (dt <= 0.0) {
             return;
@@ -123,6 +116,7 @@ namespace flux {
         if (m_animating) {
             cancel();
         }
+        output.active_workspace().snap_animations();
         m_swiping = true;
         m_swipe_progress = 0.0;
         m_swipe_velocity = 0.0;

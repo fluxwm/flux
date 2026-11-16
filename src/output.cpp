@@ -4,6 +4,7 @@
 #include "flux/layer.hpp"
 #include "flux/scene.hpp"
 #include "flux/util.hpp"
+#include "flux/window.hpp"
 #include "flux/workspace.hpp"
 
 #include <algorithm>
@@ -94,6 +95,28 @@ namespace flux {
             m_compositor.on_animation_finished();
         }
 
+        bool any_window_animating = false;
+        bool had_animating_window = false;
+        timespec now{};
+        clock_gettime(CLOCK_MONOTONIC, &now);
+
+        if (!m_animation.is_busy() && m_active_workspace) {
+            for (Window* w : m_active_workspace->windows()) {
+                if (w->is_animating()) {
+                    had_animating_window = true;
+                    if (w->step_animation(now)) {
+                        any_window_animating = true;
+                    }
+                }
+            }
+        }
+
+        if (any_window_animating) {
+            wlr_output_schedule_frame(m_wlr_output);
+        } else if (had_animating_window) {
+            m_compositor.update_cursor_focus();
+        }
+
         if (wlr_scene_output_needs_frame(m_scene_output)) {
             wlr_output_state state;
             wlr_output_state_init(&state);
@@ -112,8 +135,6 @@ namespace flux {
             wlr_output_state_finish(&state);
         }
 
-        timespec now{};
-        clock_gettime(CLOCK_MONOTONIC, &now);
         wlr_scene_output_send_frame_done(m_scene_output, &now);
     }
 

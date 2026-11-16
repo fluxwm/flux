@@ -492,6 +492,7 @@ namespace flux {
         cancel_workspace_swipe();
         for (const auto& out : m_outputs) {
             out->animation().cancel();
+            out->active_workspace().snap_animations();
         }
     }
 
@@ -669,7 +670,7 @@ namespace flux {
         }
 
         const Window* w = output->active_workspace().focused_window();
-        return w && w->is_fullscreen() &&
+        return w && w->is_fullscreen() && !w->is_animating() &&
                wlr_tearing_control_manager_v1_surface_hint_from_surface(m_tearing_control_mgr, w->surface()) ==
                    WP_TEARING_CONTROL_V1_PRESENTATION_HINT_ASYNC;
     }
@@ -948,6 +949,7 @@ namespace flux {
         }
 
         if (!enable) {
+            output->active_workspace().snap_animations();
             if (m_swipe_output == output || output->animation().is_busy()) {
                 if (m_swipe_output == output) {
                     cancel_workspace_swipe();

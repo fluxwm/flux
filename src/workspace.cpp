@@ -95,8 +95,15 @@ namespace flux {
     }
 
     void Workspace::prepare_slide() noexcept {
+        snap_animations();
         restack();
         wlr_ext_workspace_handle_v1_set_active(m_handle, false);
+    }
+
+    void Workspace::snap_animations() noexcept {
+        for (Window* w : m_windows) {
+            w->snap_animation();
+        }
     }
 
     void Workspace::promote(Window* window) {

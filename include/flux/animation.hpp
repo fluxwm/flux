@@ -8,6 +8,10 @@ namespace flux {
     class Output;
     class Workspace;
 
+    [[nodiscard]] inline double elapsed_seconds(const timespec& from, const timespec& to) noexcept {
+        return static_cast<double>(to.tv_sec - from.tv_sec) + (static_cast<double>(to.tv_nsec - from.tv_nsec) * 1e-9);
+    }
+
     struct SpringConfig {
         double stiffness = 800.0;
         double damping_ratio = 1.0;

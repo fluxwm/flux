@@ -1,5 +1,6 @@
 #pragma once
 
+#include "flux/animation.hpp"
 #include "flux/listener.hpp"
 #include "flux/wlroots.hpp"
 
@@ -74,11 +75,20 @@ namespace flux {
             return s && s->mapped;
         }
         [[nodiscard]] wlr_box geometry_box() const noexcept;
+        [[nodiscard]] bool is_animating() const noexcept { return m_animating; }
         [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
         [[nodiscard]] uint32_t workspace_id() const noexcept { return m_workspace_id; }
         [[nodiscard]] Output* output() const noexcept;
         void set_output(Output* output) noexcept;
-        void set_placed(bool placed) noexcept { m_placed = placed; }
+        void set_placed(bool placed) noexcept {
+            m_placed = placed;
+            if (!placed) {
+                m_has_initial_position = false;
+            }
+        }
+
+        void snap_animation() noexcept;
+        bool step_animation(const timespec& now) noexcept;
 
         void set_activated(bool activated) noexcept;
         void update_borders() noexcept;
@@ -106,6 +116,8 @@ namespace flux {
 
     private:
         [[nodiscard]] bool wants_floating() const noexcept;
+        [[nodiscard]] bool can_animate() const noexcept;
+        void apply_position() noexcept;
         void on_associate();
         void on_dissociate();
         void on_map();
@@ -140,13 +152,22 @@ namespace flux {
         bool m_floating = false;
         bool m_floating_override = false;
         bool m_placed = false;
+        bool m_has_initial_position = false;
         bool m_resizing = false;
+        bool m_grabbed = false;
+        bool m_animating = false;
         bool m_activated = false;
         uint32_t m_resize_edges = WLR_EDGE_NONE;
         uint32_t m_resize_serial = 0;
         uint32_t m_pending_center_serial = 0;
+        uint32_t m_pending_move_serial = 0;
         wlr_box m_grab_box{};
         wlr_box m_floating_box{};
+        int m_target_x = 0;
+        int m_target_y = 0;
+        Spring m_spring_x{};
+        Spring m_spring_y{};
+        timespec m_last_animation_time{};
         int m_committed_width = 0;
         int m_committed_height = 0;
         int m_border_width = 0;
