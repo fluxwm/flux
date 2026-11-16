@@ -166,6 +166,9 @@ namespace flux::input {
 
         if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
             stop_repeat();
+            if (!is_consumed(event->keycode)) {
+                m_consumed_keycodes.push_back(event->keycode);
+            }
 
             const uint32_t keycode = event->keycode + 8;
             const xkb_keysym_t* syms = nullptr;
@@ -207,8 +210,8 @@ namespace flux::input {
                 }
             }
 
-            if (handled && !std::ranges::contains(m_consumed_keycodes, event->keycode)) {
-                m_consumed_keycodes.push_back(event->keycode);
+            if (!handled) {
+                std::erase(m_consumed_keycodes, event->keycode);
             }
         } else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
             if (m_repeating && event->keycode == m_repeat_keycode) {
