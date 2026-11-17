@@ -1,8 +1,11 @@
 #pragma once
 
+#include "flux/animation.hpp"
 #include "flux/wlroots.hpp"
 
+#include <array>
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <vector>
 
@@ -12,6 +15,36 @@ namespace flux {
     class Window;
     class Output;
     enum class Direction : uint8_t;
+
+    struct ClosingBuffer {
+        wlr_scene_buffer* buffer = nullptr;
+        int rel_x = 0;
+        int rel_y = 0;
+        int width = 0;
+        int height = 0;
+        float base_opacity = 1.0f;
+    };
+
+    struct ClosingWindow {
+        wlr_scene_tree* tree = nullptr;
+        std::vector<ClosingBuffer> buffers;
+        std::array<wlr_scene_rect*, 4> borders{};
+        std::array<float, 4> border_color{0.0f, 0.0f, 0.0f, 0.0f};
+        wlr_box box{};
+        int border_width = 0;
+        bool has_borders = false;
+        bool is_floating = false;
+        Spring spring{1.0, {.stiffness = 1000.0, .damping_ratio = 1.0}};
+        timespec last_time{};
+
+        ~ClosingWindow() {
+            if (tree) {
+                wlr_scene_node_destroy(&tree->node);
+            }
+        }
+
+        void apply_transform(double progress) noexcept;
+    };
 
     class Workspace {
     public:
@@ -45,6 +78,11 @@ namespace flux {
         [[nodiscard]] wlr_box next_tile_box() const noexcept;
         [[nodiscard]] bool is_solitary() const noexcept;
 
+        [[nodiscard]] bool has_closing_animations() const noexcept { return !m_closing_windows.empty(); }
+        void add_closing_window(Window* window, double initial_progress = 1.0);
+        bool step_closing_animations(const timespec& now) noexcept;
+        void snap_closing_animations() noexcept;
+
     private:
         [[nodiscard]] size_t tiled_count() const noexcept;
 
@@ -55,6 +93,7 @@ namespace flux {
         Window* m_active_fullscreen = nullptr;
         std::vector<Window*> m_focus_stack;
         std::vector<Window*> m_windows;
+        std::vector<std::unique_ptr<ClosingWindow>> m_closing_windows;
     };
 
 }

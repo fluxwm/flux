@@ -89,7 +89,17 @@ namespace flux {
             if (node == &m_scene_drag_icons->node) {
                 continue;
             }
-            if (wlr_scene_node* hit = wlr_scene_node_at(node, lx, ly, sx, sy)) {
+            auto find_hit = [&](auto& self, wlr_scene_node* n) -> wlr_scene_node* {
+                wlr_scene_node* hit = wlr_scene_node_at(n, lx, ly, sx, sy);
+                if (hit && hit->type == WLR_SCENE_NODE_RECT && hit->parent && !hit->parent->node.data) {
+                    hit->parent->node.enabled = false;
+                    wlr_scene_node* next = self(self, n);
+                    hit->parent->node.enabled = true;
+                    return next;
+                }
+                return hit;
+            };
+            if (wlr_scene_node* hit = find_hit(find_hit, node)) {
                 return hit;
             }
         }

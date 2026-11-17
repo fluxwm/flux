@@ -109,6 +109,12 @@ namespace flux {
                     }
                 }
             }
+            if (m_active_workspace->has_closing_animations()) {
+                had_animating_window = true;
+                if (m_active_workspace->step_closing_animations(now)) {
+                    any_window_animating = true;
+                }
+            }
         }
 
         if (any_window_animating) {

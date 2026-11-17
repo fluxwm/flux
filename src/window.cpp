@@ -5,6 +5,7 @@
 #include "flux/workspace.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 namespace flux {
 
@@ -213,10 +214,30 @@ namespace flux {
         }
         m_committed_width = surface()->current.width;
         m_committed_height = surface()->current.height;
-        update_borders();
+        if (can_animate() && !m_fullscreen) {
+            m_opening = true;
+            m_open_spring.reset(0.0, 0.0);
+            m_open_spring.set_target(1.0);
+            clock_gettime(CLOCK_MONOTONIC, &m_last_animation_time);
+            apply_open_transform();
+            if (auto* out = output(); out && out->raw()) {
+                wlr_output_schedule_frame(out->raw());
+            }
+        } else {
+            update_borders();
+        }
     }
 
     void Window::on_unmap() {
+        const double open_progress = m_opening ? std::clamp(m_open_spring.value(), 0.0, 1.0) : 1.0;
+        if (m_opening) {
+            reset_open_transform();
+        }
+
+        if (m_workspace) {
+            m_workspace->add_closing_window(this, open_progress);
+        }
+
         snap_animation();
         m_has_initial_position = false;
         if (m_ext_toplevel_handle) {
@@ -263,8 +284,8 @@ namespace flux {
             return;
         }
 
-        const int old_x = m_scene_tree->node.x;
-        const int old_y = m_scene_tree->node.y;
+        const int old_x = m_base_x;
+        const int old_y = m_base_y;
 
         if (m_xdg_toplevel && m_resize_edges != WLR_EDGE_NONE) {
             if (is_floating() && (m_resize_edges & (WLR_EDGE_LEFT | WLR_EDGE_TOP))) {
@@ -302,15 +323,18 @@ namespace flux {
         }
 
         if (is_mapped()) {
-            if (const wlr_box box = geometry_box(); box.width != m_border_width || box.height != m_border_height) {
-                update_borders();
-            }
             const auto* s = surface();
             const bool size_changed =
                 (s->current.width != m_committed_width || s->current.height != m_committed_height);
-            const bool pos_changed = (m_scene_tree->node.x != old_x || m_scene_tree->node.y != old_y);
+            const bool pos_changed = (m_base_x != old_x || m_base_y != old_y);
             m_committed_width = s->current.width;
             m_committed_height = s->current.height;
+            if (m_opening) {
+                apply_open_transform();
+            } else if (const wlr_box box = geometry_box();
+                       box.width != m_border_width || box.height != m_border_height) {
+                update_borders();
+            }
             if ((size_changed || pos_changed) && !m_resizing) {
                 m_compositor.update_cursor_focus();
             }
@@ -493,6 +517,9 @@ namespace flux {
         reset_placement_state();
 
         if (m_fullscreen) {
+            if (m_opening) {
+                reset_open_transform();
+            }
             if (m_xdg_toplevel) {
                 wlr_xdg_toplevel_set_tiled(m_xdg_toplevel, 0);
                 if (m_xdg_toplevel->requested.fullscreen_output) {
@@ -556,17 +583,31 @@ namespace flux {
         m_decoration = nullptr;
     }
 
-    bool Window::move_scene_tree(int x, int y) noexcept {
-        if (m_scene_tree->node.x == x && m_scene_tree->node.y == y) {
-            return false;
+    void Window::move_scene_tree(int x, int y) noexcept {
+        m_base_x = x;
+        m_base_y = y;
+
+        int render_x = x;
+        int render_y = y;
+        if (m_opening) {
+            const wlr_box box = geometry_box();
+            const double progress = std::clamp(m_open_spring.value(), 0.0, 1.0);
+            const double scale = 0.90 + (0.10 * progress);
+            const int scaled_w = std::max(1, static_cast<int>(std::round(box.width * scale)));
+            const int scaled_h = std::max(1, static_cast<int>(std::round(box.height * scale)));
+            render_x = x + ((box.width - scaled_w) / 2);
+            render_y = y + ((box.height - scaled_h) / 2);
         }
-        wlr_scene_node_set_position(&m_scene_tree->node, x, y);
+
+        if (m_scene_tree->node.x == render_x && m_scene_tree->node.y == render_y) {
+            return;
+        }
+        wlr_scene_node_set_position(&m_scene_tree->node, render_x, render_y);
         for (const auto& popup : m_compositor.popups()) {
             if (popup->root_tree() == m_scene_tree) {
                 popup->update_position();
             }
         }
-        return true;
     }
 
     bool Window::can_animate() const noexcept {
@@ -590,24 +631,32 @@ namespace flux {
     }
 
     void Window::apply_position() noexcept {
-        if (can_animate() &&
-            (m_animating || m_scene_tree->node.x != m_target_x || m_scene_tree->node.y != m_target_y)) {
-            if (!m_animating) {
-                m_spring_x.reset(m_scene_tree->node.x, 0.0);
-                m_spring_y.reset(m_scene_tree->node.y, 0.0);
-                clock_gettime(CLOCK_MONOTONIC, &m_last_animation_time);
-                m_animating = true;
-                if (auto* out = output(); out && out->raw()) {
-                    wlr_output_schedule_frame(out->raw());
+        if (!can_animate()) {
+            snap_animation();
+        } else {
+            if (m_animating || m_base_x != m_target_x || m_base_y != m_target_y) {
+                if (!m_animating) {
+                    m_spring_x.reset(m_base_x, 0.0);
+                    m_spring_y.reset(m_base_y, 0.0);
+                    if (!m_opening) {
+                        clock_gettime(CLOCK_MONOTONIC, &m_last_animation_time);
+                    }
+                    m_animating = true;
+                    if (auto* out = output(); out && out->raw()) {
+                        wlr_output_schedule_frame(out->raw());
+                    }
+                }
+                m_spring_x.set_target(m_target_x);
+                m_spring_y.set_target(m_target_y);
+                if (m_spring_x.is_settled() && m_spring_y.is_settled()) {
+                    m_animating = false;
                 }
             }
-            m_spring_x.set_target(m_target_x);
-            m_spring_y.set_target(m_target_y);
-            if (m_spring_x.is_settled() && m_spring_y.is_settled()) {
-                snap_animation();
+            if (!m_animating) {
+                m_spring_x.reset(m_target_x, 0.0);
+                m_spring_y.reset(m_target_y, 0.0);
+                move_scene_tree(m_target_x, m_target_y);
             }
-        } else {
-            snap_animation();
         }
 
         if (is_mapped()) {
@@ -616,25 +665,39 @@ namespace flux {
     }
 
     bool Window::step_animation(const timespec& now) noexcept {
-        if (!m_animating) {
+        if (!m_animating && !m_opening) {
             return false;
         }
 
         const double dt = std::clamp(elapsed_seconds(m_last_animation_time, now), 0.0, 0.05);
         m_last_animation_time = now;
 
-        m_spring_x.advance(dt);
-        m_spring_y.advance(dt);
+        if (m_animating) {
+            m_spring_x.advance(dt);
+            m_spring_y.advance(dt);
 
-        if (m_spring_x.is_settled() && m_spring_y.is_settled()) {
-            snap_animation();
-            return false;
+            if (m_spring_x.is_settled() && m_spring_y.is_settled()) {
+                m_animating = false;
+                m_spring_x.reset(m_target_x, 0.0);
+                m_spring_y.reset(m_target_y, 0.0);
+            }
         }
 
-        const int cur_x = static_cast<int>(std::round(m_spring_x.value()));
-        const int cur_y = static_cast<int>(std::round(m_spring_y.value()));
-        move_scene_tree(cur_x, cur_y);
-        return true;
+        m_base_x = m_animating ? static_cast<int>(std::round(m_spring_x.value())) : m_target_x;
+        m_base_y = m_animating ? static_cast<int>(std::round(m_spring_y.value())) : m_target_y;
+
+        if (m_opening) {
+            m_open_spring.advance(dt);
+            if (m_open_spring.is_settled(0.005, 0.05)) {
+                reset_open_transform();
+            } else {
+                apply_open_transform();
+            }
+        } else {
+            move_scene_tree(m_base_x, m_base_y);
+        }
+
+        return m_animating || m_opening;
     }
 
     void Window::snap_animation() noexcept {
@@ -643,15 +706,91 @@ namespace flux {
         m_pending_move_serial = 0;
         m_spring_x.reset(m_target_x, 0.0);
         m_spring_y.reset(m_target_y, 0.0);
+        if (m_opening) {
+            m_base_x = m_target_x;
+            m_base_y = m_target_y;
+            reset_open_transform();
+            return;
+        }
         move_scene_tree(m_target_x, m_target_y);
         if (had_pending_move) {
             update_borders();
         }
     }
 
+    void Window::apply_open_transform() noexcept {
+        const wlr_box box = geometry_box();
+        if (box.width <= 0 || box.height <= 0) {
+            return;
+        }
+
+        const double p = std::clamp(m_open_spring.value(), 0.0, 1.0);
+        const double scale = 0.90 + (0.10 * p);
+        const float opacity = static_cast<float>(p);
+
+        struct TransformData {
+            const wlr_surface* main_surface;
+            double scale;
+            float opacity;
+            int fallback_w;
+            int fallback_h;
+        } data{
+            .main_surface = surface(),
+            .scale = scale,
+            .opacity = opacity,
+            .fallback_w = m_committed_width > 0 ? m_committed_width : box.width,
+            .fallback_h = m_committed_height > 0 ? m_committed_height : box.height,
+        };
+
+        wlr_scene_node_for_each_buffer(
+            &m_scene_tree->node,
+            [](wlr_scene_buffer* buffer, int, int, void* user_data) {
+                if (!buffer) {
+                    return;
+                }
+                const auto* td = static_cast<const TransformData*>(user_data);
+                int orig_w = 0;
+                int orig_h = 0;
+                float base_alpha = 1.0f;
+                if (wlr_scene_surface* surf = wlr_scene_surface_try_from_buffer(buffer)) {
+                    orig_w = surf->surface->current.width > 0
+                                 ? surf->surface->current.width
+                                 : (surf->surface == td->main_surface ? td->fallback_w : 0);
+                    orig_h = surf->surface->current.height > 0
+                                 ? surf->surface->current.height
+                                 : (surf->surface == td->main_surface ? td->fallback_h : 0);
+                    if (const auto* state = wlr_alpha_modifier_v1_get_surface_state(surf->surface)) {
+                        base_alpha = static_cast<float>(state->multiplier);
+                    }
+                } else if (buffer->buffer) {
+                    orig_w = buffer->buffer->width;
+                    orig_h = buffer->buffer->height;
+                }
+
+                if (orig_w > 0 && orig_h > 0) {
+                    const int bw = std::max(1, static_cast<int>(std::round(orig_w * td->scale)));
+                    const int bh = std::max(1, static_cast<int>(std::round(orig_h * td->scale)));
+                    wlr_scene_buffer_set_dest_size(buffer, bw, bh);
+                }
+                wlr_scene_buffer_set_opacity(buffer, base_alpha * td->opacity);
+            },
+            &data);
+
+        if (is_mapped()) {
+            update_borders();
+        }
+
+        move_scene_tree(m_base_x, m_base_y);
+    }
+
+    void Window::reset_open_transform() noexcept {
+        m_opening = false;
+        m_open_spring.reset(1.0, 0.0);
+        apply_open_transform();
+    }
+
     void Window::set_position(int x, int y) noexcept {
-        if (!m_animating && m_target_x == x && m_target_y == y && m_scene_tree->node.x == x &&
-            m_scene_tree->node.y == y) {
+        if (!m_animating && !m_opening && m_target_x == x && m_target_y == y && m_base_x == x && m_base_y == y) {
             if (is_mapped()) {
                 m_has_initial_position = true;
             }
@@ -693,8 +832,7 @@ namespace flux {
             const bool shrinking =
                 (w < cur.width && w != m_xdg_toplevel->current.width && w >= m_xdg_toplevel->current.min_width) ||
                 (h < cur.height && h != m_xdg_toplevel->current.height && h >= m_xdg_toplevel->current.min_height);
-            if (!m_animating && can_animate() && (m_scene_tree->node.x != box.x || m_scene_tree->node.y != box.y) &&
-                shrinking) {
+            if (!m_animating && can_animate() && (m_base_x != box.x || m_base_y != box.y) && shrinking) {
                 if (m_pending_move_serial == 0) {
                     m_pending_move_serial = serial;
                 }
@@ -726,75 +864,76 @@ namespace flux {
         update_borders();
     }
 
+    bool Window::has_visible_borders() const noexcept {
+        if (m_fullscreen || m_pending_center_serial != 0 ||
+            (m_pending_move_serial != 0 && !m_borders[0]->node.enabled)) {
+            return false;
+        }
+        const auto& layout_cfg = m_compositor.config().layout();
+        const auto& border_cfg = layout_cfg.border;
+        if (border_cfg.width <= 0) {
+            return false;
+        }
+        const auto& color = m_activated ? border_cfg.active_color : border_cfg.inactive_color;
+        if (color[3] <= 0.0f) {
+            return false;
+        }
+        if (layout_cfg.gaps.smart && (m_maximized || (is_tiled() && (!m_workspace || m_workspace->is_solitary())))) {
+            return false;
+        }
+        return true;
+    }
+
     void Window::update_borders() noexcept {
         if (is_mapped() && !m_fullscreen && (m_pending_center_serial != 0 || m_pending_move_serial != 0)) {
             return;
         }
 
-        const auto& layout_cfg = m_compositor.config().layout();
-        const auto& border_cfg = layout_cfg.border;
-
-        const bool mapped = is_mapped();
-        if (mapped) {
+        if (is_mapped()) {
             const wlr_box box = geometry_box();
             m_border_width = box.width;
             m_border_height = box.height;
         }
 
-        const bool smart_solitary = mapped && layout_cfg.gaps.smart &&
-                                    (m_maximized || (is_tiled() && (!m_workspace || m_workspace->is_solitary())));
-
-        const auto& color = m_activated ? border_cfg.active_color : border_cfg.inactive_color;
-        const bool visible = mapped && !m_fullscreen && border_cfg.width > 0 && !smart_solitary && color[3] > 0.0f;
-        if (!visible) {
+        if (!is_mapped() || !has_visible_borders()) {
             for (auto* border : m_borders) {
                 wlr_scene_node_set_enabled(&border->node, false);
             }
             return;
         }
 
-        const int bw = border_cfg.width;
-        const int w = std::max(1, m_border_width);
-        const int h = std::max(1, m_border_height);
+        const double p = m_opening ? std::clamp(m_open_spring.value(), 0.0, 1.0) : 1.0;
+        const double scale = 0.90 + (0.10 * p);
+        const auto& border_cfg = m_compositor.config().layout().border;
+        const auto& color = m_activated ? border_cfg.active_color : border_cfg.inactive_color;
+        const int w = std::max(1, static_cast<int>(std::round(m_border_width * scale)));
+        const int h = std::max(1, static_cast<int>(std::round(m_border_height * scale)));
 
-        wlr_scene_node_set_position(&m_borders[0]->node, -bw, -bw);
-        wlr_scene_rect_set_size(m_borders[0], w + (2 * bw), bw);
-
-        wlr_scene_node_set_position(&m_borders[1]->node, -bw, h);
-        wlr_scene_rect_set_size(m_borders[1], w + (2 * bw), bw);
-
-        wlr_scene_node_set_position(&m_borders[2]->node, -bw, 0);
-        wlr_scene_rect_set_size(m_borders[2], bw, h);
-
-        wlr_scene_node_set_position(&m_borders[3]->node, w, 0);
-        wlr_scene_rect_set_size(m_borders[3], bw, h);
-
-        for (auto* border : m_borders) {
-            wlr_scene_rect_set_color(border, color.data());
-            wlr_scene_node_set_enabled(&border->node, true);
-        }
+        layout_border_rects(m_borders, w, h, border_cfg.width, color, static_cast<float>(p));
     }
 
     wlr_box Window::geometry_box() const noexcept {
         if (m_xdg_toplevel) {
             const wlr_box& geo = m_xdg_toplevel->base->geometry;
             const auto* s = surface();
+            const int surf_w = (s && s->current.width > 0) ? s->current.width : m_committed_width;
+            const int surf_h = (s && s->current.height > 0) ? s->current.height : m_committed_height;
             return {
-                .x = m_scene_tree->node.x,
-                .y = m_scene_tree->node.y,
-                .width = geo.width > 0 ? geo.width : (s ? s->current.width : 0),
-                .height = geo.height > 0 ? geo.height : (s ? s->current.height : 0),
+                .x = m_base_x,
+                .y = m_base_y,
+                .width = geo.width > 0 ? geo.width : surf_w,
+                .height = geo.height > 0 ? geo.height : surf_h,
             };
         }
         if (m_xwayland_surface) {
             const auto* s = surface();
+            const int surf_w = (s && s->current.width > 0) ? s->current.width : m_committed_width;
+            const int surf_h = (s && s->current.height > 0) ? s->current.height : m_committed_height;
             return {
-                .x = m_scene_tree->node.x,
-                .y = m_scene_tree->node.y,
-                .width = m_xwayland_surface->width > 0 ? static_cast<int>(m_xwayland_surface->width)
-                                                       : (s ? s->current.width : 0),
-                .height = m_xwayland_surface->height > 0 ? static_cast<int>(m_xwayland_surface->height)
-                                                         : (s ? s->current.height : 0),
+                .x = m_base_x,
+                .y = m_base_y,
+                .width = m_xwayland_surface->width > 0 ? static_cast<int>(m_xwayland_surface->width) : surf_w,
+                .height = m_xwayland_surface->height > 0 ? static_cast<int>(m_xwayland_surface->height) : surf_h,
             };
         }
         return {};
@@ -815,7 +954,9 @@ namespace flux {
         m_placed = true;
         m_grabbed = true;
         if (m_animating || m_pending_move_serial != 0) {
-            set_position(m_scene_tree->node.x, m_scene_tree->node.y);
+            set_position(m_base_x, m_base_y);
+        } else if (m_opening) {
+            reset_open_transform();
         }
         m_grab_box = geometry_box();
         m_resize_edges = edges;
@@ -934,10 +1075,17 @@ namespace flux {
             m_workspace_id = ws->id();
         }
         if (m_workspace != ws) {
-            snap_animation();
+            const double open_progress = m_opening ? std::clamp(m_open_spring.value(), 0.0, 1.0) : 1.0;
+            if (m_opening) {
+                reset_open_transform();
+            }
             if (m_workspace) {
+                if (m_has_initial_position && ws && &m_workspace->output() == &ws->output()) {
+                    m_workspace->add_closing_window(this, open_progress);
+                }
                 m_workspace->remove(this);
             }
+            snap_animation();
             m_workspace = ws;
             reparent_to_workspace();
         }
