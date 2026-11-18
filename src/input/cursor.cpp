@@ -120,9 +120,26 @@ namespace flux::input {
         uint32_t edges = WLR_EDGE_NONE;
         if (button == btn_right) {
             const wlr_box box = window->geometry_box();
-            const uint32_t horiz = (m_wlr_cursor->x < box.x + (box.width / 2.0)) ? WLR_EDGE_LEFT : WLR_EDGE_RIGHT;
-            const uint32_t vert = (m_wlr_cursor->y < box.y + (box.height / 2.0)) ? WLR_EDGE_TOP : WLR_EDGE_BOTTOM;
-            edges = horiz | vert;
+            const double rel_x = m_wlr_cursor->x - box.x;
+            const double rel_y = m_wlr_cursor->y - box.y;
+
+            if (rel_x < box.width / 3.0) {
+                edges |= WLR_EDGE_LEFT;
+            } else if (rel_x > box.width * (2.0 / 3.0)) {
+                edges |= WLR_EDGE_RIGHT;
+            }
+
+            if (rel_y < box.height / 3.0) {
+                edges |= WLR_EDGE_TOP;
+            } else if (rel_y > box.height * (2.0 / 3.0)) {
+                edges |= WLR_EDGE_BOTTOM;
+            }
+
+            if (edges == WLR_EDGE_NONE) {
+                const uint32_t horiz = (rel_x < (box.width / 2.0)) ? WLR_EDGE_LEFT : WLR_EDGE_RIGHT;
+                const uint32_t vert = (rel_y < (box.height / 2.0)) ? WLR_EDGE_TOP : WLR_EDGE_BOTTOM;
+                edges = horiz | vert;
+            }
         }
 
         m_grab_window = window;
