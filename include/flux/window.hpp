@@ -105,6 +105,9 @@ namespace flux {
         [[nodiscard]] bool is_animating() const noexcept { return m_animating || m_opening; }
         [[nodiscard]] bool is_activated() const noexcept { return m_activated; }
         [[nodiscard]] bool has_visible_borders() const noexcept;
+        [[nodiscard]] float tile_weight() const noexcept { return m_tile_weight; }
+        void set_tile_weight(float weight) noexcept { m_tile_weight = weight; }
+        void set_tiled_resizing(bool resizing) noexcept;
         [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
         [[nodiscard]] uint32_t workspace_id() const noexcept { return m_workspace_id; }
         [[nodiscard]] Output* output() const noexcept;
@@ -133,7 +136,7 @@ namespace flux {
         void toggle_floating();
         void start_grab(uint32_t edges);
         void update_grab(int dx, int dy);
-        void end_grab() noexcept;
+        void end_grab(bool commit = true) noexcept;
         void set_decoration(wlr_xdg_toplevel_decoration_v1* decoration);
         void close() noexcept {
             if (m_xdg_toplevel) {
@@ -189,6 +192,7 @@ namespace flux {
         bool m_animating = false;
         bool m_opening = false;
         bool m_activated = false;
+        float m_tile_weight = 1.0f;
         uint32_t m_resize_edges = WLR_EDGE_NONE;
         uint32_t m_resize_serial = 0;
         uint32_t m_pending_center_serial = 0;

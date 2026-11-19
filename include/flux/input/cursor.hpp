@@ -57,7 +57,7 @@ namespace flux::input {
         void on_swipe_end(wlr_pointer_swipe_end_event* event);
 
         void start_grab(Window* window, uint32_t button);
-        void end_grab();
+        void end_grab(bool commit = true);
         bool apply_constraint(double& dx, double& dy) const;
         void process_motion(uint32_t time_msec);
 

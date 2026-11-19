@@ -5,6 +5,7 @@
 #include "flux/output.hpp"
 #include "flux/util.hpp"
 #include "flux/window.hpp"
+#include "flux/workspace.hpp"
 
 #include <chrono>
 #include <cmath>
@@ -119,26 +120,33 @@ namespace flux::input {
     void Cursor::start_grab(Window* window, uint32_t button) {
         uint32_t edges = WLR_EDGE_NONE;
         if (button == btn_right) {
-            const wlr_box box = window->geometry_box();
-            const double rel_x = m_wlr_cursor->x - box.x;
-            const double rel_y = m_wlr_cursor->y - box.y;
+            if (window->is_tiled() && window->workspace()) {
+                edges = window->workspace()->tiled_resize_edges(window, m_wlr_cursor->x, m_wlr_cursor->y);
+                if (edges == WLR_EDGE_NONE) {
+                    return;
+                }
+            } else {
+                const wlr_box box = window->geometry_box();
+                const double rel_x = m_wlr_cursor->x - box.x;
+                const double rel_y = m_wlr_cursor->y - box.y;
 
-            if (rel_x < box.width / 3.0) {
-                edges |= WLR_EDGE_LEFT;
-            } else if (rel_x > box.width * (2.0 / 3.0)) {
-                edges |= WLR_EDGE_RIGHT;
-            }
+                if (rel_x < box.width / 3.0) {
+                    edges |= WLR_EDGE_LEFT;
+                } else if (rel_x > box.width * (2.0 / 3.0)) {
+                    edges |= WLR_EDGE_RIGHT;
+                }
 
-            if (rel_y < box.height / 3.0) {
-                edges |= WLR_EDGE_TOP;
-            } else if (rel_y > box.height * (2.0 / 3.0)) {
-                edges |= WLR_EDGE_BOTTOM;
-            }
+                if (rel_y < box.height / 3.0) {
+                    edges |= WLR_EDGE_TOP;
+                } else if (rel_y > box.height * (2.0 / 3.0)) {
+                    edges |= WLR_EDGE_BOTTOM;
+                }
 
-            if (edges == WLR_EDGE_NONE) {
-                const uint32_t horiz = (rel_x < (box.width / 2.0)) ? WLR_EDGE_LEFT : WLR_EDGE_RIGHT;
-                const uint32_t vert = (rel_y < (box.height / 2.0)) ? WLR_EDGE_TOP : WLR_EDGE_BOTTOM;
-                edges = horiz | vert;
+                if (edges == WLR_EDGE_NONE) {
+                    const uint32_t horiz = (rel_x < (box.width / 2.0)) ? WLR_EDGE_LEFT : WLR_EDGE_RIGHT;
+                    const uint32_t vert = (rel_y < (box.height / 2.0)) ? WLR_EDGE_TOP : WLR_EDGE_BOTTOM;
+                    edges = horiz | vert;
+                }
             }
         }
 
@@ -151,21 +159,21 @@ namespace flux::input {
         window->start_grab(edges);
     }
 
-    void Cursor::end_grab() {
+    void Cursor::end_grab(bool commit) {
         if (!m_grab_window) {
             return;
         }
         Window* window = m_grab_window;
         m_grab_window = nullptr;
         m_grab_button = 0;
-        window->end_grab();
+        window->end_grab(commit);
         set_xcursor("default");
         update_focus();
     }
 
     void Cursor::cancel_grab(const Window* window) {
         if (m_grab_window && (!window || m_grab_window == window)) {
-            end_grab();
+            end_grab(false);
         }
     }
 
@@ -289,8 +297,11 @@ namespace flux::input {
 
                 wlr_keyboard* keyboard = m_input.seat().keyboard();
                 const uint32_t mods = keyboard ? (wlr_keyboard_get_modifiers(keyboard) & key_modifier_mask) : 0;
+                const bool can_tiled_resize = event->button == btn_right && window->is_tiled() && window->workspace() &&
+                                              window->workspace()->tiled_count() > 1 &&
+                                              m_input.compositor().config().layout().mode != Layout::Monocle;
                 if (mods == WLR_MODIFIER_LOGO && (event->button == btn_left || event->button == btn_right) &&
-                    window->is_floating()) {
+                    (window->is_floating() || can_tiled_resize)) {
                     m_input.seat().notify_activity();
                     start_grab(window, event->button);
                     return;
@@ -403,9 +414,16 @@ namespace flux::input {
         }
 
         if (m_grab_window) {
-            if (m_input.compositor().is_locked() || !m_grab_window->is_mapped() || !m_grab_window->is_floating() ||
-                m_grab_window != m_input.compositor().focused_window()) {
-                end_grab();
+            const bool valid_tiled = m_grab_window->is_tiled() && m_grab_button == btn_right &&
+                                     m_grab_window->workspace() && m_grab_window->workspace()->is_resizing() &&
+                                     m_grab_window->workspace()->tiled_count() > 1 &&
+                                     m_input.compositor().config().layout().mode != Layout::Monocle;
+            const bool valid_floating = m_grab_window->is_floating();
+            const bool is_valid_grab = !m_input.compositor().is_locked() && m_grab_window->is_mapped() &&
+                                       (valid_floating || valid_tiled) &&
+                                       m_grab_window == m_input.compositor().focused_window();
+            if (!is_valid_grab) {
+                end_grab(false);
             }
             return;
         }

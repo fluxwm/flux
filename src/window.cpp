@@ -1,5 +1,6 @@
 #include "flux/window.hpp"
 #include "flux/compositor.hpp"
+#include "flux/input.hpp"
 #include "flux/output.hpp"
 #include "flux/popup.hpp"
 #include "flux/workspace.hpp"
@@ -252,6 +253,7 @@ namespace flux {
         }
         m_maximized = false;
         m_floating_override = false;
+        m_tile_weight = 1.0f;
         reset_placement_state();
         m_floating_box = {};
         m_committed_width = 0;
@@ -335,7 +337,8 @@ namespace flux {
                        box.width != m_border_width || box.height != m_border_height) {
                 update_borders();
             }
-            if ((size_changed || pos_changed) && !m_resizing) {
+            const bool is_resizing = m_resizing || (m_workspace && m_workspace->is_resizing());
+            if ((size_changed || pos_changed) && !is_resizing) {
                 m_compositor.update_cursor_focus();
             }
         }
@@ -384,6 +387,9 @@ namespace flux {
     void Window::toggle_maximize() {
         if (m_fullscreen) {
             return;
+        }
+        if (m_grabbed) {
+            m_compositor.input().cursor().cancel_grab(this);
         }
 
         save_floating_box();
@@ -446,6 +452,9 @@ namespace flux {
     }
 
     void Window::set_floating(bool floating) {
+        if (m_grabbed) {
+            m_compositor.input().cursor().cancel_grab(this);
+        }
         save_floating_box();
         m_floating = floating;
         reset_placement_state();
@@ -509,6 +518,9 @@ namespace flux {
                 wlr_xdg_surface_schedule_configure(m_xdg_toplevel->base);
             }
             return;
+        }
+        if (m_grabbed) {
+            m_compositor.input().cursor().cancel_grab(this);
         }
 
         save_floating_box();
@@ -620,7 +632,7 @@ namespace flux {
         if (m_compositor.is_workspace_swiping() || m_compositor.is_locked()) {
             return false;
         }
-        if (!m_workspace) {
+        if (!m_workspace || m_workspace->is_resizing()) {
             return false;
         }
         Output& out = m_workspace->output();
@@ -951,8 +963,18 @@ namespace flux {
     void Window::start_grab(uint32_t edges) {
         m_compositor.dismiss_popups();
         m_pending_center_serial = 0;
-        m_placed = true;
         m_grabbed = true;
+        if (is_tiled()) {
+            m_resizing = false;
+            m_resize_edges = WLR_EDGE_NONE;
+            m_resize_serial = 0;
+            if (m_workspace) {
+                m_workspace->snap_animations();
+                m_workspace->start_tiled_resize(this, edges);
+            }
+            return;
+        }
+        m_placed = true;
         if (m_animating || m_pending_move_serial != 0) {
             set_position(m_base_x, m_base_y);
         } else if (m_opening) {
@@ -968,6 +990,11 @@ namespace flux {
     }
 
     void Window::update_grab(int dx, int dy) {
+        if (m_workspace && m_workspace->is_resizing()) {
+            m_workspace->update_tiled_resize(dx, dy);
+            return;
+        }
+
         if (!m_resizing) {
             set_position(m_grab_box.x + dx, m_grab_box.y + dy);
             return;
@@ -1026,8 +1053,12 @@ namespace flux {
         }
     }
 
-    void Window::end_grab() noexcept {
+    void Window::end_grab(bool commit) noexcept {
         m_grabbed = false;
+        if (m_workspace && m_workspace->is_resizing()) {
+            m_workspace->end_tiled_resize();
+            return;
+        }
         const bool was_resizing = m_resizing;
         if (m_resizing) {
             m_resizing = false;
@@ -1042,7 +1073,7 @@ namespace flux {
                 m_resize_serial = 0;
             }
         }
-        if (!was_resizing && is_mapped()) {
+        if (commit && !was_resizing && is_mapped()) {
             if (Output* out = m_compositor.focused_output(); out && output() != out) {
                 set_output(out);
                 m_compositor.refocus();
@@ -1075,6 +1106,9 @@ namespace flux {
             m_workspace_id = ws->id();
         }
         if (m_workspace != ws) {
+            if (m_grabbed) {
+                m_compositor.input().cursor().cancel_grab(this);
+            }
             const double open_progress = m_opening ? std::clamp(m_open_spring.value(), 0.0, 1.0) : 1.0;
             if (m_opening) {
                 reset_open_transform();
@@ -1097,6 +1131,12 @@ namespace flux {
     void Window::reparent_to_workspace() noexcept {
         wlr_scene_tree* target = m_workspace ? m_workspace->tree() : m_compositor.scene().windows();
         wlr_scene_node_reparent(&m_scene_tree->node, target);
+    }
+
+    void Window::set_tiled_resizing(bool resizing) noexcept {
+        if (m_xdg_toplevel && m_xdg_toplevel->base->initialized && m_xdg_toplevel->scheduled.resizing != resizing) {
+            wlr_xdg_toplevel_set_resizing(m_xdg_toplevel, resizing);
+        }
     }
 
     void Window::update_foreign_toplevel() noexcept {
