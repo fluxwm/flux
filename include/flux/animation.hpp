@@ -1,15 +1,33 @@
 #pragma once
 
+#include "flux/scene.hpp"
+
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <ctime>
+#include <vector>
 
 namespace flux {
 
     class Output;
     class Workspace;
+    class Window;
 
     [[nodiscard]] inline double elapsed_seconds(const timespec& from, const timespec& to) noexcept {
         return static_cast<double>(to.tv_sec - from.tv_sec) + (static_cast<double>(to.tv_nsec - from.tv_nsec) * 1e-9);
+    }
+
+    [[nodiscard]] inline double open_close_scale(double progress) noexcept {
+        return 0.90 + (0.10 * std::clamp(progress, 0.0, 1.0));
+    }
+
+    [[nodiscard]] inline int scaled_extent(int extent, double scale) noexcept {
+        return std::max(1, static_cast<int>(std::round(extent * scale)));
+    }
+
+    [[nodiscard]] inline int center_offset(int total, int scaled) noexcept {
+        return (total - scaled) / 2;
     }
 
     struct SpringConfig {
@@ -47,6 +65,35 @@ namespace flux {
         SpringConfig m_config;
     };
 
+    struct ClosingBuffer {
+        wlr_scene_buffer* buffer = nullptr;
+        int rel_x = 0;
+        int rel_y = 0;
+        int width = 0;
+        int height = 0;
+        float base_opacity = 1.0f;
+    };
+
+    struct ClosingWindow {
+        wlr_scene_tree* tree = nullptr;
+        std::vector<ClosingBuffer> buffers;
+        Border border;
+        std::array<float, 4> border_color{0.0f, 0.0f, 0.0f, 0.0f};
+        wlr_box box{};
+        int border_width = 0;
+        bool is_floating = false;
+        Spring spring{1.0, {.stiffness = 1000.0, .damping_ratio = 1.0}};
+        timespec last_time{};
+
+        ~ClosingWindow() {
+            if (tree) {
+                wlr_scene_node_destroy(&tree->node);
+            }
+        }
+
+        void apply_transform(double progress) noexcept;
+    };
+
     class WorkspaceAnimation {
     public:
         WorkspaceAnimation() = default;
@@ -75,6 +122,55 @@ namespace flux {
         double m_swipe_velocity = 0.0;
         timespec m_last_time{};
         bool m_has_last_time = false;
+    };
+
+    class WindowAnimation {
+    public:
+        explicit WindowAnimation(Window& window) noexcept : m_window(window) {}
+
+        [[nodiscard]] int base_x() const noexcept { return m_base_x; }
+        [[nodiscard]] int base_y() const noexcept { return m_base_y; }
+        [[nodiscard]] int target_x() const noexcept { return m_target_x; }
+        [[nodiscard]] int target_y() const noexcept { return m_target_y; }
+        [[nodiscard]] bool is_moving() const noexcept { return m_moving; }
+        [[nodiscard]] bool is_opening() const noexcept { return m_opening; }
+        [[nodiscard]] bool is_active() const noexcept { return m_moving || m_opening; }
+        [[nodiscard]] double open_progress() const noexcept {
+            return m_opening ? std::clamp(m_open_spring.value(), 0.0, 1.0) : 1.0;
+        }
+        [[nodiscard]] bool has_initial_position() const noexcept { return m_has_initial_position; }
+
+        void set_target(int x, int y) noexcept {
+            m_target_x = x;
+            m_target_y = y;
+        }
+        void set_has_initial_position(bool has) noexcept { m_has_initial_position = has; }
+
+        void start_open() noexcept;
+        void apply_open_transform() noexcept;
+        void reset_open_transform() noexcept;
+
+        void apply_position() noexcept;
+        bool step(const timespec& now) noexcept;
+        void snap() noexcept;
+
+        [[nodiscard]] bool can_animate() const noexcept;
+
+    private:
+        void move_scene_tree(int x, int y) noexcept;
+
+        Window& m_window;
+        Spring m_spring_x{};
+        Spring m_spring_y{};
+        Spring m_open_spring{1.0, {.stiffness = 900.0, .damping_ratio = 1.0}};
+        timespec m_last_time{};
+        int m_base_x = 0;
+        int m_base_y = 0;
+        int m_target_x = 0;
+        int m_target_y = 0;
+        bool m_moving = false;
+        bool m_opening = false;
+        bool m_has_initial_position = false;
     };
 
 }

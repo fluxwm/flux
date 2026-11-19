@@ -4,6 +4,51 @@
 
 namespace flux {
 
+    void Border::init(wlr_scene_tree* parent) noexcept {
+        static constexpr float transparent[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        for (auto& rect : m_rects) {
+            rect = wlr_scene_rect_create(parent, 0, 0, transparent);
+            wlr_scene_node_set_enabled(&rect->node, false);
+        }
+    }
+
+    void Border::update(int w, int h, int bw, const std::array<float, 4>& color, float opacity) noexcept {
+        if (!m_rects[0]) {
+            return;
+        }
+        const std::array<float, 4> c{
+            color[0] * opacity,
+            color[1] * opacity,
+            color[2] * opacity,
+            color[3] * opacity,
+        };
+
+        wlr_scene_node_set_position(&m_rects[0]->node, -bw, -bw);
+        wlr_scene_rect_set_size(m_rects[0], w + (2 * bw), bw);
+
+        wlr_scene_node_set_position(&m_rects[1]->node, -bw, h);
+        wlr_scene_rect_set_size(m_rects[1], w + (2 * bw), bw);
+
+        wlr_scene_node_set_position(&m_rects[2]->node, -bw, 0);
+        wlr_scene_rect_set_size(m_rects[2], bw, h);
+
+        wlr_scene_node_set_position(&m_rects[3]->node, w, 0);
+        wlr_scene_rect_set_size(m_rects[3], bw, h);
+
+        for (auto* rect : m_rects) {
+            wlr_scene_rect_set_color(rect, c.data());
+            wlr_scene_node_set_enabled(&rect->node, true);
+        }
+    }
+
+    void Border::hide() noexcept {
+        for (auto* rect : m_rects) {
+            if (rect) {
+                wlr_scene_node_set_enabled(&rect->node, false);
+            }
+        }
+    }
+
     Scene::Scene(wl_display* display, wlr_output_layout* output_layout) {
         m_scene = wlr_scene_create();
         m_scene_background = wlr_scene_tree_create(&m_scene->tree);

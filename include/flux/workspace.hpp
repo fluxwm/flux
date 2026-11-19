@@ -3,7 +3,6 @@
 #include "flux/animation.hpp"
 #include "flux/wlroots.hpp"
 
-#include <array>
 #include <cstdint>
 #include <memory>
 #include <span>
@@ -15,36 +14,6 @@ namespace flux {
     class Window;
     class Output;
     enum class Direction : uint8_t;
-
-    struct ClosingBuffer {
-        wlr_scene_buffer* buffer = nullptr;
-        int rel_x = 0;
-        int rel_y = 0;
-        int width = 0;
-        int height = 0;
-        float base_opacity = 1.0f;
-    };
-
-    struct ClosingWindow {
-        wlr_scene_tree* tree = nullptr;
-        std::vector<ClosingBuffer> buffers;
-        std::array<wlr_scene_rect*, 4> borders{};
-        std::array<float, 4> border_color{0.0f, 0.0f, 0.0f, 0.0f};
-        wlr_box box{};
-        int border_width = 0;
-        bool has_borders = false;
-        bool is_floating = false;
-        Spring spring{1.0, {.stiffness = 1000.0, .damping_ratio = 1.0}};
-        timespec last_time{};
-
-        ~ClosingWindow() {
-            if (tree) {
-                wlr_scene_node_destroy(&tree->node);
-            }
-        }
-
-        void apply_transform(double progress) noexcept;
-    };
 
     class Workspace {
     public:

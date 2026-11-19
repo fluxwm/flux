@@ -410,32 +410,6 @@ namespace flux {
         return m_output.compositor().config().layout().mode == Layout::Monocle || tiled_count() <= 1;
     }
 
-    void ClosingWindow::apply_transform(double progress) noexcept {
-        const double p = std::clamp(progress, 0.0, 1.0);
-        const double scale = 0.90 + (0.10 * p);
-        const float opacity = static_cast<float>(p);
-
-        const int scaled_w = std::max(1, static_cast<int>(std::round(box.width * scale)));
-        const int scaled_h = std::max(1, static_cast<int>(std::round(box.height * scale)));
-
-        const int render_x = box.x + ((box.width - scaled_w) / 2);
-        const int render_y = box.y + ((box.height - scaled_h) / 2);
-        wlr_scene_node_set_position(&tree->node, render_x, render_y);
-
-        for (auto& cb : buffers) {
-            const int bw = std::max(1, static_cast<int>(std::round(cb.width * scale)));
-            const int bh = std::max(1, static_cast<int>(std::round(cb.height * scale)));
-            wlr_scene_buffer_set_dest_size(cb.buffer, bw, bh);
-            wlr_scene_buffer_set_opacity(cb.buffer, cb.base_opacity * opacity);
-            wlr_scene_node_set_position(&cb.buffer->node, static_cast<int>(std::round(cb.rel_x * scale)),
-                                        static_cast<int>(std::round(cb.rel_y * scale)));
-        }
-
-        if (has_borders) {
-            layout_border_rects(borders, scaled_w, scaled_h, border_width, border_color, opacity);
-        }
-    }
-
     void Workspace::add_closing_window(Window* window, double initial_progress) {
         if (!window || window->is_fullscreen() || initial_progress <= 0.01 || &m_output.active_workspace() != this) {
             return;
@@ -518,14 +492,10 @@ namespace flux {
         }
 
         if (window->has_visible_borders()) {
-            closing->has_borders = true;
             const auto& border_cfg = comp.config().layout().border;
             closing->border_width = border_cfg.width;
             closing->border_color = window->is_activated() ? border_cfg.active_color : border_cfg.inactive_color;
-
-            for (auto& border : closing->borders) {
-                border = wlr_scene_rect_create(closing->tree, 0, 0, closing->border_color.data());
-            }
+            closing->border.init(closing->tree);
         }
 
         const double initial_p = std::clamp(initial_progress, 0.0, 1.0);

@@ -1,6 +1,8 @@
 #include "flux/animation.hpp"
 #include "flux/compositor.hpp"
 #include "flux/output.hpp"
+#include "flux/popup.hpp"
+#include "flux/window.hpp"
 #include "flux/workspace.hpp"
 
 #include <algorithm>
@@ -270,6 +272,240 @@ namespace flux {
         m_current = nullptr;
         m_outgoing = nullptr;
         m_outgoing_offset = 0;
+    }
+
+    void ClosingWindow::apply_transform(double progress) noexcept {
+        const double p = std::clamp(progress, 0.0, 1.0);
+        const double scale = open_close_scale(p);
+        const float opacity = static_cast<float>(p);
+
+        const int scaled_w = scaled_extent(box.width, scale);
+        const int scaled_h = scaled_extent(box.height, scale);
+
+        const int render_x = box.x + center_offset(box.width, scaled_w);
+        const int render_y = box.y + center_offset(box.height, scaled_h);
+        wlr_scene_node_set_position(&tree->node, render_x, render_y);
+
+        for (auto& cb : buffers) {
+            wlr_scene_buffer_set_dest_size(cb.buffer, scaled_extent(cb.width, scale), scaled_extent(cb.height, scale));
+            wlr_scene_buffer_set_opacity(cb.buffer, cb.base_opacity * opacity);
+            wlr_scene_node_set_position(&cb.buffer->node, static_cast<int>(std::round(cb.rel_x * scale)),
+                                        static_cast<int>(std::round(cb.rel_y * scale)));
+        }
+
+        border.update(scaled_w, scaled_h, border_width, border_color, opacity);
+    }
+
+    void WindowAnimation::start_open() noexcept {
+        m_opening = true;
+        m_open_spring.reset(0.0, 0.0);
+        m_open_spring.set_target(1.0);
+        clock_gettime(CLOCK_MONOTONIC, &m_last_time);
+        apply_open_transform();
+        if (auto* out = m_window.output(); out && out->raw()) {
+            wlr_output_schedule_frame(out->raw());
+        }
+    }
+
+    void WindowAnimation::move_scene_tree(int x, int y) noexcept {
+        m_base_x = x;
+        m_base_y = y;
+
+        int render_x = x;
+        int render_y = y;
+        if (m_opening) {
+            const wlr_box box = m_window.geometry_box();
+            const double scale = open_close_scale(m_open_spring.value());
+            const int scaled_w = scaled_extent(box.width, scale);
+            const int scaled_h = scaled_extent(box.height, scale);
+            render_x = x + center_offset(box.width, scaled_w);
+            render_y = y + center_offset(box.height, scaled_h);
+        }
+
+        wlr_scene_tree* tree = m_window.m_scene_tree;
+        if (tree->node.x == render_x && tree->node.y == render_y) {
+            return;
+        }
+        wlr_scene_node_set_position(&tree->node, render_x, render_y);
+        for (const auto& popup : m_window.m_compositor.popups()) {
+            if (popup->root_tree() == tree) {
+                popup->update_position();
+            }
+        }
+    }
+
+    bool WindowAnimation::can_animate() const noexcept {
+        if (!m_window.is_mapped() || !m_has_initial_position) {
+            return false;
+        }
+        if (m_window.m_grabbed || m_window.m_resizing || m_window.m_resize_edges != WLR_EDGE_NONE) {
+            return false;
+        }
+        if (m_window.m_compositor.is_workspace_swiping() || m_window.m_compositor.is_locked()) {
+            return false;
+        }
+        Workspace* ws = m_window.m_workspace;
+        if (!ws || ws->is_resizing()) {
+            return false;
+        }
+        Output& out = ws->output();
+        if (!out.is_enabled() || out.animation().is_busy()) {
+            return false;
+        }
+        return ws == &out.active_workspace();
+    }
+
+    void WindowAnimation::apply_position() noexcept {
+        if (!can_animate()) {
+            snap();
+        } else {
+            if (m_moving || m_base_x != m_target_x || m_base_y != m_target_y) {
+                if (!m_moving) {
+                    m_spring_x.reset(m_base_x, 0.0);
+                    m_spring_y.reset(m_base_y, 0.0);
+                    if (!m_opening) {
+                        clock_gettime(CLOCK_MONOTONIC, &m_last_time);
+                    }
+                    m_moving = true;
+                    if (auto* out = m_window.output(); out && out->raw()) {
+                        wlr_output_schedule_frame(out->raw());
+                    }
+                }
+                m_spring_x.set_target(m_target_x);
+                m_spring_y.set_target(m_target_y);
+                if (m_spring_x.is_settled() && m_spring_y.is_settled()) {
+                    m_moving = false;
+                }
+            }
+            if (!m_moving) {
+                m_spring_x.reset(m_target_x, 0.0);
+                m_spring_y.reset(m_target_y, 0.0);
+                move_scene_tree(m_target_x, m_target_y);
+            }
+        }
+
+        if (m_window.is_mapped()) {
+            m_has_initial_position = true;
+        }
+    }
+
+    bool WindowAnimation::step(const timespec& now) noexcept {
+        if (!m_moving && !m_opening) {
+            return false;
+        }
+
+        const double dt = std::clamp(elapsed_seconds(m_last_time, now), 0.0, 0.05);
+        m_last_time = now;
+
+        if (m_moving) {
+            m_spring_x.advance(dt);
+            m_spring_y.advance(dt);
+
+            if (m_spring_x.is_settled() && m_spring_y.is_settled()) {
+                m_moving = false;
+                m_spring_x.reset(m_target_x, 0.0);
+                m_spring_y.reset(m_target_y, 0.0);
+            }
+        }
+
+        m_base_x = m_moving ? static_cast<int>(std::round(m_spring_x.value())) : m_target_x;
+        m_base_y = m_moving ? static_cast<int>(std::round(m_spring_y.value())) : m_target_y;
+
+        if (m_opening) {
+            m_open_spring.advance(dt);
+            if (m_open_spring.is_settled(0.005, 0.05)) {
+                reset_open_transform();
+            } else {
+                apply_open_transform();
+            }
+        } else {
+            move_scene_tree(m_base_x, m_base_y);
+        }
+
+        return m_moving || m_opening;
+    }
+
+    void WindowAnimation::snap() noexcept {
+        m_moving = false;
+        m_spring_x.reset(m_target_x, 0.0);
+        m_spring_y.reset(m_target_y, 0.0);
+        if (m_opening) {
+            m_base_x = m_target_x;
+            m_base_y = m_target_y;
+            reset_open_transform();
+            return;
+        }
+        move_scene_tree(m_target_x, m_target_y);
+    }
+
+    void WindowAnimation::apply_open_transform() noexcept {
+        const wlr_box box = m_window.geometry_box();
+        if (box.width <= 0 || box.height <= 0) {
+            return;
+        }
+
+        const double p = open_progress();
+        const double scale = open_close_scale(p);
+        const float opacity = static_cast<float>(p);
+
+        struct TransformData {
+            const wlr_surface* main_surface;
+            double scale;
+            float opacity;
+            int fallback_w;
+            int fallback_h;
+        } data{
+            .main_surface = m_window.surface(),
+            .scale = scale,
+            .opacity = opacity,
+            .fallback_w = m_window.m_committed_width > 0 ? m_window.m_committed_width : box.width,
+            .fallback_h = m_window.m_committed_height > 0 ? m_window.m_committed_height : box.height,
+        };
+
+        wlr_scene_node_for_each_buffer(
+            &m_window.m_scene_tree->node,
+            [](wlr_scene_buffer* buffer, int, int, void* user_data) {
+                if (!buffer) {
+                    return;
+                }
+                const auto* td = static_cast<const TransformData*>(user_data);
+                int orig_w = 0;
+                int orig_h = 0;
+                float base_alpha = 1.0f;
+                if (wlr_scene_surface* surf = wlr_scene_surface_try_from_buffer(buffer)) {
+                    orig_w = surf->surface->current.width > 0
+                                 ? surf->surface->current.width
+                                 : (surf->surface == td->main_surface ? td->fallback_w : 0);
+                    orig_h = surf->surface->current.height > 0
+                                 ? surf->surface->current.height
+                                 : (surf->surface == td->main_surface ? td->fallback_h : 0);
+                    if (const auto* state = wlr_alpha_modifier_v1_get_surface_state(surf->surface)) {
+                        base_alpha = static_cast<float>(state->multiplier);
+                    }
+                } else if (buffer->buffer) {
+                    orig_w = buffer->buffer->width;
+                    orig_h = buffer->buffer->height;
+                }
+
+                if (orig_w > 0 && orig_h > 0) {
+                    wlr_scene_buffer_set_dest_size(buffer, scaled_extent(orig_w, td->scale),
+                                                   scaled_extent(orig_h, td->scale));
+                }
+                wlr_scene_buffer_set_opacity(buffer, base_alpha * td->opacity);
+            },
+            &data);
+
+        if (m_window.is_mapped()) {
+            m_window.update_borders();
+        }
+
+        move_scene_tree(m_base_x, m_base_y);
+    }
+
+    void WindowAnimation::reset_open_transform() noexcept {
+        m_opening = false;
+        m_open_spring.reset(1.0, 0.0);
+        apply_open_transform();
     }
 
 }

@@ -2,6 +2,7 @@
 
 #include "flux/wlroots.hpp"
 
+#include <array>
 #include <memory>
 #include <span>
 
@@ -9,6 +10,17 @@ namespace flux {
 
     class Output;
     class Window;
+
+    class Border {
+    public:
+        void init(wlr_scene_tree* parent) noexcept;
+        void update(int w, int h, int bw, const std::array<float, 4>& color, float opacity = 1.0f) noexcept;
+        void hide() noexcept;
+        [[nodiscard]] bool is_enabled() const noexcept { return m_rects[0] && m_rects[0]->node.enabled; }
+
+    private:
+        std::array<wlr_scene_rect*, 4> m_rects{};
+    };
 
     class Scene {
     public:
