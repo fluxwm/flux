@@ -50,13 +50,13 @@ namespace flux {
             m_listeners.push_back(std::make_unique<WlListener>(signal, std::forward<F>(callback)));
         }
 
-        template <typename Owner>
-        void listen(wl_signal* signal, Owner* owner, void (Owner::*method)()) {
+        template <typename Owner, typename Base>
+        void listen(wl_signal* signal, Owner* owner, void (Base::*method)()) {
             listen(signal, [owner, method](void*) { (owner->*method)(); });
         }
 
-        template <typename Owner, typename EventType>
-        void listen(wl_signal* signal, Owner* owner, void (Owner::*method)(EventType*)) {
+        template <typename Owner, typename Base, typename EventType>
+        void listen(wl_signal* signal, Owner* owner, void (Base::*method)(EventType*)) {
             listen(signal, [owner, method](void* data) { (owner->*method)(static_cast<EventType*>(data)); });
         }
 

@@ -1,11 +1,12 @@
 #pragma once
 
 #include "flux/animation.hpp"
-#include "flux/listener.hpp"
+#include "flux/scene.hpp"
 #include "flux/wlroots.hpp"
 
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace flux {
 
@@ -15,9 +16,7 @@ namespace flux {
 
     class Window {
     public:
-        Window(Compositor& compositor, wlr_xdg_toplevel* xdg_toplevel);
-        Window(Compositor& compositor, wlr_xwayland_surface* xwayland_surface);
-        ~Window();
+        virtual ~Window();
 
         Window(const Window&) = delete;
         Window& operator=(const Window&) = delete;
@@ -56,11 +55,8 @@ namespace flux {
         }
 
         [[nodiscard]] wlr_scene_tree* scene_tree() const noexcept { return m_scene_tree; }
-        [[nodiscard]] wlr_surface* surface() const noexcept {
-            return m_xdg_toplevel ? m_xdg_toplevel->base->surface
-                                  : (m_xwayland_surface ? m_xwayland_surface->surface : nullptr);
-        }
-        [[nodiscard]] wlr_xwayland_surface* xwayland_surface() const noexcept { return m_xwayland_surface; }
+        [[nodiscard]] virtual wlr_surface* surface() const noexcept = 0;
+        [[nodiscard]] virtual wlr_xwayland_surface* xwayland_surface() const noexcept { return nullptr; }
         [[nodiscard]] std::string_view title() const noexcept { return m_title; }
         [[nodiscard]] std::string_view app_id() const noexcept { return m_app_id; }
         [[nodiscard]] bool is_maximized() const noexcept { return m_maximized; }
@@ -68,7 +64,8 @@ namespace flux {
         [[nodiscard]] bool is_floating() const noexcept { return !m_fullscreen && !m_maximized && m_floating; }
         [[nodiscard]] bool is_tiled() const noexcept { return !m_fullscreen && !m_maximized && !m_floating; }
         [[nodiscard]] bool is_placed() const noexcept { return m_placed; }
-        [[nodiscard]] bool is_pending_center() const noexcept { return m_pending_center_serial != 0; }
+        [[nodiscard]] virtual bool is_pending_center() const noexcept { return false; }
+        [[nodiscard]] virtual bool is_pending_move() const noexcept { return false; }
         [[nodiscard]] bool is_mapped() const noexcept {
             const auto* s = surface();
             return s && s->mapped;
@@ -79,7 +76,7 @@ namespace flux {
         [[nodiscard]] bool has_visible_borders() const noexcept;
         [[nodiscard]] float tile_weight() const noexcept { return m_tile_weight; }
         void set_tile_weight(float weight) noexcept { m_tile_weight = weight; }
-        void set_tiled_resizing(bool resizing) noexcept;
+        virtual void set_tiled_resizing(bool resizing) noexcept {}
         [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
         [[nodiscard]] uint32_t workspace_id() const noexcept { return m_workspace_id; }
         [[nodiscard]] Output* output() const noexcept;
@@ -109,77 +106,78 @@ namespace flux {
         void start_grab(uint32_t edges);
         void update_grab(int dx, int dy);
         void end_grab(bool commit = true) noexcept;
-        void set_decoration(wlr_xdg_toplevel_decoration_v1* decoration);
-        void close() noexcept {
-            if (m_xdg_toplevel) {
-                wlr_xdg_toplevel_send_close(m_xdg_toplevel);
-            } else if (m_xwayland_surface) {
-                wlr_xwayland_surface_close(m_xwayland_surface);
-            }
-        }
+        virtual void set_decoration(wlr_xdg_toplevel_decoration_v1* decoration) {}
+        virtual void close() noexcept = 0;
 
-    private:
-        friend class WindowAnimation;
+    protected:
+        static constexpr uint32_t tiled_edges = WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT;
 
-        [[nodiscard]] bool wants_floating() const noexcept;
-        void on_associate();
-        void on_dissociate();
+        Window(Compositor& compositor, const char* title, const char* app_id);
+
+        [[nodiscard]] wlr_scene_tree* initial_parent_tree() const noexcept;
+        void attach_scene_tree(wlr_scene_tree* tree) noexcept;
+        static void clamp_size(int& w, int& h, int min_w, int min_h, int max_w, int max_h) noexcept;
         void on_map();
         void on_unmap();
-        void on_commit();
+        void finish_commit(int old_x, int old_y);
+        void check_center() noexcept;
         void on_destroy();
-        void on_request_configure(wlr_xwayland_surface_configure_event* event);
-        void on_request_activate();
-        void on_request_maximize();
-        void on_request_fullscreen();
-        void on_request_decoration_mode();
-        void on_destroy_decoration();
-        void on_set_title();
-        void on_set_app_id();
         void on_set_parent();
-        void on_set_hints();
-        void on_set_override_redirect();
-        void restore_floating_box() noexcept;
-        void save_floating_box() noexcept;
-        void reset_placement_state() noexcept;
-        void update_foreign_toplevel() noexcept;
+        void update_title(const char* title);
+        void update_app_id(const char* app_id);
+
+        [[nodiscard]] virtual std::pair<int, int> preferred_size() const noexcept = 0;
+        virtual void apply_activated(bool activated) noexcept = 0;
+        virtual void apply_fullscreen(bool fullscreen) noexcept = 0;
+        virtual void apply_maximized(bool maximized) noexcept {}
+        virtual void apply_tiled(uint32_t edges) noexcept {}
+        virtual void schedule_configure() noexcept {}
+        virtual void configure_position(int x, int y) noexcept {}
+        [[nodiscard]] virtual bool configure_geometry(const wlr_box& box) noexcept = 0;
+        virtual void apply_resize(int w, int h) noexcept = 0;
+        virtual void start_resizing() noexcept {}
+        virtual void end_resizing() noexcept { m_resize_edges = WLR_EDGE_NONE; }
+        virtual void clear_pending_serials() noexcept {}
+        virtual void clear_pending_move() noexcept {}
+        virtual void clear_pending_center() noexcept {}
+        virtual void request_default_floating_size() noexcept {}
+        [[nodiscard]] virtual Window* query_parent() const noexcept = 0;
+        [[nodiscard]] virtual bool wants_floating() const noexcept = 0;
 
         Compositor& m_compositor;
         WindowAnimation m_animation;
-        wlr_xdg_toplevel* m_xdg_toplevel = nullptr;
-        wlr_xwayland_surface* m_xwayland_surface = nullptr;
-        wlr_xdg_toplevel_decoration_v1* m_decoration = nullptr;
         wlr_scene_tree* m_scene_tree = nullptr;
-        wlr_scene_tree* m_subsurface_tree = nullptr;
         bool m_maximized = false;
         bool m_fullscreen = false;
         bool m_floating = false;
         bool m_floating_override = false;
         bool m_placed = false;
         bool m_resizing = false;
+        uint32_t m_resize_edges = WLR_EDGE_NONE;
+        wlr_box m_grab_box{};
+        Workspace* m_workspace = nullptr;
+
+    private:
+        friend class WindowAnimation;
+
+        void restore_floating_box() noexcept;
+        void save_floating_box() noexcept;
+        void reset_placement_state() noexcept;
+        void update_foreign_toplevel() noexcept;
+
         bool m_grabbed = false;
         bool m_activated = false;
         float m_tile_weight = 1.0f;
-        uint32_t m_resize_edges = WLR_EDGE_NONE;
-        uint32_t m_resize_serial = 0;
-        uint32_t m_pending_center_serial = 0;
-        uint32_t m_pending_move_serial = 0;
-        wlr_box m_grab_box{};
         wlr_box m_floating_box{};
         int m_committed_width = 0;
         int m_committed_height = 0;
         int m_border_width = 0;
         int m_border_height = 0;
-        Workspace* m_workspace = nullptr;
         uint32_t m_workspace_id = 1;
         std::string m_title;
         std::string m_app_id;
         wlr_ext_foreign_toplevel_handle_v1* m_ext_toplevel_handle = nullptr;
         Border m_border;
-
-        ListenerGroup m_listeners;
-        ListenerGroup m_surface_listeners;
-        ListenerGroup m_decoration_listeners;
     };
 
 }

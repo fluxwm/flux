@@ -52,7 +52,9 @@ add_executable(flux
         src/input/cursor.cpp
         src/input/keyboard.cpp
         src/input/pointer.cpp
-        src/window.cpp
+        src/window/window.cpp
+        src/window/xdg.cpp
+        src/window/xwayland.cpp
         src/workspace.cpp
         src/popup.cpp
         src/layer.cpp

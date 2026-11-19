@@ -5,6 +5,8 @@
 #include "flux/popup.hpp"
 #include "flux/util.hpp"
 #include "flux/window.hpp"
+#include "flux/window/xdg.hpp"
+#include "flux/window/xwayland.hpp"
 #include "flux/workspace.hpp"
 
 #include <algorithm>
@@ -708,7 +710,7 @@ namespace flux {
     }
 
     void Compositor::create_window(wlr_xwayland_surface* xsurface) {
-        m_windows.push_back(std::make_unique<Window>(*this, xsurface));
+        m_windows.push_back(std::make_unique<window::XWayland>(*this, xsurface));
     }
 
     void Compositor::create_popup(wlr_xwayland_surface* xsurface) {
@@ -866,7 +868,7 @@ namespace flux {
     }
 
     void Compositor::on_new_window(wlr_xdg_toplevel* toplevel) {
-        m_windows.push_back(std::make_unique<Window>(*this, toplevel));
+        m_windows.push_back(std::make_unique<window::Xdg>(*this, toplevel));
     }
 
     void Compositor::on_request_activate(wlr_xdg_activation_v1_request_activate_event* event) {
