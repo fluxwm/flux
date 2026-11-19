@@ -338,7 +338,7 @@ namespace flux {
         if (!m_window.is_mapped() || !m_has_initial_position) {
             return false;
         }
-        if (m_window.m_grabbed || m_window.m_resizing || m_window.m_resize_edges != WLR_EDGE_NONE) {
+        if (m_window.is_grabbed() || m_window.m_resizing || m_window.m_resize_edges != WLR_EDGE_NONE) {
             return false;
         }
         if (m_window.m_compositor.is_workspace_swiping() || m_window.m_compositor.is_locked()) {

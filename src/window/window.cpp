@@ -148,9 +148,7 @@ namespace flux {
         if (m_fullscreen) {
             return;
         }
-        if (m_grabbed) {
-            m_compositor.input().cursor().cancel_grab(this);
-        }
+        m_compositor.input().cursor().cancel_grab(this);
 
         save_floating_box();
 
@@ -206,9 +204,7 @@ namespace flux {
     }
 
     void Window::set_floating(bool floating) {
-        if (m_grabbed) {
-            m_compositor.input().cursor().cancel_grab(this);
-        }
+        m_compositor.input().cursor().cancel_grab(this);
         save_floating_box();
         m_floating = floating;
         reset_placement_state();
@@ -256,9 +252,7 @@ namespace flux {
             schedule_configure();
             return;
         }
-        if (m_grabbed) {
-            m_compositor.input().cursor().cancel_grab(this);
-        }
+        m_compositor.input().cursor().cancel_grab(this);
 
         save_floating_box();
 
@@ -412,75 +406,42 @@ namespace flux {
         set_position(area.x + ((area.width - box.width) / 2), area.y + ((area.height - box.height) / 2));
     }
 
-    void Window::start_grab(uint32_t edges) {
+    bool Window::is_grabbed() const noexcept {
+        return m_compositor.input().cursor().grabbed_window() == this;
+    }
+
+    void Window::prepare_floating_grab() noexcept {
         m_compositor.dismiss_popups();
         clear_pending_center();
-        m_grabbed = true;
-        if (is_tiled()) {
-            m_resizing = false;
-            m_resize_edges = WLR_EDGE_NONE;
-            if (m_workspace) {
-                m_workspace->snap_animations();
-                m_workspace->start_tiled_resize(this, edges);
-            }
-            return;
-        }
         m_placed = true;
         if (m_animation.is_moving() || is_pending_move()) {
             set_position(m_animation.base_x(), m_animation.base_y());
         } else if (m_animation.is_opening()) {
             m_animation.reset_open_transform();
         }
-        m_grab_box = geometry_box();
+        m_resize_edges = WLR_EDGE_NONE;
+        clear_pending_serials();
+    }
+
+    void Window::prepare_tiled_grab() noexcept {
+        m_compositor.dismiss_popups();
+        clear_pending_center();
+        if (m_workspace) {
+            m_workspace->snap_animations();
+        }
+    }
+
+    void Window::begin_resize(uint32_t edges, const wlr_box& grab_box) noexcept {
+        m_grab_box = grab_box;
         m_resize_edges = edges;
         m_resizing = (edges != WLR_EDGE_NONE);
         start_resizing();
     }
 
-    void Window::update_grab(int dx, int dy) {
-        if (m_workspace && m_workspace->is_resizing()) {
-            m_workspace->update_tiled_resize(dx, dy);
-            return;
-        }
-
-        if (!m_resizing) {
-            set_position(m_grab_box.x + dx, m_grab_box.y + dy);
-            return;
-        }
-
-        int width = m_grab_box.width;
-        int height = m_grab_box.height;
-        if (m_resize_edges & WLR_EDGE_LEFT) {
-            width -= dx;
-        } else if (m_resize_edges & WLR_EDGE_RIGHT) {
-            width += dx;
-        }
-        if (m_resize_edges & WLR_EDGE_TOP) {
-            height -= dy;
-        } else if (m_resize_edges & WLR_EDGE_BOTTOM) {
-            height += dy;
-        }
-        const int w = std::max(1, width);
-        const int h = std::max(1, height);
-        apply_resize(w, h);
-    }
-
-    void Window::end_grab(bool commit) noexcept {
-        m_grabbed = false;
-        if (m_workspace && m_workspace->is_resizing()) {
-            m_workspace->end_tiled_resize();
-            return;
-        }
-        const bool was_resizing = m_resizing;
+    void Window::finish_resize() noexcept {
         if (m_resizing) {
             m_resizing = false;
             end_resizing();
-        }
-        if (commit && !was_resizing && is_mapped()) {
-            if (Output* out = m_compositor.focused_output(); out && output() != out) {
-                set_output(out);
-                m_compositor.refocus();
-            }
         }
     }
 
@@ -509,9 +470,7 @@ namespace flux {
             m_workspace_id = ws->id();
         }
         if (m_workspace != ws) {
-            if (m_grabbed) {
-                m_compositor.input().cursor().cancel_grab(this);
-            }
+            m_compositor.input().cursor().cancel_grab(this);
             const double open_progress = m_animation.open_progress();
             if (m_animation.is_opening()) {
                 m_animation.reset_open_transform();

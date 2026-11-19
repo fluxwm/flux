@@ -4,15 +4,19 @@
 #include "flux/listener.hpp"
 #include "flux/wlroots.hpp"
 
+#include <memory>
 #include <optional>
 #include <string>
 
 namespace flux {
     class Input;
     class Window;
+    class Workspace;
 }
 
 namespace flux::input {
+
+    class Grab;
 
     class Cursor {
     public:
@@ -41,6 +45,8 @@ namespace flux::input {
 
         void update_focus();
         void cancel_grab(const Window* window = nullptr);
+        [[nodiscard]] Window* grabbed_window() const noexcept;
+        [[nodiscard]] bool is_tiled_resizing(const Workspace* ws) const noexcept;
         void apply_config(const CursorConfig& config);
         void set_xwayland_cursor(wlr_xwayland* xwayland);
 
@@ -67,12 +73,9 @@ namespace flux::input {
         CursorConfig m_config{};
         const char* m_current_shape = "default";
         std::optional<std::string> m_env_xcursor_theme;
-        Window* m_grab_window = nullptr;
+        std::unique_ptr<Grab> m_grab;
         wlr_pointer_gestures_v1* m_pointer_gestures = nullptr;
         wlr_relative_pointer_manager_v1* m_relative_pointer_mgr = nullptr;
-        uint32_t m_grab_button = 0;
-        double m_grab_x = 0.0;
-        double m_grab_y = 0.0;
         bool m_swiping_workspace = false;
         ListenerGroup m_listeners;
     };

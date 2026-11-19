@@ -1,6 +1,7 @@
 #include "flux/workspace.hpp"
 #include "flux/compositor.hpp"
 #include "flux/config.hpp"
+#include "flux/input.hpp"
 #include "flux/output.hpp"
 #include "flux/scene.hpp"
 #include "flux/window.hpp"
@@ -152,10 +153,8 @@ namespace flux {
         if (m_active_fullscreen == window) {
             m_active_fullscreen = nullptr;
         }
-        if (m_grab_top_win == window || m_grab_bot_win == window) {
-            m_grab_top_win = nullptr;
-            m_grab_bot_win = nullptr;
-        }
+        m_output.compositor().input().cursor().cancel_grab(window);
+        window->set_tiled_resizing(false);
         window->set_tile_weight(1.0f);
         std::erase(m_focus_stack, window);
         std::erase(m_windows, window);
@@ -584,105 +583,8 @@ namespace flux {
         return WLR_EDGE_LEFT;
     }
 
-    void Workspace::start_tiled_resize(Window* window, uint32_t edges) {
-        m_is_resizing = true;
-        m_grab_edges = edges;
-        m_grab_master_factor = m_master_factor;
-        m_grab_top_win = nullptr;
-        m_grab_bot_win = nullptr;
-
-        const std::vector<Window*> tiled = tiled_windows();
-        for (Window* w : tiled) {
-            w->set_tiled_resizing(true);
-        }
-
-        if (tiled.size() <= 2) {
-            return;
-        }
-
-        const auto it = std::ranges::find(tiled, window);
-        if (it == tiled.end() || it == tiled.begin()) {
-            return;
-        }
-
-        const size_t idx = static_cast<size_t>(std::distance(tiled.begin(), it));
-        if ((edges & WLR_EDGE_BOTTOM) && idx + 1 < tiled.size()) {
-            m_grab_top_win = tiled[idx];
-            m_grab_bot_win = tiled[idx + 1];
-        } else if ((edges & WLR_EDGE_TOP) && idx > 1) {
-            m_grab_top_win = tiled[idx - 1];
-            m_grab_bot_win = tiled[idx];
-        }
-
-        if (m_grab_top_win && m_grab_bot_win) {
-            m_grab_top_weight = m_grab_top_win->tile_weight();
-            m_grab_bot_weight = m_grab_bot_win->tile_weight();
-        }
-    }
-
-    void Workspace::update_tiled_resize(int dx, int dy) {
-        const std::vector<Window*> tiled = tiled_windows();
-        const size_t total = tiled.size();
-        if (total < 2) {
-            return;
-        }
-
-        const auto& usable = m_output.usable_area();
-        const auto& gaps = m_output.compositor().config().layout().gaps;
-        const int area_w = std::max(1, usable.width - (2 * gaps.outer));
-        const int avail_w = std::max(1, area_w - gaps.inner);
-        const int area_h = std::max(1, usable.height - (2 * gaps.outer));
-
-        bool changed = false;
-        if (m_grab_edges & (WLR_EDGE_LEFT | WLR_EDGE_RIGHT)) {
-            const float delta_factor = static_cast<float>(dx) / static_cast<float>(avail_w);
-            const float next_factor = std::clamp(m_grab_master_factor + delta_factor, 0.10f, 0.90f);
-            if (next_factor != m_master_factor) {
-                m_master_factor = next_factor;
-                changed = true;
-            }
-        }
-
-        if ((m_grab_edges & (WLR_EDGE_TOP | WLR_EDGE_BOTTOM)) && total > 2 && m_grab_top_win && m_grab_bot_win &&
-            m_grab_top_win != tiled[0] && m_grab_bot_win != tiled[0] && m_grab_top_win->is_tiled() &&
-            m_grab_bot_win->is_tiled()) {
-            const size_t stack_count = total - 1;
-            const int avail_h = std::max(1, area_h - (static_cast<int>(stack_count - 1) * gaps.inner));
-
-            float total_weight = 0.0f;
-            for (size_t i = 1; i < tiled.size(); ++i) {
-                total_weight += tiled[i]->tile_weight();
-            }
-            if (total_weight > 0.0f) {
-                const float sum_pair_weight = m_grab_top_weight + m_grab_bot_weight;
-                const float pair_h = static_cast<float>(avail_h) * (sum_pair_weight / total_weight);
-                if (pair_h > 80.0f) {
-                    const float initial_top_h = pair_h * (m_grab_top_weight / sum_pair_weight);
-                    const float new_top_h = std::clamp(initial_top_h + static_cast<float>(dy), 40.0f, pair_h - 40.0f);
-                    const float next_top = sum_pair_weight * (new_top_h / pair_h);
-                    const float next_bot = sum_pair_weight * (1.0f - (new_top_h / pair_h));
-                    if (next_top != m_grab_top_win->tile_weight() || next_bot != m_grab_bot_win->tile_weight()) {
-                        m_grab_top_win->set_tile_weight(next_top);
-                        m_grab_bot_win->set_tile_weight(next_bot);
-                        changed = true;
-                    }
-                }
-            }
-        }
-
-        if (changed) {
-            arrange();
-        }
-    }
-
-    void Workspace::end_tiled_resize() noexcept {
-        m_is_resizing = false;
-        m_grab_edges = WLR_EDGE_NONE;
-        m_grab_top_win = nullptr;
-        m_grab_bot_win = nullptr;
-        for (Window* w : m_windows) {
-            w->set_tiled_resizing(false);
-        }
+    bool Workspace::is_resizing() const noexcept {
+        return m_output.compositor().input().cursor().is_tiled_resizing(this);
     }
 
 }

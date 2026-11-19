@@ -12,6 +12,7 @@ namespace flux::window {
 
         [[nodiscard]] wlr_surface* surface() const noexcept override;
         [[nodiscard]] wlr_xwayland_surface* xwayland_surface() const noexcept override { return m_surface; }
+        void apply_resize(int w, int h) noexcept override;
         void close() noexcept override;
 
     protected:
@@ -21,7 +22,6 @@ namespace flux::window {
         void apply_maximized(bool maximized) noexcept override;
         void configure_position(int x, int y) noexcept override;
         [[nodiscard]] bool configure_geometry(const wlr_box& box) noexcept override;
-        void apply_resize(int w, int h) noexcept override;
         [[nodiscard]] Window* query_parent() const noexcept override;
         [[nodiscard]] bool wants_floating() const noexcept override;
 

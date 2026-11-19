@@ -103,9 +103,14 @@ namespace flux {
         void toggle_fullscreen() { set_fullscreen(!m_fullscreen); }
         void set_floating(bool floating);
         void toggle_floating();
-        void start_grab(uint32_t edges);
-        void update_grab(int dx, int dy);
-        void end_grab(bool commit = true) noexcept;
+        [[nodiscard]] Compositor& compositor() noexcept { return m_compositor; }
+        [[nodiscard]] bool is_grabbed() const noexcept;
+
+        void prepare_floating_grab() noexcept;
+        void prepare_tiled_grab() noexcept;
+        void begin_resize(uint32_t edges, const wlr_box& grab_box) noexcept;
+        virtual void apply_resize(int w, int h) noexcept = 0;
+        void finish_resize() noexcept;
         virtual void set_decoration(wlr_xdg_toplevel_decoration_v1* decoration) {}
         virtual void close() noexcept = 0;
 
@@ -134,7 +139,6 @@ namespace flux {
         virtual void schedule_configure() noexcept {}
         virtual void configure_position(int x, int y) noexcept {}
         [[nodiscard]] virtual bool configure_geometry(const wlr_box& box) noexcept = 0;
-        virtual void apply_resize(int w, int h) noexcept = 0;
         virtual void start_resizing() noexcept {}
         virtual void end_resizing() noexcept { m_resize_edges = WLR_EDGE_NONE; }
         virtual void clear_pending_serials() noexcept {}
@@ -165,7 +169,6 @@ namespace flux {
         void reset_placement_state() noexcept;
         void update_foreign_toplevel() noexcept;
 
-        bool m_grabbed = false;
         bool m_activated = false;
         float m_tile_weight = 1.0f;
         wlr_box m_floating_box{};

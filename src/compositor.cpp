@@ -26,6 +26,9 @@ namespace flux {
 
     Compositor::~Compositor() {
         cancel_animations();
+        if (m_input) {
+            m_input->cursor().cancel_grab();
+        }
         m_lock.reset();
 
         if (m_xwayland) {

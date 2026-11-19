@@ -1,6 +1,7 @@
 #include "flux/input/cursor.hpp"
 #include "flux/compositor.hpp"
 #include "flux/input.hpp"
+#include "flux/input/grab.hpp"
 #include "flux/layer.hpp"
 #include "flux/output.hpp"
 #include "flux/util.hpp"
@@ -8,7 +9,6 @@
 #include "flux/workspace.hpp"
 
 #include <chrono>
-#include <cmath>
 #include <cstdlib>
 #include <string>
 
@@ -117,18 +117,32 @@ namespace flux::input {
         }
     }
 
+    Window* Cursor::grabbed_window() const noexcept {
+        return m_grab ? m_grab->window() : nullptr;
+    }
+
+    bool Cursor::is_tiled_resizing(const Workspace* ws) const noexcept {
+        return m_grab && m_grab->resized_workspace() == ws;
+    }
+
     void Cursor::start_grab(Window* window, uint32_t button) {
-        uint32_t edges = WLR_EDGE_NONE;
+        if (m_grab) {
+            end_grab(false);
+        }
+
         if (button == btn_right) {
             if (window->is_tiled() && window->workspace()) {
-                edges = window->workspace()->tiled_resize_edges(window, m_wlr_cursor->x, m_wlr_cursor->y);
+                const uint32_t edges =
+                    window->workspace()->tiled_resize_edges(window, m_wlr_cursor->x, m_wlr_cursor->y);
                 if (edges == WLR_EDGE_NONE) {
                     return;
                 }
+                m_grab = std::make_unique<TiledResizeGrab>(window, button, m_wlr_cursor->x, m_wlr_cursor->y, edges);
             } else {
                 const wlr_box box = window->geometry_box();
                 const double rel_x = m_wlr_cursor->x - box.x;
                 const double rel_y = m_wlr_cursor->y - box.y;
+                uint32_t edges = WLR_EDGE_NONE;
 
                 if (rel_x < box.width / 3.0) {
                     edges |= WLR_EDGE_LEFT;
@@ -147,32 +161,30 @@ namespace flux::input {
                     const uint32_t vert = (rel_y < (box.height / 2.0)) ? WLR_EDGE_TOP : WLR_EDGE_BOTTOM;
                     edges = horiz | vert;
                 }
+
+                m_grab = std::make_unique<ResizeGrab>(window, button, m_wlr_cursor->x, m_wlr_cursor->y, edges);
             }
+        } else {
+            m_grab = std::make_unique<MoveGrab>(window, button, m_wlr_cursor->x, m_wlr_cursor->y);
         }
 
-        m_grab_window = window;
-        m_grab_button = button;
-        m_grab_x = m_wlr_cursor->x;
-        m_grab_y = m_wlr_cursor->y;
         m_input.seat().clear_pointer_focus();
-        set_xcursor(edges != WLR_EDGE_NONE ? wlr_xcursor_get_resize_name(static_cast<wlr_edges>(edges)) : "grabbing");
-        window->start_grab(edges);
+        set_xcursor(m_grab->cursor_name());
+        m_grab->start();
     }
 
     void Cursor::end_grab(bool commit) {
-        if (!m_grab_window) {
+        if (!m_grab) {
             return;
         }
-        Window* window = m_grab_window;
-        m_grab_window = nullptr;
-        m_grab_button = 0;
-        window->end_grab(commit);
+        auto grab = std::move(m_grab);
+        grab->end(commit);
         set_xcursor("default");
         update_focus();
     }
 
     void Cursor::cancel_grab(const Window* window) {
-        if (m_grab_window && (!window || m_grab_window == window)) {
+        if (m_grab && (!window || m_grab->involves_window(window))) {
             end_grab(false);
         }
     }
@@ -214,7 +226,7 @@ namespace flux::input {
                                                              unaccel_dx, unaccel_dy);
         if (apply_constraint(dx, dy)) {
             wlr_cursor_move(m_wlr_cursor, device, dx, dy);
-            if (!m_grab_window && !m_input.compositor().focused_window() && !m_input.compositor().is_locked()) {
+            if (!m_grab && !m_input.compositor().focused_window() && !m_input.compositor().is_locked()) {
                 m_input.compositor().set_focused_output(nullptr);
             }
             process_motion(time_msec);
@@ -236,9 +248,9 @@ namespace flux::input {
     }
 
     void Cursor::on_button(wlr_pointer_button_event* event) {
-        if (m_grab_window) {
+        if (m_grab) {
             m_input.seat().notify_activity();
-            if (event->state == WL_POINTER_BUTTON_STATE_RELEASED && event->button == m_grab_button) {
+            if (event->state == WL_POINTER_BUTTON_STATE_RELEASED && event->button == m_grab->button()) {
                 m_input.compositor().set_focused_output(nullptr);
                 end_grab();
             }
@@ -338,7 +350,7 @@ namespace flux::input {
         if (m_swiping_workspace) {
             return;
         }
-        if (event->fingers == 3 && !m_grab_window && !m_input.seat().is_drag_active() &&
+        if (event->fingers == 3 && !m_grab && !m_input.seat().is_drag_active() &&
             m_input.compositor().begin_workspace_swipe()) {
             m_swiping_workspace = true;
             m_input.seat().clear_pointer_focus();
@@ -372,10 +384,8 @@ namespace flux::input {
     void Cursor::process_motion(uint32_t time_msec) {
         m_input.seat().update_drag_icons_position();
 
-        if (m_grab_window) {
-            const int dx = static_cast<int>(std::round(m_wlr_cursor->x - m_grab_x));
-            const int dy = static_cast<int>(std::round(m_wlr_cursor->y - m_grab_y));
-            m_grab_window->update_grab(dx, dy);
+        if (m_grab) {
+            m_grab->on_motion(m_wlr_cursor->x, m_wlr_cursor->y);
             return;
         }
 
@@ -413,16 +423,8 @@ namespace flux::input {
             return;
         }
 
-        if (m_grab_window) {
-            const bool valid_tiled = m_grab_window->is_tiled() && m_grab_button == btn_right &&
-                                     m_grab_window->workspace() && m_grab_window->workspace()->is_resizing() &&
-                                     m_grab_window->workspace()->tiled_count() > 1 &&
-                                     m_input.compositor().config().layout().mode != Layout::Monocle;
-            const bool valid_floating = m_grab_window->is_floating();
-            const bool is_valid_grab = !m_input.compositor().is_locked() && m_grab_window->is_mapped() &&
-                                       (valid_floating || valid_tiled) &&
-                                       m_grab_window == m_input.compositor().focused_window();
-            if (!is_valid_grab) {
+        if (m_grab) {
+            if (!m_grab->is_valid()) {
                 end_grab(false);
             }
             return;

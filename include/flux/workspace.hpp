@@ -53,16 +53,14 @@ namespace flux {
         bool step_closing_animations(const timespec& now) noexcept;
         void snap_closing_animations() noexcept;
 
-        [[nodiscard]] bool is_resizing() const noexcept { return m_is_resizing; }
+        [[nodiscard]] bool is_resizing() const noexcept;
         [[nodiscard]] uint32_t tiled_resize_edges(const Window* window, double cursor_x,
                                                   double cursor_y) const noexcept;
-        void start_tiled_resize(Window* window, uint32_t edges);
-        void update_tiled_resize(int dx, int dy);
-        void end_tiled_resize() noexcept;
+        [[nodiscard]] std::vector<Window*> tiled_windows() const;
+        [[nodiscard]] float master_factor() const noexcept { return m_master_factor; }
+        void set_master_factor(float factor) noexcept { m_master_factor = factor; }
 
     private:
-        [[nodiscard]] std::vector<Window*> tiled_windows() const;
-
         uint32_t m_id = 1;
         Output& m_output;
         wlr_scene_tree* m_tree = nullptr;
@@ -72,13 +70,6 @@ namespace flux {
         std::vector<Window*> m_windows;
         std::vector<std::unique_ptr<ClosingWindow>> m_closing_windows;
         float m_master_factor = 0.5f;
-        bool m_is_resizing = false;
-        uint32_t m_grab_edges = WLR_EDGE_NONE;
-        float m_grab_master_factor = 0.5f;
-        Window* m_grab_top_win = nullptr;
-        Window* m_grab_bot_win = nullptr;
-        float m_grab_top_weight = 1.0f;
-        float m_grab_bot_weight = 1.0f;
     };
 
 }

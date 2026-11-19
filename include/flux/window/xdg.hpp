@@ -15,6 +15,7 @@ namespace flux::window {
         [[nodiscard]] bool is_pending_move() const noexcept override { return m_pending_move_serial != 0; }
         void set_tiled_resizing(bool resizing) noexcept override;
         void set_decoration(wlr_xdg_toplevel_decoration_v1* decoration) override;
+        void apply_resize(int w, int h) noexcept override;
         void close() noexcept override;
 
     protected:
@@ -24,7 +25,6 @@ namespace flux::window {
         void apply_tiled(uint32_t edges) noexcept override;
         void schedule_configure() noexcept override;
         [[nodiscard]] bool configure_geometry(const wlr_box& box) noexcept override;
-        void apply_resize(int w, int h) noexcept override;
         void start_resizing() noexcept override;
         void end_resizing() noexcept override;
         void clear_pending_serials() noexcept override {
