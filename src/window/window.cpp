@@ -127,8 +127,7 @@ namespace flux {
                        box.width != m_border_width || box.height != m_border_height) {
                 update_borders();
             }
-            const bool is_resizing = m_resizing || (m_workspace && m_workspace->is_resizing());
-            if ((size_changed || pos_changed) && !is_resizing) {
+            if ((size_changed || pos_changed) && !is_resizing()) {
                 m_compositor.update_cursor_focus();
             }
         }
@@ -216,6 +215,21 @@ namespace flux {
                 m_workspace->arrange();
             }
             m_compositor.refocus();
+        }
+        update_borders();
+    }
+
+    void Window::set_floating_in_grab(bool floating, const wlr_box& box) noexcept {
+        m_floating_override = true;
+        m_floating_box = box;
+        m_floating = floating;
+        if (floating) {
+            m_placed = true;
+            apply_tiled(0);
+            set_position(box.x, box.y);
+        } else {
+            reset_placement_state();
+            apply_tiled(tiled_edges);
         }
         update_borders();
     }
@@ -319,6 +333,9 @@ namespace flux {
     }
 
     void Window::set_geometry(const wlr_box& box) noexcept {
+        if (is_grabbed() && !is_resizing()) {
+            return;
+        }
         if (!m_resizing) {
             m_resize_edges = WLR_EDGE_NONE;
         }
@@ -410,10 +427,16 @@ namespace flux {
         return m_compositor.input().cursor().grabbed_window() == this;
     }
 
-    void Window::prepare_floating_grab() noexcept {
+    bool Window::is_resizing() const noexcept {
+        return m_resizing || (m_workspace && m_workspace->is_resizing());
+    }
+
+    void Window::prepare_grab() noexcept {
         m_compositor.dismiss_popups();
         clear_pending_center();
-        m_placed = true;
+        if (is_floating()) {
+            m_placed = true;
+        }
         if (m_animation.is_moving() || is_pending_move()) {
             set_position(m_animation.base_x(), m_animation.base_y());
         } else if (m_animation.is_opening()) {
@@ -421,14 +444,6 @@ namespace flux {
         }
         m_resize_edges = WLR_EDGE_NONE;
         clear_pending_serials();
-    }
-
-    void Window::prepare_tiled_grab() noexcept {
-        m_compositor.dismiss_popups();
-        clear_pending_center();
-        if (m_workspace) {
-            m_workspace->snap_animations();
-        }
     }
 
     void Window::begin_resize(uint32_t edges, const wlr_box& grab_box) noexcept {

@@ -15,7 +15,7 @@ namespace flux::input {
     }
 
     void MoveGrab::start() {
-        m_window->prepare_floating_grab();
+        m_window->prepare_grab();
         m_initial_box = m_window->geometry_box();
     }
 
@@ -37,8 +37,44 @@ namespace flux::input {
         return Grab::is_valid() && m_window->is_floating();
     }
 
+    TiledMoveGrab::TiledMoveGrab(Window* window, uint32_t button, double cursor_x, double cursor_y) noexcept
+        : Grab(window, button, cursor_x, cursor_y), m_workspace(*window->workspace()) {}
+
+    void TiledMoveGrab::start() {
+        m_window->prepare_grab();
+        if (m_window->scene_tree()) {
+            wlr_scene_node_raise_to_top(&m_window->scene_tree()->node);
+        }
+        m_initial_box = m_window->geometry_box();
+    }
+
+    void TiledMoveGrab::update(int dx, int dy) {
+        m_window->move_scene_tree(m_initial_box.x + dx, m_initial_box.y + dy);
+        m_workspace.swap_tiled_at(m_window, m_cursor_x, m_cursor_y);
+    }
+
+    void TiledMoveGrab::end(bool commit) {
+        if (commit && m_window->is_mapped()) {
+            Compositor& comp = m_window->compositor();
+            if (Output* out = comp.focused_output(); out && m_window->output() != out) {
+                const wlr_box cur = m_window->geometry_box();
+                m_window->set_position(cur.x, cur.y);
+                m_window->set_output(out);
+                out->active_workspace().swap_tiled_at(m_window, m_cursor_x, m_cursor_y);
+                comp.refocus();
+                return;
+            }
+        }
+        m_workspace.restack();
+        m_workspace.arrange();
+    }
+
+    bool TiledMoveGrab::is_valid() const {
+        return Grab::is_valid() && m_window->is_tiled() && m_window->workspace() == &m_workspace;
+    }
+
     void ResizeGrab::start() {
-        m_window->prepare_floating_grab();
+        m_window->prepare_grab();
         m_initial_box = m_window->geometry_box();
         m_window->begin_resize(m_edges, m_initial_box);
     }
@@ -77,7 +113,8 @@ namespace flux::input {
           m_initial_master_factor(m_workspace.master_factor()) {}
 
     void TiledResizeGrab::start() {
-        m_window->prepare_tiled_grab();
+        m_workspace.snap_animations();
+        m_window->prepare_grab();
 
         const std::vector<Window*> tiled = m_workspace.tiled_windows();
         for (Window* w : tiled) {

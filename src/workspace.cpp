@@ -153,7 +153,6 @@ namespace flux {
         if (m_active_fullscreen == window) {
             m_active_fullscreen = nullptr;
         }
-        m_output.compositor().input().cursor().cancel_grab(window);
         window->set_tiled_resizing(false);
         window->set_tile_weight(1.0f);
         std::erase(m_focus_stack, window);
@@ -168,6 +167,7 @@ namespace flux {
         if (layout_count <= 1) {
             m_master_factor = 0.5f;
         }
+        m_output.compositor().input().cursor().cancel_grab(window);
     }
 
     Window* Workspace::cycle() {
@@ -585,6 +585,42 @@ namespace flux {
 
     bool Workspace::is_resizing() const noexcept {
         return m_output.compositor().input().cursor().is_tiled_resizing(this);
+    }
+
+    void Workspace::swap_tiled_at(Window* window, double cursor_x, double cursor_y) {
+        if (!window || m_output.compositor().config().layout().mode == Layout::Monocle) {
+            return;
+        }
+        const std::vector<Window*> tiled = tiled_windows();
+        if (tiled.size() <= 1) {
+            return;
+        }
+        const auto it_grabbed = std::ranges::find(m_windows, window);
+        if (it_grabbed == m_windows.end()) {
+            return;
+        }
+
+        const auto& usable = m_output.usable_area();
+        const auto& layout_cfg = m_output.compositor().config().layout();
+
+        for (size_t i = 0; i < tiled.size(); ++i) {
+            const wlr_box slot = tile_box(usable, i, tiled.size(), layout_cfg, m_master_factor, tiled);
+            if (wlr_box_contains_point(&slot, cursor_x, cursor_y)) {
+                Window* target = tiled[i];
+                if (target != window) {
+                    const auto it_target = std::ranges::find(m_windows, target);
+                    if (it_target != m_windows.end()) {
+                        const float grabbed_weight = window->tile_weight();
+                        window->set_tile_weight(target->tile_weight());
+                        target->set_tile_weight(grabbed_weight);
+                        std::iter_swap(it_grabbed, it_target);
+                        arrange();
+                        return;
+                    }
+                }
+                break;
+            }
+        }
     }
 
 }

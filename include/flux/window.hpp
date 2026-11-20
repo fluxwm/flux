@@ -96,6 +96,7 @@ namespace flux {
         void set_workspace(Workspace* ws) noexcept;
         void reparent_to_workspace() noexcept;
         void set_position(int x, int y) noexcept;
+        void move_scene_tree(int x, int y) noexcept { m_animation.move_scene_tree(x, y); }
         void set_geometry(const wlr_box& box) noexcept;
         void center(const wlr_box& area) noexcept;
         void toggle_maximize();
@@ -103,11 +104,12 @@ namespace flux {
         void toggle_fullscreen() { set_fullscreen(!m_fullscreen); }
         void set_floating(bool floating);
         void toggle_floating();
+        void set_floating_in_grab(bool floating, const wlr_box& box) noexcept;
         [[nodiscard]] Compositor& compositor() noexcept { return m_compositor; }
         [[nodiscard]] bool is_grabbed() const noexcept;
+        [[nodiscard]] bool is_resizing() const noexcept;
 
-        void prepare_floating_grab() noexcept;
-        void prepare_tiled_grab() noexcept;
+        void prepare_grab() noexcept;
         void begin_resize(uint32_t edges, const wlr_box& grab_box) noexcept;
         virtual void apply_resize(int w, int h) noexcept = 0;
         void finish_resize() noexcept;

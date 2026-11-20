@@ -45,6 +45,7 @@ namespace flux::input {
 
         void update_focus();
         void cancel_grab(const Window* window = nullptr);
+        void clear_grab() noexcept;
         [[nodiscard]] Window* grabbed_window() const noexcept;
         [[nodiscard]] bool is_tiled_resizing(const Workspace* ws) const noexcept;
         void apply_config(const CursorConfig& config);
@@ -64,6 +65,7 @@ namespace flux::input {
 
         void start_grab(Window* window, uint32_t button);
         void end_grab(bool commit = true);
+        void toggle_grab_floating();
         bool apply_constraint(double& dx, double& dy) const;
         void process_motion(uint32_t time_msec);
 

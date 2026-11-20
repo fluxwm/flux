@@ -15,7 +15,8 @@ namespace flux::input {
     class Grab {
     public:
         Grab(Window* window, uint32_t button, double cursor_x, double cursor_y) noexcept
-            : m_window(window), m_button(button), m_cursor_start_x(cursor_x), m_cursor_start_y(cursor_y) {}
+            : m_window(window), m_cursor_start_x(cursor_x), m_cursor_start_y(cursor_y), m_cursor_x(cursor_x),
+              m_cursor_y(cursor_y), m_button(button) {}
         virtual ~Grab() = default;
 
         Grab(const Grab&) = delete;
@@ -27,6 +28,8 @@ namespace flux::input {
         [[nodiscard]] uint32_t button() const noexcept { return m_button; }
 
         void on_motion(double cursor_x, double cursor_y) {
+            m_cursor_x = cursor_x;
+            m_cursor_y = cursor_y;
             const int dx = static_cast<int>(std::round(cursor_x - m_cursor_start_x));
             const int dy = static_cast<int>(std::round(cursor_y - m_cursor_start_y));
             update(dx, dy);
@@ -42,9 +45,13 @@ namespace flux::input {
 
     protected:
         Window* m_window;
-        uint32_t m_button;
         double m_cursor_start_x;
         double m_cursor_start_y;
+        double m_cursor_x;
+        double m_cursor_y;
+
+    private:
+        uint32_t m_button;
     };
 
     class MoveGrab final : public Grab {
@@ -59,6 +66,22 @@ namespace flux::input {
         [[nodiscard]] const char* cursor_name() const noexcept override { return "grabbing"; }
 
     private:
+        wlr_box m_initial_box{};
+    };
+
+    class TiledMoveGrab final : public Grab {
+    public:
+        TiledMoveGrab(Window* window, uint32_t button, double cursor_x, double cursor_y) noexcept;
+        ~TiledMoveGrab() override = default;
+
+        void start() override;
+        void update(int dx, int dy) override;
+        void end(bool commit) override;
+        [[nodiscard]] bool is_valid() const override;
+        [[nodiscard]] const char* cursor_name() const noexcept override { return "grabbing"; }
+
+    private:
+        Workspace& m_workspace;
         wlr_box m_initial_box{};
     };
 

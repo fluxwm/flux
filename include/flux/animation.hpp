@@ -155,10 +155,9 @@ namespace flux {
         void snap() noexcept;
 
         [[nodiscard]] bool can_animate() const noexcept;
-
-    private:
         void move_scene_tree(int x, int y) noexcept;
 
+    private:
         Window& m_window;
         Spring m_spring_x{};
         Spring m_spring_y{};

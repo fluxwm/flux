@@ -43,6 +43,7 @@ namespace flux {
 
         void arrange();
         void restack();
+        void swap_tiled_at(Window* window, double cursor_x, double cursor_y);
         [[nodiscard]] Window* window_in_direction(Direction direction) const;
         [[nodiscard]] wlr_box next_tile_box() const noexcept;
         [[nodiscard]] bool is_solitary() const noexcept;

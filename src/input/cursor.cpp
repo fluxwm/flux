@@ -125,6 +125,10 @@ namespace flux::input {
         return m_grab && m_grab->resized_workspace() == ws;
     }
 
+    void Cursor::clear_grab() noexcept {
+        m_grab.reset();
+    }
+
     void Cursor::start_grab(Window* window, uint32_t button) {
         if (m_grab) {
             end_grab(false);
@@ -138,7 +142,7 @@ namespace flux::input {
                     return;
                 }
                 m_grab = std::make_unique<TiledResizeGrab>(window, button, m_wlr_cursor->x, m_wlr_cursor->y, edges);
-            } else {
+            } else if (window->is_floating()) {
                 const wlr_box box = window->geometry_box();
                 const double rel_x = m_wlr_cursor->x - box.x;
                 const double rel_y = m_wlr_cursor->y - box.y;
@@ -164,8 +168,14 @@ namespace flux::input {
 
                 m_grab = std::make_unique<ResizeGrab>(window, button, m_wlr_cursor->x, m_wlr_cursor->y, edges);
             }
-        } else {
+        } else if (window->is_tiled() && window->workspace()) {
+            m_grab = std::make_unique<TiledMoveGrab>(window, button, m_wlr_cursor->x, m_wlr_cursor->y);
+        } else if (window->is_floating()) {
             m_grab = std::make_unique<MoveGrab>(window, button, m_wlr_cursor->x, m_wlr_cursor->y);
+        }
+
+        if (!m_grab) {
+            return;
         }
 
         m_input.seat().clear_pointer_focus();
@@ -186,6 +196,39 @@ namespace flux::input {
     void Cursor::cancel_grab(const Window* window) {
         if (m_grab && (!window || m_grab->involves_window(window))) {
             end_grab(false);
+        }
+    }
+
+    void Cursor::toggle_grab_floating() {
+        if (!m_grab) {
+            return;
+        }
+        Window* window = m_grab->window();
+        if (!window || !window->is_mapped() || window->is_fullscreen()) {
+            return;
+        }
+        Workspace* ws = window->workspace();
+        if (!ws) {
+            return;
+        }
+
+        const wlr_box cur = window->geometry_box();
+
+        if (window->is_tiled()) {
+            m_grab.reset();
+            window->set_floating_in_grab(true, cur);
+            ws->restack();
+            ws->arrange();
+            m_grab = std::make_unique<MoveGrab>(window, btn_left, m_wlr_cursor->x, m_wlr_cursor->y);
+            m_grab->start();
+        } else if (window->is_floating()) {
+            m_grab.reset();
+            window->set_floating_in_grab(false, cur);
+            ws->restack();
+            m_grab = std::make_unique<TiledMoveGrab>(window, btn_left, m_wlr_cursor->x, m_wlr_cursor->y);
+            m_grab->start();
+            ws->arrange();
+            ws->swap_tiled_at(window, m_wlr_cursor->x, m_wlr_cursor->y);
         }
     }
 
@@ -253,6 +296,11 @@ namespace flux::input {
             if (event->state == WL_POINTER_BUTTON_STATE_RELEASED && event->button == m_grab->button()) {
                 m_input.compositor().set_focused_output(nullptr);
                 end_grab();
+                return;
+            }
+            if (event->state == WL_POINTER_BUTTON_STATE_PRESSED && event->button == btn_right &&
+                m_grab->button() == btn_left) {
+                toggle_grab_floating();
             }
             return;
         }
@@ -312,8 +360,9 @@ namespace flux::input {
                 const bool can_tiled_resize = event->button == btn_right && window->is_tiled() && window->workspace() &&
                                               window->workspace()->tiled_count() > 1 &&
                                               m_input.compositor().config().layout().mode != Layout::Monocle;
+                const bool can_tiled_move = event->button == btn_left && window->is_tiled() && window->workspace();
                 if (mods == WLR_MODIFIER_LOGO && (event->button == btn_left || event->button == btn_right) &&
-                    (window->is_floating() || can_tiled_resize)) {
+                    (window->is_floating() || can_tiled_resize || can_tiled_move)) {
                     m_input.seat().notify_activity();
                     start_grab(window, event->button);
                     return;

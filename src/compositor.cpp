@@ -27,7 +27,7 @@ namespace flux {
     Compositor::~Compositor() {
         cancel_animations();
         if (m_input) {
-            m_input->cursor().cancel_grab();
+            m_input->cursor().clear_grab();
         }
         m_lock.reset();
 
@@ -612,13 +612,13 @@ namespace flux {
 
     void Compositor::unmap_window(Window* window) {
         std::erase(m_orphaned_focus_order, window);
-        m_input->cursor().cancel_grab(window);
         dismiss_popups(window->scene_tree());
         Workspace* ws = window->workspace();
         if (ws) {
             ws->remove(window);
             ws->arrange();
         }
+        m_input->cursor().cancel_grab(window);
         refocus();
     }
 
