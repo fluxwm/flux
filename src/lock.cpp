@@ -4,6 +4,8 @@
 #include "flux/output.hpp"
 #include "flux/scene.hpp"
 
+#include <utility>
+
 namespace flux {
 
     Lock::Lock(Compositor& compositor) : m_compositor(compositor) {
@@ -20,23 +22,25 @@ namespace flux {
     }
 
     void Lock::on_new_lock(wlr_session_lock_v1* lock) {
-        if (m_locked) {
+        if (m_lock) {
             wlr_log(WLR_ERROR, "session lock already active, rejecting new lock");
             wlr_session_lock_v1_destroy(lock);
             return;
         }
 
         m_lock = lock;
-        m_locked = true;
         m_locked_sent = false;
         m_unlocked = false;
 
-        m_compositor.scene().set_session_lock_active(true);
-        m_compositor.scene().update_lock_background(m_compositor.outputs());
-
+        if (m_persistent) {
+            wlr_log(WLR_INFO, "session lock client attached to existing locked session");
+        } else {
+            m_compositor.scene().set_session_lock_active(true);
+            m_compositor.scene().update_lock_background(m_compositor.outputs());
+            m_compositor.cancel_animations();
+            m_compositor.refocus();
+        }
         m_compositor.dismiss_popups();
-        m_compositor.cancel_animations();
-        m_compositor.refocus();
 
         m_lock_listeners.listen(&lock->events.new_surface, this, &Lock::on_new_surface);
         m_lock_listeners.listen(&lock->events.unlock, this, &Lock::on_unlock);
@@ -83,14 +87,15 @@ namespace flux {
         m_lock_listeners.clear();
         clear_timer();
         m_lock = nullptr;
+        m_locked_sent = false;
+        const bool unlocked = std::exchange(m_unlocked, false);
 
         for (const auto& out : m_compositor.outputs()) {
             out->destroy_lock_surface();
         }
 
-        if (m_unlocked || !m_locked_sent) {
-            m_locked = false;
-            m_locked_sent = false;
+        if (unlocked || !m_persistent) {
+            m_persistent = false;
             m_compositor.scene().set_session_lock_active(false);
         } else {
             wlr_log(WLR_INFO, "session lock client died; session remains locked");
@@ -125,12 +130,13 @@ namespace flux {
             return;
         }
         m_locked_sent = true;
+        m_persistent = true;
         clear_timer();
         wlr_session_lock_v1_send_locked(m_lock);
     }
 
     void Lock::sync() {
-        if (!m_locked) {
+        if (!is_locked()) {
             return;
         }
         m_compositor.scene().update_lock_background(m_compositor.outputs());

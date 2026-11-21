@@ -16,7 +16,7 @@ namespace flux {
         Lock(const Lock&) = delete;
         Lock& operator=(const Lock&) = delete;
 
-        [[nodiscard]] bool is_locked() const noexcept { return m_locked; }
+        [[nodiscard]] bool is_locked() const noexcept { return m_lock != nullptr || m_persistent; }
 
         void sync();
         void try_send_locked();
@@ -33,7 +33,7 @@ namespace flux {
 
         Compositor& m_compositor;
         wlr_session_lock_v1* m_lock = nullptr;
-        bool m_locked = false;
+        bool m_persistent = false;
         bool m_locked_sent = false;
         bool m_unlocked = false;
         wl_event_source* m_timer = nullptr;
