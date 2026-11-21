@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.10.0](https://github.com/fluxwm/flux/compare/v0.9.1...v0.10.0) (2026-11-21)
+
+
+### Features
+
+* add animation slowdown speed multiplier ([616151a](https://github.com/fluxwm/flux/commit/616151a483134c938211d003366e769927a51d44))
+* add animations configuration block ([b3e3428](https://github.com/fluxwm/flux/commit/b3e342869b26f58b7bd086deb8371b0731ed7ee4))
+* add ext-session-lock-v1 protocol support ([9a6d193](https://github.com/fluxwm/flux/commit/9a6d193606ccc5b8ae04d1b12cf567f6a43d0dbc))
+* add interactive dragging for tiled windows ([1103b23](https://github.com/fluxwm/flux/commit/1103b23ebe2dcaf501a0224bf264c573ccff4785))
+* add interactive mouse resizing for tiled windows ([7b588c6](https://github.com/fluxwm/flux/commit/7b588c6bc9d44a6063c67c750f826bde0505a73f))
+* add mouse natural-scroll configuration ([af1750b](https://github.com/fluxwm/flux/commit/af1750bfaf6465cb414c9bb98a90d1b667409a96))
+* add spring-physics window open and close animations ([8e40655](https://github.com/fluxwm/flux/commit/8e4065521fb18d05e1e1970f8b29de8a5f6c58d1))
+* add spring-physics window position animations ([4b620cc](https://github.com/fluxwm/flux/commit/4b620cc3f769a1f68cdf7e58d18024146a33cb89))
+* add wp-drm-lease-v1 protocol support ([3b77626](https://github.com/fluxwm/flux/commit/3b77626eb7df0f8207b96e8c6a9140f6a45b816a))
+* allow recovery session lock client after crash ([f435fe7](https://github.com/fluxwm/flux/commit/f435fe7bfc3be1e6599dd5a0054dc872c3167b31))
+* support single-edge resizing for floating windows ([c8a7a5e](https://github.com/fluxwm/flux/commit/c8a7a5e0644413cc0c1800ae3ed7c7069da0ecca))
+
+
+### Bug Fixes
+
+* mark keybind keycodes as consumed before dispatching actions ([1a386ba](https://github.com/fluxwm/flux/commit/1a386ba10a33cd2fa9d219c9a99dff7c78564c61))
+
+
+### Refactoring
+
+* encapsulate interactive grabs into Grab hierarchy ([07835ae](https://github.com/fluxwm/flux/commit/07835aedb693c38ed0e651441065978f82261674))
+* extract Border, WindowAnimation, and ClosingWindow from Window and Workspace ([1934501](https://github.com/fluxwm/flux/commit/193450116fc4db6c3eb19f4935879b0449209e5d))
+* extract session lock subsystem from compositor ([cd707d1](https://github.com/fluxwm/flux/commit/cd707d182ed2fe06876a73f401c522f28e533362))
+* modernize callbacks, lambdas, and range traversal ([6aaebe4](https://github.com/fluxwm/flux/commit/6aaebe4896b0dd004c09d5e975882dc43f37a1c8))
+* split Window into Xdg and XWayland subclasses ([88a4156](https://github.com/fluxwm/flux/commit/88a4156224e65c25e26f93c440b64cdae351755f))
+
 ## [0.9.1](https://github.com/fluxwm/flux/compare/v0.9.0...v0.9.1) (2026-11-15)
 
 
