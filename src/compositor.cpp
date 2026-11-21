@@ -162,6 +162,11 @@ namespace flux {
         auto* output_power_mgr = wlr_output_power_manager_v1_create(m_display);
         m_listeners.listen(&output_power_mgr->events.set_mode, this, &Compositor::on_output_power_set_mode);
 
+        m_drm_lease_mgr = wlr_drm_lease_v1_manager_create(m_display, m_backend);
+        if (m_drm_lease_mgr) {
+            m_listeners.listen(&m_drm_lease_mgr->events.request, this, &Compositor::on_drm_lease_request);
+        }
+
         m_listeners.listen(&m_backend->events.new_output, this, &Compositor::on_new_output);
 
         m_scene = std::make_unique<Scene>(m_display, m_output_layout);
@@ -842,6 +847,18 @@ namespace flux {
     }
 
     void Compositor::on_new_output(wlr_output* output) {
+        if (output->non_desktop) {
+            if (m_drm_lease_mgr) {
+                wlr_log(WLR_DEBUG, "offering non-desktop output '%s' for DRM lease", output->name);
+                if (!wlr_drm_lease_v1_manager_offer_output(m_drm_lease_mgr, output)) {
+                    wlr_log(WLR_ERROR, "failed to offer non-desktop output '%s' for DRM lease", output->name);
+                }
+            } else {
+                wlr_log(WLR_DEBUG, "ignoring non-desktop output '%s'", output->name);
+            }
+            return;
+        }
+
         m_outputs.push_back(std::make_unique<Output>(*this, output));
         Output* new_out = m_outputs.back().get();
         if (m_outputs.size() == 1 && m_saved_workspace_id != 1) {
@@ -943,6 +960,21 @@ namespace flux {
         }
         sync_session_lock();
         refocus();
+    }
+
+    void Compositor::on_drm_lease_request(wlr_drm_lease_request_v1* request) {
+        if (is_session_locked()) {
+            wlr_log(WLR_ERROR, "session lock active, rejecting DRM lease request");
+            wlr_drm_lease_request_v1_reject(request);
+            return;
+        }
+
+        if (wlr_drm_lease_request_v1_grant(request)) {
+            wlr_log(WLR_DEBUG, "granted DRM lease request");
+        } else {
+            wlr_log(WLR_ERROR, "failed to grant DRM lease request, rejecting");
+            wlr_drm_lease_request_v1_reject(request);
+        }
     }
 
     void Compositor::create_popup(wlr_xdg_popup* popup) {

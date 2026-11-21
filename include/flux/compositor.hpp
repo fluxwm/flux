@@ -120,6 +120,7 @@ namespace flux {
         void on_request_activate(wlr_xdg_activation_v1_request_activate_event* event);
         void on_workspace_commit(wlr_ext_workspace_v1_commit_event* event);
         void on_output_power_set_mode(wlr_output_power_v1_set_mode_event* event);
+        void on_drm_lease_request(wlr_drm_lease_request_v1* request);
         void execute_action(const Action& action);
         void spawn(const action::Spawn& action);
 
@@ -132,6 +133,7 @@ namespace flux {
         wlr_ext_foreign_toplevel_list_v1* m_foreign_toplevel_list = nullptr;
         wlr_ext_workspace_manager_v1* m_workspace_manager = nullptr;
         wlr_tearing_control_manager_v1* m_tearing_control_mgr = nullptr;
+        wlr_drm_lease_v1_manager* m_drm_lease_mgr = nullptr;
         wlr_xwayland* m_xwayland = nullptr;
 
         std::unique_ptr<Config> m_config;
