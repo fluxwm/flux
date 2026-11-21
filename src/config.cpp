@@ -6,6 +6,7 @@
 #include <array>
 #include <cctype>
 #include <charconv>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -110,6 +111,28 @@ namespace flux {
                 return true;
             }
             return false;
+        }
+
+        bool parse_double(const kdl::Node& node, double& out, double min, double max) {
+            std::string_view name = node_name(node);
+            const auto& args = node.args();
+            if (args.empty() || args[0].type() != kdl::Type::Number) {
+                wlr_log(WLR_ERROR, "%.*s requires a number argument", static_cast<int>(name.size()), name.data());
+                return false;
+            }
+            try {
+                const double val = args[0].as<double>();
+                if (!std::isfinite(val) || val < min || val > max) {
+                    wlr_log(WLR_ERROR, "invalid %.*s '%g' (must be between %g and %g)", static_cast<int>(name.size()),
+                            name.data(), val, min, max);
+                    return false;
+                }
+                out = val;
+                return true;
+            } catch (const std::exception& e) {
+                wlr_log(WLR_ERROR, "failed to parse %.*s: %s", static_cast<int>(name.size()), name.data(), e.what());
+                return false;
+            }
         }
 
         std::optional<std::string> parse_string(const kdl::Node& node) {
@@ -499,6 +522,8 @@ namespace flux {
                     bool off = !animations.enabled;
                     parse_bool(child, off);
                     animations.enabled = !off;
+                } else if (iequals(name, "slowdown")) {
+                    parse_double(child, animations.slowdown, 0.001, 100.0);
                 } else {
                     wlr_log(WLR_ERROR, "unknown setting '%.*s' in animations config", static_cast<int>(name.size()),
                             name.data());

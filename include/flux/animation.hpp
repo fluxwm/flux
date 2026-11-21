@@ -18,6 +18,11 @@ namespace flux {
         return static_cast<double>(to.tv_sec - from.tv_sec) + (static_cast<double>(to.tv_nsec - from.tv_nsec) * 1e-9);
     }
 
+    [[nodiscard]] inline double step_dt(const timespec& from, const timespec& to, double max_dt,
+                                        double slowdown) noexcept {
+        return std::clamp(elapsed_seconds(from, to), 0.0, max_dt) / std::max(0.001, slowdown);
+    }
+
     [[nodiscard]] inline double open_close_scale(double progress) noexcept {
         return 0.90 + (0.10 * std::clamp(progress, 0.0, 1.0));
     }

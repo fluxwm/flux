@@ -244,7 +244,7 @@ namespace flux {
 
         timespec now{};
         clock_gettime(CLOCK_MONOTONIC, &now);
-        const double dt = std::clamp(elapsed_seconds(m_last_time, now), 0.0, 0.1);
+        const double dt = step_dt(m_last_time, now, 0.1, output.compositor().config().animations().slowdown);
         m_last_time = now;
 
         m_spring.advance(dt);
@@ -397,7 +397,7 @@ namespace flux {
             return false;
         }
 
-        const double dt = std::clamp(elapsed_seconds(m_last_time, now), 0.0, 0.05);
+        const double dt = step_dt(m_last_time, now, 0.05, m_window.m_compositor.config().animations().slowdown);
         m_last_time = now;
 
         if (m_moving) {

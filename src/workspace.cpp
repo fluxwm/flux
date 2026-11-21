@@ -514,8 +514,9 @@ namespace flux {
             return false;
         }
 
+        const double slowdown = m_output.compositor().config().animations().slowdown;
         std::erase_if(m_closing_windows, [&](auto& cw) {
-            const double dt = std::clamp(elapsed_seconds(cw->last_time, now), 0.0, 0.05);
+            const double dt = step_dt(cw->last_time, now, 0.05, slowdown);
             cw->last_time = now;
             cw->spring.advance(dt);
 

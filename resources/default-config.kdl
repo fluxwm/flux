@@ -59,6 +59,7 @@ layout {
 
 animations {
     // off
+    // slowdown 1.0
 }
 
 binds {

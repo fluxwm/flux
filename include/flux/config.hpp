@@ -73,6 +73,7 @@ namespace flux {
 
     struct AnimationConfig {
         bool enabled = true;
+        double slowdown = 1.0;
     };
 
     struct EnvironmentVariable {
