@@ -138,7 +138,7 @@ namespace flux {
         [[nodiscard]] std::span<const Keybind> keybinds() const noexcept { return m_keybinds; }
         [[nodiscard]] const std::filesystem::path& path() const noexcept { return m_path; }
 
-        void set_on_reload(std::function<void()> callback) { m_on_reload = std::move(callback); }
+        void set_on_reload(std::move_only_function<void()> callback) { m_on_reload = std::move(callback); }
         bool reload();
 
     private:
@@ -153,7 +153,7 @@ namespace flux {
         int m_inotify_fd = -1;
         wl_event_source* m_inotify_source = nullptr;
         std::vector<int> m_watch_descriptors;
-        std::function<void()> m_on_reload;
+        std::move_only_function<void()> m_on_reload;
 
         bool m_middle_click_paste = true;
         KeyboardConfig m_keyboard;

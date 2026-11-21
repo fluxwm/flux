@@ -11,7 +11,7 @@ namespace flux {
 
     class WlListener final {
     public:
-        using Callback = std::function<void(void*)>;
+        using Callback = std::move_only_function<void(void*)>;
 
         WlListener(wl_signal* signal, Callback callback) : m_callback(std::move(callback)) {
             m_listener.notify = &WlListener::handle_notify;

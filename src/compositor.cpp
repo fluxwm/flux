@@ -798,10 +798,7 @@ namespace flux {
 
         std::vector<Window*> focus_order;
         if (target) {
-            for (const auto& ws : target->workspaces()) {
-                focus_order.insert(focus_order.end(), ws->focus_stack().begin(), ws->focus_stack().end());
-            }
-            for (const auto& ws : output->workspaces()) {
+            for (const auto& ws : std::views::concat(target->workspaces(), output->workspaces())) {
                 focus_order.insert(focus_order.end(), ws->focus_stack().begin(), ws->focus_stack().end());
             }
         } else {
