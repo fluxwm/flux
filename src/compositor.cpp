@@ -205,6 +205,10 @@ namespace flux {
 
         m_input = std::make_unique<Input>(*this);
         m_config->set_on_reload([this] {
+            if (!m_config->animations().enabled) {
+                cancel_animations();
+                restack_windows();
+            }
             m_input->apply_config();
             for (const auto& out : m_outputs) {
                 for (const auto& ws : out->workspaces()) {
@@ -425,10 +429,11 @@ namespace flux {
         Workspace& old_ws = output->active_workspace();
         Workspace& new_ws = output->workspace(id);
         output->set_active_workspace(&new_ws);
-        if (output->is_enabled()) {
+        if (output->is_enabled() && m_config->animations().enabled) {
             output->animation().start(old_ws, new_ws, std::max(1, output->layout_box().width));
             wlr_output_schedule_frame(output->raw());
         } else {
+            output->animation().cancel();
             old_ws.deactivate();
             new_ws.activate();
         }

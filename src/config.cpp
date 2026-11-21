@@ -492,6 +492,20 @@ namespace flux {
             }
         }
 
+        void parse_animations(AnimationConfig& animations, const kdl::Node& animations_node) {
+            for (const auto& child : animations_node.children()) {
+                std::string_view name = node_name(child);
+                if (iequals(name, "off")) {
+                    bool off = !animations.enabled;
+                    parse_bool(child, off);
+                    animations.enabled = !off;
+                } else {
+                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in animations config", static_cast<int>(name.size()),
+                            name.data());
+                }
+            }
+        }
+
         void parse_environment(std::vector<EnvironmentVariable>& environment, const kdl::Node& environment_node) {
             for (const auto& child : environment_node.children()) {
                 std::string_view name = node_name(child);
@@ -718,6 +732,7 @@ namespace flux {
         GesturesConfig gestures;
         CursorConfig cursor;
         LayoutConfig layout;
+        AnimationConfig animations;
         std::vector<EnvironmentVariable> environment;
         std::vector<Action> autostart;
         std::vector<Keybind> keybinds;
@@ -734,6 +749,8 @@ namespace flux {
                 parse_cursor(cursor, node);
             } else if (iequals(name, "layout")) {
                 parse_layout(layout, node);
+            } else if (iequals(name, "animations")) {
+                parse_animations(animations, node);
             } else if (iequals(name, "environment")) {
                 parse_environment(environment, node);
             } else if (iequals(name, "binds")) {
@@ -750,6 +767,7 @@ namespace flux {
         m_gestures = gestures;
         m_cursor = std::move(cursor);
         m_layout = layout;
+        m_animations = animations;
         m_environment = std::move(environment);
         m_autostart = std::move(autostart);
         m_keybinds = std::move(keybinds);

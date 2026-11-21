@@ -415,8 +415,8 @@ namespace flux {
         }
 
         const auto& comp = m_output.compositor();
-        if (comp.is_locked() || comp.is_workspace_swiping() || !m_output.is_enabled() ||
-            m_output.animation().is_busy()) {
+        if (!comp.config().animations().enabled || comp.is_locked() || comp.is_workspace_swiping() ||
+            !m_output.is_enabled() || m_output.animation().is_busy()) {
             return;
         }
         if (!window->is_floating() &&

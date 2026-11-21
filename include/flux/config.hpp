@@ -71,6 +71,10 @@ namespace flux {
         BorderConfig border{};
     };
 
+    struct AnimationConfig {
+        bool enabled = true;
+    };
+
     struct EnvironmentVariable {
         std::string name;
         std::optional<std::string> value;
@@ -138,6 +142,7 @@ namespace flux {
         [[nodiscard]] const GesturesConfig& gestures() const noexcept { return m_gestures; }
         [[nodiscard]] const CursorConfig& cursor() const noexcept { return m_cursor; }
         [[nodiscard]] const LayoutConfig& layout() const noexcept { return m_layout; }
+        [[nodiscard]] const AnimationConfig& animations() const noexcept { return m_animations; }
         [[nodiscard]] std::span<const EnvironmentVariable> environment() const noexcept { return m_environment; }
         [[nodiscard]] std::span<const Action> autostart() const noexcept { return m_autostart; }
         [[nodiscard]] std::span<const Keybind> keybinds() const noexcept { return m_keybinds; }
@@ -167,6 +172,7 @@ namespace flux {
         GesturesConfig m_gestures;
         CursorConfig m_cursor;
         LayoutConfig m_layout;
+        AnimationConfig m_animations;
         std::vector<EnvironmentVariable> m_environment;
         std::vector<Action> m_autostart;
         std::vector<Keybind> m_keybinds;

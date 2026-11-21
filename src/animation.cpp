@@ -228,7 +228,7 @@ namespace flux {
         m_spring.set_target(0.0);
         m_last_time = now;
 
-        if (m_spring.is_settled()) {
+        if (!output.compositor().config().animations().enabled || m_spring.is_settled()) {
             cancel();
         } else {
             apply_positions(static_cast<int>(std::round(initial_x)));
@@ -335,6 +335,9 @@ namespace flux {
     }
 
     bool WindowAnimation::can_animate() const noexcept {
+        if (!m_window.m_compositor.config().animations().enabled) {
+            return false;
+        }
         if (!m_window.is_mapped() || !m_has_initial_position) {
             return false;
         }
