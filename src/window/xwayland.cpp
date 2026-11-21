@@ -140,7 +140,10 @@ namespace flux::window {
     void XWayland::on_associate() {
         on_dissociate();
         if (m_surface->surface) {
-            m_subsurface_tree = wlr_scene_subsurface_tree_create(m_scene_tree, m_surface->surface);
+            m_subsurface_tree = wlr_scene_tree_create(m_scene_tree);
+            if (m_subsurface_tree) {
+                wlr_scene_subsurface_tree_create(m_subsurface_tree, m_surface->surface);
+            }
             m_surface_listeners.listen(&m_surface->surface->events.map, this, &XWayland::on_map);
             m_surface_listeners.listen(&m_surface->surface->events.unmap, this, &XWayland::on_unmap);
             m_surface_listeners.listen(&m_surface->surface->events.commit, this, &XWayland::on_commit);

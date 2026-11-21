@@ -149,9 +149,9 @@ namespace flux {
             if (m_wrapper_tree) {
                 wlr_scene_node_destroy(&m_wrapper_tree->node);
             }
-            m_wrapper_tree =
-                wlr_scene_subsurface_tree_create(m_compositor.scene().window_popups(), m_xwayland_surface->surface);
+            m_wrapper_tree = wlr_scene_tree_create(m_compositor.scene().window_popups());
             if (m_wrapper_tree) {
+                wlr_scene_subsurface_tree_create(m_wrapper_tree, m_xwayland_surface->surface);
                 wlr_scene_node_set_position(&m_wrapper_tree->node, m_xwayland_surface->x, m_xwayland_surface->y);
             }
             if (wlr_xwayland_surface_override_redirect_wants_focus(m_xwayland_surface) && !m_compositor.is_locked()) {

@@ -42,7 +42,10 @@ namespace flux {
 
         m_listeners.clear();
 
-        m_popups.clear();
+        while (!m_popups.empty()) {
+            auto p = std::move(m_popups.back());
+            m_popups.pop_back();
+        }
         m_orphaned_focus_order.clear();
         m_windows.clear();
         m_outputs.clear();
