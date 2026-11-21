@@ -5,6 +5,7 @@
 
 namespace flux {
     class Input;
+    struct MouseConfig;
     struct TouchpadConfig;
 }
 
@@ -15,13 +16,14 @@ namespace flux::input {
 
     class Pointer {
     public:
-        Pointer(Input& input, wlr_input_device* device, const TouchpadConfig& config);
+        Pointer(Input& input, wlr_input_device* device, const MouseConfig& mouse_config,
+                const TouchpadConfig& touchpad_config);
         ~Pointer() = default;
 
         Pointer(const Pointer&) = delete;
         Pointer& operator=(const Pointer&) = delete;
 
-        void apply_config(const TouchpadConfig& config);
+        void apply_config(const MouseConfig& mouse_config, const TouchpadConfig& touchpad_config);
 
     private:
         void on_destroy();

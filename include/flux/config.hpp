@@ -28,6 +28,10 @@ namespace flux {
         bool operator==(const KeyboardConfig&) const = default;
     };
 
+    struct MouseConfig {
+        bool natural_scroll = false;
+    };
+
     struct TouchpadConfig {
         bool tap_to_click = false;
         bool natural_scroll = false;
@@ -129,6 +133,7 @@ namespace flux {
 
         [[nodiscard]] bool middle_click_paste() const noexcept { return m_middle_click_paste; }
         [[nodiscard]] const KeyboardConfig& keyboard() const noexcept { return m_keyboard; }
+        [[nodiscard]] const MouseConfig& mouse() const noexcept { return m_mouse; }
         [[nodiscard]] const TouchpadConfig& touchpad() const noexcept { return m_touchpad; }
         [[nodiscard]] const GesturesConfig& gestures() const noexcept { return m_gestures; }
         [[nodiscard]] const CursorConfig& cursor() const noexcept { return m_cursor; }
@@ -157,6 +162,7 @@ namespace flux {
 
         bool m_middle_click_paste = true;
         KeyboardConfig m_keyboard;
+        MouseConfig m_mouse;
         TouchpadConfig m_touchpad;
         GesturesConfig m_gestures;
         CursorConfig m_cursor;

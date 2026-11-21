@@ -22,6 +22,10 @@ input {
         numlock
     }
 
+    mouse {
+        // natural-scroll
+    }
+
     touchpad {
         tap-to-click
         natural-scroll

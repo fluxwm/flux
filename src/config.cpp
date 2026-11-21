@@ -320,6 +320,18 @@ namespace flux {
             }
         }
 
+        void parse_mouse(MouseConfig& mouse, const kdl::Node& mouse_node) {
+            for (const auto& child : mouse_node.children()) {
+                std::string_view name = node_name(child);
+                if (iequals(name, "natural-scroll")) {
+                    parse_bool(child, mouse.natural_scroll);
+                } else {
+                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in mouse config", static_cast<int>(name.size()),
+                            name.data());
+                }
+            }
+        }
+
         void parse_touchpad(TouchpadConfig& touchpad, const kdl::Node& touchpad_node) {
             for (const auto& child : touchpad_node.children()) {
                 std::string_view name = node_name(child);
@@ -334,12 +346,14 @@ namespace flux {
             }
         }
 
-        void parse_input(KeyboardConfig& keyboard, TouchpadConfig& touchpad, bool& middle_click_paste,
-                         const kdl::Node& input_node) {
+        void parse_input(KeyboardConfig& keyboard, MouseConfig& mouse, TouchpadConfig& touchpad,
+                         bool& middle_click_paste, const kdl::Node& input_node) {
             for (const auto& child : input_node.children()) {
                 std::string_view name = node_name(child);
                 if (iequals(name, "keyboard")) {
                     parse_keyboard(keyboard, child);
+                } else if (iequals(name, "mouse")) {
+                    parse_mouse(mouse, child);
                 } else if (iequals(name, "touchpad")) {
                     parse_touchpad(touchpad, child);
                 } else if (iequals(name, "middle-click-paste")) {
@@ -699,6 +713,7 @@ namespace flux {
 
         bool middle_click_paste = true;
         KeyboardConfig keyboard;
+        MouseConfig mouse;
         TouchpadConfig touchpad;
         GesturesConfig gestures;
         CursorConfig cursor;
@@ -712,7 +727,7 @@ namespace flux {
             if (iequals(name, "autostart")) {
                 parse_autostart(autostart, node);
             } else if (iequals(name, "input")) {
-                parse_input(keyboard, touchpad, middle_click_paste, node);
+                parse_input(keyboard, mouse, touchpad, middle_click_paste, node);
             } else if (iequals(name, "gestures")) {
                 parse_gestures(gestures, node);
             } else if (iequals(name, "cursor")) {
@@ -730,6 +745,7 @@ namespace flux {
 
         m_middle_click_paste = middle_click_paste;
         m_keyboard = std::move(keyboard);
+        m_mouse = mouse;
         m_touchpad = touchpad;
         m_gestures = gestures;
         m_cursor = std::move(cursor);
