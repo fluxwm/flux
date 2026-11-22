@@ -328,6 +328,8 @@ namespace flux {
                     }
                 } else if constexpr (std::is_same_v<T, action::FocusWindow>) {
                     focus_window_in_direction(act.direction);
+                } else if constexpr (std::is_same_v<T, action::SwapWindow>) {
+                    swap_window_in_direction(act.direction);
                 } else if constexpr (std::is_same_v<T, action::FocusWorkspace>) {
                     focus_workspace(act.workspace);
                 } else if constexpr (std::is_same_v<T, action::MoveToWorkspace>) {
@@ -586,6 +588,47 @@ namespace flux {
         } else if (Output* adj = cur->adjacent_output(direction)) {
             m_focused_output = adj;
             focus_window(adj->active_workspace().focused_window());
+        }
+    }
+
+    void Compositor::swap_window_in_direction(Direction direction) {
+        if (is_locked()) {
+            return;
+        }
+
+        Window* focused = focused_window();
+        if (!focused) {
+            return;
+        }
+
+        Output* cur = focused_output();
+        if (!cur) {
+            return;
+        }
+
+        if (focused->is_tiled() && cur->active_workspace().swap_window_in_direction(direction)) {
+            update_cursor_focus();
+            return;
+        }
+
+        if (Output* adj = cur->adjacent_output(direction)) {
+            m_input->cursor().cancel_grab();
+            cancel_workspace_swipe();
+            dismiss_popups(focused->scene_tree());
+
+            if (cur->animation().is_active()) {
+                cur->animation().cancel();
+            }
+            if (adj->animation().is_active()) {
+                adj->animation().cancel();
+            }
+
+            if (focused->is_floating()) {
+                focused->set_placed(false);
+            }
+
+            focused->set_output(adj);
+            focus_window(focused);
         }
     }
 

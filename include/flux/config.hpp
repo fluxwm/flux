@@ -98,6 +98,9 @@ namespace flux {
         struct FocusWindow {
             Direction direction = Direction::Right;
         };
+        struct SwapWindow {
+            Direction direction = Direction::Right;
+        };
 
         struct Spawn {
             std::string program;
@@ -114,8 +117,8 @@ namespace flux {
     }
 
     using Action = std::variant<action::Quit, action::CloseWindow, action::CycleWindow, action::MaximizeWindow,
-                                action::FullscreenWindow, action::ToggleFloating, action::FocusWindow, action::Spawn,
-                                action::FocusWorkspace, action::MoveToWorkspace>;
+                                action::FullscreenWindow, action::ToggleFloating, action::FocusWindow,
+                                action::SwapWindow, action::Spawn, action::FocusWorkspace, action::MoveToWorkspace>;
 
     constexpr uint32_t key_modifier_mask =
         WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT | WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT;

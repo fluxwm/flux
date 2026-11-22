@@ -588,16 +588,29 @@ namespace flux {
         return m_output.compositor().input().cursor().is_tiled_resizing(this);
     }
 
+    void Workspace::swap_windows(Window* a, Window* b) {
+        if (!a || !b || a == b) {
+            return;
+        }
+        const auto it_a = std::ranges::find(m_windows, a);
+        const auto it_b = std::ranges::find(m_windows, b);
+        if (it_a == m_windows.end() || it_b == m_windows.end()) {
+            return;
+        }
+
+        const float weight_a = a->tile_weight();
+        a->set_tile_weight(b->tile_weight());
+        b->set_tile_weight(weight_a);
+        std::iter_swap(it_a, it_b);
+        arrange();
+    }
+
     void Workspace::swap_tiled_at(Window* window, double cursor_x, double cursor_y) {
         if (!window || m_output.compositor().config().layout().mode == Layout::Monocle) {
             return;
         }
         const std::vector<Window*> tiled = tiled_windows();
         if (tiled.size() <= 1) {
-            return;
-        }
-        const auto it_grabbed = std::ranges::find(m_windows, window);
-        if (it_grabbed == m_windows.end()) {
             return;
         }
 
@@ -609,19 +622,76 @@ namespace flux {
             if (wlr_box_contains_point(&slot, cursor_x, cursor_y)) {
                 Window* target = tiled[i];
                 if (target != window) {
-                    const auto it_target = std::ranges::find(m_windows, target);
-                    if (it_target != m_windows.end()) {
-                        const float grabbed_weight = window->tile_weight();
-                        window->set_tile_weight(target->tile_weight());
-                        target->set_tile_weight(grabbed_weight);
-                        std::iter_swap(it_grabbed, it_target);
-                        arrange();
-                        return;
-                    }
+                    swap_windows(window, target);
                 }
                 break;
             }
         }
+    }
+
+    bool Workspace::swap_window_in_direction(Direction direction) {
+        if (m_output.compositor().config().layout().mode == Layout::Monocle) {
+            return false;
+        }
+
+        Window* focused = focused_window();
+        if (!focused || !focused->is_tiled()) {
+            return false;
+        }
+
+        const std::vector<Window*> tiled = tiled_windows();
+        if (tiled.size() <= 1) {
+            return false;
+        }
+
+        const auto it = std::ranges::find(tiled, focused);
+        if (it == tiled.end()) {
+            return false;
+        }
+        const size_t idx = static_cast<size_t>(std::distance(tiled.begin(), it));
+
+        Window* target = nullptr;
+        if (idx == 0) {
+            switch (direction) {
+                case Direction::Right: {
+                    auto stack_it = std::ranges::find_if(
+                        m_focus_stack, [&](const Window* w) { return w != tiled[0] && w->is_tiled(); });
+                    target = (stack_it != m_focus_stack.end()) ? *stack_it : tiled[1];
+                    break;
+                }
+                case Direction::Left:
+                case Direction::Up:
+                case Direction::Down:
+                    return false;
+            }
+        } else {
+            switch (direction) {
+                case Direction::Left:
+                    target = tiled[0];
+                    break;
+                case Direction::Right:
+                    return false;
+                case Direction::Up:
+                    if (idx > 1) {
+                        target = tiled[idx - 1];
+                    }
+                    break;
+                case Direction::Down:
+                    if (idx + 1 < tiled.size()) {
+                        target = tiled[idx + 1];
+                    }
+                    break;
+            }
+        }
+
+        if (!target) {
+            return false;
+        }
+
+        m_output.compositor().input().cursor().cancel_grab();
+        m_output.compositor().dismiss_popups(focused->scene_tree());
+        swap_windows(focused, target);
+        return true;
     }
 
 }

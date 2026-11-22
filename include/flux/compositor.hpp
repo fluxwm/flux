@@ -83,6 +83,7 @@ namespace flux {
         KeybindResult handle_keybinding(uint32_t modifiers, xkb_keysym_t sym, bool is_repeat = false);
         void focus_window(Window* window);
         void focus_window_in_direction(Direction direction);
+        void swap_window_in_direction(Direction direction);
         void focus_workspace(uint32_t id) { focus_workspace(focused_output(), id); }
         void focus_workspace(Output* output, uint32_t id);
         void move_to_workspace(Window* window, uint32_t id);

@@ -201,6 +201,12 @@ namespace flux {
                 }
                 return std::nullopt;
             }
+            if (iequals(action_name, "swap-window")) {
+                if (auto dir = parse_direction(action_node)) {
+                    return action::SwapWindow{*dir};
+                }
+                return std::nullopt;
+            }
             if (iequals(action_name, "focus-workspace")) {
                 uint32_t ws = 0;
                 if (parse_int(action_node, ws, 1)) {
