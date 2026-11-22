@@ -520,7 +520,7 @@ namespace flux {
             cw->last_time = now;
             cw->spring.advance(dt);
 
-            if (cw->spring.is_settled(0.005, 0.05) || cw->spring.value() <= 0.005) {
+            if (cw->spring.is_settled() || cw->spring.value() <= 0.005) {
                 return true;
             }
 

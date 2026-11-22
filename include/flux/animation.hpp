@@ -38,6 +38,8 @@ namespace flux {
     struct SpringConfig {
         double stiffness = 800.0;
         double damping_ratio = 1.0;
+        double pos_epsilon = 0.5;
+        double vel_epsilon = 1.0;
     };
 
     class Spring {
@@ -57,8 +59,8 @@ namespace flux {
         [[nodiscard]] double velocity() const noexcept { return m_velocity; }
         [[nodiscard]] const SpringConfig& config() const noexcept { return m_config; }
 
-        [[nodiscard]] bool is_settled(double pos_epsilon = 0.5, double vel_epsilon = 1.0) const noexcept {
-            return std::abs(m_value - m_target) < pos_epsilon && std::abs(m_velocity) < vel_epsilon;
+        [[nodiscard]] bool is_settled() const noexcept {
+            return std::abs(m_value - m_target) < m_config.pos_epsilon && std::abs(m_velocity) < m_config.vel_epsilon;
         }
 
         void advance(double dt) noexcept;
@@ -87,7 +89,7 @@ namespace flux {
         wlr_box box{};
         int border_width = 0;
         bool is_floating = false;
-        Spring spring{1.0, {.stiffness = 1000.0, .damping_ratio = 1.0}};
+        Spring spring{1.0, {.stiffness = 1000.0, .damping_ratio = 1.0, .pos_epsilon = 0.005, .vel_epsilon = 0.05}};
         timespec last_time{};
 
         ~ClosingWindow() {
@@ -166,7 +168,8 @@ namespace flux {
         Window& m_window;
         Spring m_spring_x{};
         Spring m_spring_y{};
-        Spring m_open_spring{1.0, {.stiffness = 900.0, .damping_ratio = 1.0}};
+        Spring m_open_spring{1.0,
+                             {.stiffness = 900.0, .damping_ratio = 1.0, .pos_epsilon = 0.005, .vel_epsilon = 0.05}};
         timespec m_last_time{};
         int m_base_x = 0;
         int m_base_y = 0;

@@ -416,7 +416,7 @@ namespace flux {
 
         if (m_opening) {
             m_open_spring.advance(dt);
-            if (m_open_spring.is_settled(0.005, 0.05)) {
+            if (m_open_spring.is_settled()) {
                 reset_open_transform();
             } else {
                 apply_open_transform();
