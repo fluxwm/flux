@@ -1,9 +1,9 @@
 #pragma once
 
-#include "flux/listener.hpp"
-#include "flux/wlroots.hpp"
+#include "frost/listener.hpp"
+#include "frost/wlroots.hpp"
 
-namespace flux {
+namespace frost {
 
     class Compositor;
 

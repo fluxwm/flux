@@ -1,14 +1,14 @@
-#include "flux/animation.hpp"
-#include "flux/compositor.hpp"
-#include "flux/output.hpp"
-#include "flux/popup.hpp"
-#include "flux/window.hpp"
-#include "flux/workspace.hpp"
+#include "frost/animation.hpp"
+#include "frost/compositor.hpp"
+#include "frost/output.hpp"
+#include "frost/popup.hpp"
+#include "frost/window.hpp"
+#include "frost/workspace.hpp"
 
 #include <algorithm>
 #include <cmath>
 
-namespace flux {
+namespace frost {
 
     void Spring::advance(double dt) noexcept {
         if (dt <= 0.0) {

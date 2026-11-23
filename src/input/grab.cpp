@@ -1,13 +1,13 @@
-#include "flux/input/grab.hpp"
-#include "flux/compositor.hpp"
-#include "flux/config.hpp"
-#include "flux/output.hpp"
-#include "flux/window.hpp"
-#include "flux/workspace.hpp"
+#include "frost/input/grab.hpp"
+#include "frost/compositor.hpp"
+#include "frost/config.hpp"
+#include "frost/output.hpp"
+#include "frost/window.hpp"
+#include "frost/workspace.hpp"
 
 #include <algorithm>
 
-namespace flux::input {
+namespace frost::input {
 
     bool Grab::is_valid() const {
         return !m_window->compositor().is_locked() && m_window->is_mapped() &&

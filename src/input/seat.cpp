@@ -1,15 +1,15 @@
-#include "flux/input/seat.hpp"
-#include "flux/compositor.hpp"
-#include "flux/input.hpp"
-#include "flux/layer.hpp"
-#include "flux/util.hpp"
-#include "flux/window.hpp"
+#include "frost/input/seat.hpp"
+#include "frost/compositor.hpp"
+#include "frost/input.hpp"
+#include "frost/layer.hpp"
+#include "frost/util.hpp"
+#include "frost/window.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 
-namespace flux::input {
+namespace frost::input {
 
     namespace {
         void warp_to_hint(Input& input, const wlr_pointer_constraint_v1* constraint) {

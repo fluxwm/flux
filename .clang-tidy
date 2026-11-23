@@ -77,7 +77,7 @@ Checks: >
   -readability-identifier-naming
 
 WarningsAsErrors: ''
-HeaderFilterRegex: 'flux/.*'
+HeaderFilterRegex: 'frost/.*'
 FormatStyle: file
 CheckOptions:
   performance-for-range-copy.WarnOnAllAutoCopies: true

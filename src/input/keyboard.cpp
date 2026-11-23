@@ -1,11 +1,11 @@
-#include "flux/input/keyboard.hpp"
-#include "flux/compositor.hpp"
-#include "flux/config.hpp"
-#include "flux/input.hpp"
+#include "frost/input/keyboard.hpp"
+#include "frost/compositor.hpp"
+#include "frost/config.hpp"
+#include "frost/input.hpp"
 
 #include <algorithm>
 
-namespace flux::input {
+namespace frost::input {
 
     Keyboard::Keyboard(Input& input, wlr_input_device* device, const KeyboardConfig& config)
         : m_input(input), m_wlr_keyboard(wlr_keyboard_from_input_device(device)),

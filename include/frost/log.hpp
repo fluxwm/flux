@@ -1,8 +1,8 @@
 #pragma once
 
-#include "flux/wlroots.hpp"
+#include "frost/wlroots.hpp"
 
-namespace flux {
+namespace frost {
 
     void log_init(wlr_log_importance importance);
 

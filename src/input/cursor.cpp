@@ -1,18 +1,18 @@
-#include "flux/input/cursor.hpp"
-#include "flux/compositor.hpp"
-#include "flux/input.hpp"
-#include "flux/input/grab.hpp"
-#include "flux/layer.hpp"
-#include "flux/output.hpp"
-#include "flux/util.hpp"
-#include "flux/window.hpp"
-#include "flux/workspace.hpp"
+#include "frost/input/cursor.hpp"
+#include "frost/compositor.hpp"
+#include "frost/input.hpp"
+#include "frost/input/grab.hpp"
+#include "frost/layer.hpp"
+#include "frost/output.hpp"
+#include "frost/util.hpp"
+#include "frost/window.hpp"
+#include "frost/workspace.hpp"
 
 #include <chrono>
 #include <cstdlib>
 #include <string>
 
-namespace flux::input {
+namespace frost::input {
 
     Cursor::Cursor(Input& input)
         : m_input(input), m_wlr_cursor(wlr_cursor_create()),

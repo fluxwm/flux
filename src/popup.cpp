@@ -1,9 +1,9 @@
-#include "flux/popup.hpp"
-#include "flux/compositor.hpp"
-#include "flux/input.hpp"
-#include "flux/output.hpp"
+#include "frost/popup.hpp"
+#include "frost/compositor.hpp"
+#include "frost/input.hpp"
+#include "frost/output.hpp"
 
-namespace flux {
+namespace frost {
 
     Popup::Popup(Compositor& compositor, wlr_xdg_popup* xdg_popup, wlr_scene_tree* root_tree)
         : m_compositor(compositor), m_xdg_popup(xdg_popup), m_root_tree(root_tree) {

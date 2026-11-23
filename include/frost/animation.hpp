@@ -1,6 +1,6 @@
 #pragma once
 
-#include "flux/scene.hpp"
+#include "frost/scene.hpp"
 
 #include <algorithm>
 #include <array>
@@ -8,7 +8,7 @@
 #include <ctime>
 #include <vector>
 
-namespace flux {
+namespace frost {
 
     class Output;
     class Workspace;

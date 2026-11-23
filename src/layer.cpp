@@ -1,8 +1,8 @@
-#include "flux/layer.hpp"
-#include "flux/compositor.hpp"
-#include "flux/output.hpp"
+#include "frost/layer.hpp"
+#include "frost/compositor.hpp"
+#include "frost/output.hpp"
 
-namespace flux {
+namespace frost {
 
     Layer::Layer(Output& output, wlr_layer_surface_v1* layer_surface)
         : m_output(output), m_layer_surface(layer_surface) {

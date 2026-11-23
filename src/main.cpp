@@ -1,5 +1,5 @@
-#include "flux/compositor.hpp"
-#include "flux/log.hpp"
+#include "frost/compositor.hpp"
+#include "frost/log.hpp"
 
 #include <filesystem>
 #include <optional>
@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
         } else if (arg == "-d" || arg == "--debug") {
             log_level = WLR_DEBUG;
         } else if (arg == "-v" || arg == "-V" || arg == "--version") {
-            std::println("flux {}", FLUX_VERSION);
+            std::println("frost {}", FROST_VERSION);
             return 0;
         } else if (arg == "-h" || arg == "--help") {
             std::println("Usage: {} [-c config file] [-d|--debug] [-v|--version] [-h|--help]", argv[0]);
@@ -30,10 +30,10 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    flux::log_init(log_level);
-    wlr_log(WLR_INFO, "starting version %s", FLUX_VERSION);
+    frost::log_init(log_level);
+    wlr_log(WLR_INFO, "starting version %s", FROST_VERSION);
 
-    flux::Compositor compositor;
+    frost::Compositor compositor;
     if (!compositor.init(config_path)) {
         return 1;
     }

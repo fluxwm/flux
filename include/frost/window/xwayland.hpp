@@ -1,9 +1,9 @@
 #pragma once
 
-#include "flux/listener.hpp"
-#include "flux/window.hpp"
+#include "frost/listener.hpp"
+#include "frost/window.hpp"
 
-namespace flux::window {
+namespace frost::window {
 
     class XWayland final : public Window {
     public:

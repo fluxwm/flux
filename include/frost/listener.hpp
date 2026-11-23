@@ -1,13 +1,13 @@
 #pragma once
 
-#include "flux/wlroots.hpp"
+#include "frost/wlroots.hpp"
 
 #include <functional>
 #include <memory>
 #include <utility>
 #include <vector>
 
-namespace flux {
+namespace frost {
 
     class WlListener final {
     public:

@@ -1,16 +1,16 @@
 #pragma once
 
-#include "flux/input/cursor.hpp"
-#include "flux/input/keyboard.hpp"
-#include "flux/input/pointer.hpp"
-#include "flux/input/seat.hpp"
-#include "flux/listener.hpp"
-#include "flux/wlroots.hpp"
+#include "frost/input/cursor.hpp"
+#include "frost/input/keyboard.hpp"
+#include "frost/input/pointer.hpp"
+#include "frost/input/seat.hpp"
+#include "frost/listener.hpp"
+#include "frost/wlroots.hpp"
 
 #include <memory>
 #include <vector>
 
-namespace flux {
+namespace frost {
 
     class Compositor;
 

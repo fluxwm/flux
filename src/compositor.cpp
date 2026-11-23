@@ -1,13 +1,13 @@
-#include "flux/compositor.hpp"
-#include "flux/input.hpp"
-#include "flux/layer.hpp"
-#include "flux/output.hpp"
-#include "flux/popup.hpp"
-#include "flux/util.hpp"
-#include "flux/window.hpp"
-#include "flux/window/xdg.hpp"
-#include "flux/window/xwayland.hpp"
-#include "flux/workspace.hpp"
+#include "frost/compositor.hpp"
+#include "frost/input.hpp"
+#include "frost/layer.hpp"
+#include "frost/output.hpp"
+#include "frost/popup.hpp"
+#include "frost/util.hpp"
+#include "frost/window.hpp"
+#include "frost/window/xdg.hpp"
+#include "frost/window/xwayland.hpp"
+#include "frost/workspace.hpp"
 
 #include <algorithm>
 #include <array>
@@ -20,7 +20,7 @@
 #include <unistd.h>
 #include <vector>
 
-namespace flux {
+namespace frost {
 
     Compositor::Compositor() = default;
 
@@ -232,8 +232,8 @@ namespace flux {
 
         setenv("WAYLAND_DISPLAY", socket, 1);
         setenv("XDG_SESSION_TYPE", "wayland", 1);
-        setenv("XDG_CURRENT_DESKTOP", "flux", 1);
-        setenv("XDG_SESSION_DESKTOP", "flux", 1);
+        setenv("XDG_CURRENT_DESKTOP", "frost", 1);
+        setenv("XDG_SESSION_DESKTOP", "frost", 1);
         wlr_log(WLR_INFO, "ready on Wayland socket: %s", socket);
         return true;
     }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "flux/wlroots.hpp"
+#include "frost/wlroots.hpp"
 
 #include <array>
 #include <cstdint>
@@ -13,7 +13,7 @@
 #include <variant>
 #include <vector>
 
-namespace flux {
+namespace frost {
 
     struct KeyboardConfig {
         int32_t repeat_rate = 25;

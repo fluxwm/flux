@@ -1,12 +1,12 @@
 #pragma once
 
-#include "flux/wlroots.hpp"
+#include "frost/wlroots.hpp"
 
 #include <array>
 #include <memory>
 #include <span>
 
-namespace flux {
+namespace frost {
 
     class Output;
     class Window;

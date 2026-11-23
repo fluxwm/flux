@@ -1,8 +1,8 @@
-#include "flux/scene.hpp"
-#include "flux/output.hpp"
-#include "flux/window.hpp"
+#include "frost/scene.hpp"
+#include "frost/output.hpp"
+#include "frost/window.hpp"
 
-namespace flux {
+namespace frost {
 
     void Border::init(wlr_scene_tree* parent) noexcept {
         static constexpr float transparent[4] = {0.0f, 0.0f, 0.0f, 0.0f};

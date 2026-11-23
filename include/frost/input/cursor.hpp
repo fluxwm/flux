@@ -1,20 +1,20 @@
 #pragma once
 
-#include "flux/config.hpp"
-#include "flux/listener.hpp"
-#include "flux/wlroots.hpp"
+#include "frost/config.hpp"
+#include "frost/listener.hpp"
+#include "frost/wlroots.hpp"
 
 #include <memory>
 #include <optional>
 #include <string>
 
-namespace flux {
+namespace frost {
     class Input;
     class Window;
     class Workspace;
 }
 
-namespace flux::input {
+namespace frost::input {
 
     class Grab;
 

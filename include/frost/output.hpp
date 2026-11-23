@@ -1,14 +1,14 @@
 #pragma once
 
-#include "flux/animation.hpp"
-#include "flux/listener.hpp"
-#include "flux/wlroots.hpp"
+#include "frost/animation.hpp"
+#include "frost/listener.hpp"
+#include "frost/wlroots.hpp"
 
 #include <memory>
 #include <span>
 #include <vector>
 
-namespace flux {
+namespace frost {
 
     class Compositor;
     class Workspace;

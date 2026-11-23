@@ -1,6 +1,6 @@
 [Desktop Entry]
-Name=Flux
+Name=Frost
 Comment=A dynamic tiling Wayland compositor
-Exec=flux
+Exec=frost
 Type=Application
-DesktopNames=flux
+DesktopNames=frost

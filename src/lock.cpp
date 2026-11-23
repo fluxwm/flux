@@ -1,12 +1,12 @@
-#include "flux/lock.hpp"
-#include "flux/compositor.hpp"
-#include "flux/input.hpp"
-#include "flux/output.hpp"
-#include "flux/scene.hpp"
+#include "frost/lock.hpp"
+#include "frost/compositor.hpp"
+#include "frost/input.hpp"
+#include "frost/output.hpp"
+#include "frost/scene.hpp"
 
 #include <utility>
 
-namespace flux {
+namespace frost {
 
     Lock::Lock(Compositor& compositor) : m_compositor(compositor) {
         auto* manager = wlr_session_lock_manager_v1_create(m_compositor.display());

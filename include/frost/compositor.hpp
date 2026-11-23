@@ -1,10 +1,10 @@
 #pragma once
 
-#include "flux/config.hpp"
-#include "flux/listener.hpp"
-#include "flux/lock.hpp"
-#include "flux/scene.hpp"
-#include "flux/wlroots.hpp"
+#include "frost/config.hpp"
+#include "frost/listener.hpp"
+#include "frost/lock.hpp"
+#include "frost/scene.hpp"
+#include "frost/wlroots.hpp"
 
 #include <filesystem>
 #include <memory>
@@ -13,7 +13,7 @@
 #include <sys/types.h>
 #include <vector>
 
-namespace flux {
+namespace frost {
 
     class Output;
     class Window;

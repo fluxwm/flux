@@ -1,10 +1,10 @@
-#include "flux/window/xwayland.hpp"
-#include "flux/compositor.hpp"
-#include "flux/workspace.hpp"
+#include "frost/window/xwayland.hpp"
+#include "frost/compositor.hpp"
+#include "frost/workspace.hpp"
 
 #include <algorithm>
 
-namespace flux::window {
+namespace frost::window {
 
     XWayland::XWayland(Compositor& compositor, wlr_xwayland_surface* surface)
         : Window(compositor, surface->title, surface->_class), m_surface(surface) {

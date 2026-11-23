@@ -1,17 +1,17 @@
-#include "flux/workspace.hpp"
-#include "flux/compositor.hpp"
-#include "flux/config.hpp"
-#include "flux/input.hpp"
-#include "flux/output.hpp"
-#include "flux/scene.hpp"
-#include "flux/window.hpp"
+#include "frost/workspace.hpp"
+#include "frost/compositor.hpp"
+#include "frost/config.hpp"
+#include "frost/input.hpp"
+#include "frost/output.hpp"
+#include "frost/scene.hpp"
+#include "frost/window.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <string>
 #include <vector>
 
-namespace flux {
+namespace frost {
 
     namespace {
 

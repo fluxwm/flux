@@ -1,16 +1,16 @@
 #pragma once
 
-#include "flux/wlroots.hpp"
+#include "frost/wlroots.hpp"
 
 #include <cmath>
 #include <cstdint>
 
-namespace flux {
+namespace frost {
     class Window;
     class Workspace;
 }
 
-namespace flux::input {
+namespace frost::input {
 
     class Grab {
     public:

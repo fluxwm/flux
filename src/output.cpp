@@ -1,18 +1,18 @@
-#include "flux/output.hpp"
-#include "flux/compositor.hpp"
-#include "flux/config.hpp"
-#include "flux/layer.hpp"
-#include "flux/scene.hpp"
-#include "flux/util.hpp"
-#include "flux/window.hpp"
-#include "flux/workspace.hpp"
+#include "frost/output.hpp"
+#include "frost/compositor.hpp"
+#include "frost/config.hpp"
+#include "frost/layer.hpp"
+#include "frost/scene.hpp"
+#include "frost/util.hpp"
+#include "frost/window.hpp"
+#include "frost/workspace.hpp"
 
 #include <algorithm>
 #include <array>
 #include <ctime>
 #include <utility>
 
-namespace flux {
+namespace frost {
 
     Output::Output(Compositor& compositor, wlr_output* wlr_output)
         : m_compositor(compositor), m_wlr_output(wlr_output) {
@@ -38,10 +38,10 @@ namespace flux {
         m_scene_output = m_compositor.scene().attach_output(m_wlr_output, l_output);
 
         if (wlr_output_is_wl(m_wlr_output)) {
-            wlr_wl_output_set_title(m_wlr_output, "Flux");
-            wlr_wl_output_set_app_id(m_wlr_output, "flux");
+            wlr_wl_output_set_title(m_wlr_output, "Frost");
+            wlr_wl_output_set_app_id(m_wlr_output, "frost");
         } else if (wlr_output_is_x11(m_wlr_output)) {
-            wlr_x11_output_set_title(m_wlr_output, "Flux");
+            wlr_x11_output_set_title(m_wlr_output, "Frost");
         }
 
         m_workspace_group = wlr_ext_workspace_group_handle_v1_create(m_compositor.workspace_manager(), 0);

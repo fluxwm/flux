@@ -1,4 +1,4 @@
-#include "flux/config.hpp"
+#include "frost/config.hpp"
 
 #include <kdlpp.h>
 
@@ -19,7 +19,7 @@
 #include <utility>
 #include <vector>
 
-namespace flux {
+namespace frost {
 
     namespace {
 
@@ -606,9 +606,9 @@ namespace flux {
         if (custom_path.has_value()) {
             path = *custom_path;
         } else if (const char* xdg_config = std::getenv("XDG_CONFIG_HOME"); xdg_config && *xdg_config != '\0') {
-            path = std::filesystem::path(xdg_config) / "flux" / "config.kdl";
+            path = std::filesystem::path(xdg_config) / "frost" / "config.kdl";
         } else if (const char* home = std::getenv("HOME"); home && *home != '\0') {
-            path = std::filesystem::path(home) / ".config" / "flux" / "config.kdl";
+            path = std::filesystem::path(home) / ".config" / "frost" / "config.kdl";
         }
 
         if (!path.empty()) {

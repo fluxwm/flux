@@ -1,11 +1,11 @@
 #pragma once
 
-#include "flux/wlroots.hpp"
+#include "frost/wlroots.hpp"
 
 #include <algorithm>
 #include <utility>
 
-namespace flux {
+namespace frost {
 
     template <typename Container, typename T>
     constexpr bool erase_unique_ptr(Container& container, const T* target) noexcept {

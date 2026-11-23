@@ -1,12 +1,12 @@
-#include "flux/window.hpp"
-#include "flux/compositor.hpp"
-#include "flux/input.hpp"
-#include "flux/output.hpp"
-#include "flux/workspace.hpp"
+#include "frost/window.hpp"
+#include "frost/compositor.hpp"
+#include "frost/input.hpp"
+#include "frost/output.hpp"
+#include "frost/workspace.hpp"
 
 #include <algorithm>
 
-namespace flux {
+namespace frost {
 
     namespace {
 

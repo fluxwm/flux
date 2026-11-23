@@ -1,11 +1,11 @@
-#include "flux/input.hpp"
-#include "flux/compositor.hpp"
-#include "flux/config.hpp"
-#include "flux/util.hpp"
+#include "frost/input.hpp"
+#include "frost/compositor.hpp"
+#include "frost/config.hpp"
+#include "frost/util.hpp"
 
 #include <ranges>
 
-namespace flux {
+namespace frost {
 
     Input::Input(Compositor& compositor)
         : m_compositor(compositor), m_seat(std::make_unique<input::Seat>(*this, compositor.display())),

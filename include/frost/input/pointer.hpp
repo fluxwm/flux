@@ -1,15 +1,15 @@
 #pragma once
 
-#include "flux/listener.hpp"
-#include "flux/wlroots.hpp"
+#include "frost/listener.hpp"
+#include "frost/wlroots.hpp"
 
-namespace flux {
+namespace frost {
     class Input;
     struct MouseConfig;
     struct TouchpadConfig;
 }
 
-namespace flux::input {
+namespace frost::input {
 
     constexpr uint32_t btn_left = 0x110;
     constexpr uint32_t btn_right = 0x111;

@@ -1,4 +1,4 @@
-#include "flux/log.hpp"
+#include "frost/log.hpp"
 
 #include <algorithm>
 #include <array>
@@ -11,7 +11,7 @@
 #include <string_view>
 #include <unistd.h>
 
-namespace flux {
+namespace frost {
 
     namespace {
         using namespace std::chrono;
@@ -41,12 +41,12 @@ namespace flux {
                 const auto stem_end = file_part.find_first_of(".:");
                 const auto stem = file_part.substr(0, stem_end);
                 if (stem == "main" || stem.empty()) {
-                    return "flux";
+                    return "frost";
                 }
-                const auto res = std::format_to_n(out, sizeof(out), "flux::{}", stem);
+                const auto res = std::format_to_n(out, sizeof(out), "frost::{}", stem);
                 return std::string_view(out, res.out);
             }
-            return file_and_line.empty() ? "flux" : "wlroots";
+            return file_and_line.empty() ? "frost" : "wlroots";
         }
 
         void log_callback(wlr_log_importance importance, const char* fmt, va_list args) {

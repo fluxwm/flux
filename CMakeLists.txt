@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.3)
-project(flux VERSION 0.9.1 LANGUAGES CXX) # x-release-please-version
+project(frost VERSION 0.9.1 LANGUAGES CXX) # x-release-please-version
 
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -38,10 +38,10 @@ function(generate_protocol proto)
         VERBATIM
     )
 
-    target_sources(flux PRIVATE "${header_out}")
+    target_sources(frost PRIVATE "${header_out}")
 endfunction()
 
-add_executable(flux
+add_executable(frost
         src/main.cpp
         src/compositor.cpp
         src/scene.cpp
@@ -64,16 +64,16 @@ add_executable(flux
         src/animation.cpp
 )
 
-target_include_directories(flux PRIVATE include "${GEN_PROTO_DIR}")
-target_link_libraries(flux PRIVATE PkgConfig::DEPS kdlpp)
-target_compile_definitions(flux PRIVATE FLUX_VERSION="${PROJECT_VERSION}")
-target_compile_options(flux PRIVATE -Wno-c23-extensions)
+target_include_directories(frost PRIVATE include "${GEN_PROTO_DIR}")
+target_link_libraries(frost PRIVATE PkgConfig::DEPS kdlpp)
+target_compile_definitions(frost PRIVATE FROST_VERSION="${PROJECT_VERSION}")
+target_compile_options(frost PRIVATE -Wno-c23-extensions)
 
 generate_protocol(wlr-layer-shell-unstable-v1)
 generate_protocol(wlr-output-power-management-unstable-v1)
 
 include(GNUInstallDirs)
 
-install(TARGETS flux RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES resources/flux.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/wayland-sessions)
-install(FILES resources/flux-portals.conf DESTINATION ${CMAKE_INSTALL_DATADIR}/xdg-desktop-portal)
+install(TARGETS frost RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES resources/frost.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/wayland-sessions)
+install(FILES resources/frost-portals.conf DESTINATION ${CMAKE_INSTALL_DATADIR}/xdg-desktop-portal)

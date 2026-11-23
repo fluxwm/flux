@@ -1,10 +1,10 @@
-#include "flux/window/xdg.hpp"
-#include "flux/compositor.hpp"
-#include "flux/workspace.hpp"
+#include "frost/window/xdg.hpp"
+#include "frost/compositor.hpp"
+#include "frost/workspace.hpp"
 
 #include <algorithm>
 
-namespace flux::window {
+namespace frost::window {
 
     namespace {
 
