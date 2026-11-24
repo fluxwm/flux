@@ -66,15 +66,13 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Configure CMake
-        run: |
-          cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug
+        run: cmake --preset debug
 
       - name: Build project
-        run: cmake --build build
+        run: cmake --build --preset debug
 
       - name: Run Clang-Tidy
-        run: run-clang-tidy -p build -warnings-as-errors='*' -quiet $(git ls-files 'src/*.cpp')
+        run: run-clang-tidy -p build-debug -warnings-as-errors='*' -quiet $(git ls-files 'src/*.cpp')
 
   build:
     name: Build
@@ -104,13 +102,10 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Configure CMake
-        run: |
-          cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_FLAGS="-Werror"
+        run: cmake --preset release -DCMAKE_CXX_FLAGS="-Werror"
 
       - name: Build
-        run: cmake --build build
+        run: cmake --build --preset release
 
   ci:
     name: CI
