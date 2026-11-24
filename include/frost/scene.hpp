@@ -55,6 +55,7 @@ namespace frost {
 
         [[nodiscard]] wlr_surface* surface_at(double lx, double ly, double* sx, double* sy) const;
         [[nodiscard]] Window* window_at(double lx, double ly, wlr_surface** surface, double* sx, double* sy) const;
+        [[nodiscard]] bool surface_coords(wlr_surface* surface, int& lx, int& ly) const noexcept;
 
     private:
         [[nodiscard]] wlr_scene_node* interactive_node_at(double lx, double ly, double* sx, double* sy) const;

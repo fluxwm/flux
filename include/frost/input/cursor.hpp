@@ -46,6 +46,7 @@ namespace frost::input {
         void update_focus();
         void cancel_grab(const Window* window = nullptr);
         void clear_grab() noexcept;
+        void clear_button_grab() noexcept { m_button_grab = false; }
         [[nodiscard]] Window* grabbed_window() const noexcept;
         [[nodiscard]] bool is_tiled_resizing(const Workspace* ws) const noexcept;
         void apply_config(const CursorConfig& config);
@@ -66,6 +67,7 @@ namespace frost::input {
         void start_grab(Window* window, uint32_t button);
         void end_grab(bool commit = true);
         void toggle_grab_floating();
+        [[nodiscard]] bool resolve_button_grab(int* ox = nullptr, int* oy = nullptr) const noexcept;
         bool apply_constraint(double& dx, double& dy) const;
         void process_motion(uint32_t time_msec);
 
@@ -76,6 +78,7 @@ namespace frost::input {
         const char* m_current_shape = "default";
         std::optional<std::string> m_env_xcursor_theme;
         std::unique_ptr<Grab> m_grab;
+        bool m_button_grab = false;
         wlr_pointer_gestures_v1* m_pointer_gestures = nullptr;
         wlr_relative_pointer_manager_v1* m_relative_pointer_mgr = nullptr;
         bool m_swiping_workspace = false;

@@ -28,6 +28,9 @@ namespace frost::input {
         [[nodiscard]] wlr_surface* focused_pointer_surface() const noexcept {
             return m_wlr_seat ? m_wlr_seat->pointer_state.focused_surface : nullptr;
         }
+        [[nodiscard]] size_t pointer_button_count() const noexcept {
+            return m_wlr_seat ? m_wlr_seat->pointer_state.button_count : 0;
+        }
         [[nodiscard]] wlr_keyboard* keyboard() const noexcept {
             return m_wlr_seat ? wlr_seat_get_keyboard(m_wlr_seat) : nullptr;
         }
@@ -65,7 +68,7 @@ namespace frost::input {
         void notify_enter(wlr_surface* surface, double sx, double sy) noexcept {
             wlr_seat_pointer_notify_enter(m_wlr_seat, surface, sx, sy);
         }
-        void clear_pointer_focus() noexcept { wlr_seat_pointer_clear_focus(m_wlr_seat); }
+        void clear_pointer_focus() noexcept { wlr_seat_pointer_notify_clear_focus(m_wlr_seat); }
         void clear_primary_selection() noexcept { wlr_seat_set_primary_selection(m_wlr_seat, nullptr, 0); }
         void update_drag_icons_position() noexcept;
         void update_idle_inhibit();

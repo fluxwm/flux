@@ -1,4 +1,5 @@
 #include "frost/scene.hpp"
+#include "frost/layer.hpp"
 #include "frost/output.hpp"
 #include "frost/window.hpp"
 
@@ -195,6 +196,62 @@ namespace frost {
             *surface = window->surface();
         }
         return window;
+    }
+
+    bool Scene::surface_coords(wlr_surface* surface, int& lx, int& ly) const noexcept {
+        if (!surface || !m_scene) {
+            return false;
+        }
+
+        struct Finder {
+            const wlr_surface* target;
+            int lx = 0;
+            int ly = 0;
+            bool found = false;
+        } finder{.target = surface};
+
+        auto search_tree = [&finder](wlr_scene_tree* tree) {
+            if (!tree || finder.found) {
+                return;
+            }
+            int tx = 0;
+            int ty = 0;
+            if (!wlr_scene_node_coords(&tree->node, &tx, &ty)) {
+                return;
+            }
+            wlr_scene_node_for_each_buffer(
+                &tree->node,
+                [](wlr_scene_buffer* buffer, int bx, int by, void* data) {
+                    auto* f = static_cast<Finder*>(data);
+                    if (!f->found) {
+                        if (const auto* scene_surf = wlr_scene_surface_try_from_buffer(buffer);
+                            scene_surf && scene_surf->surface == f->target) {
+                            f->lx = bx;
+                            f->ly = by;
+                            f->found = true;
+                        }
+                    }
+                },
+                &finder);
+        };
+
+        if (m_scene_lock && m_scene_lock->node.enabled) {
+            search_tree(m_scene_lock_surfaces);
+        } else if (const auto* win = Window::try_from(surface)) {
+            search_tree(win->scene_tree());
+        } else if (const auto* layer = Layer::try_from(wlr_surface_get_root_surface(surface))) {
+            search_tree(layer->scene_tree());
+        } else {
+            search_tree(m_scene_window_popups);
+            search_tree(m_scene_popups);
+        }
+
+        if (!finder.found) {
+            return false;
+        }
+        lx = finder.lx;
+        ly = finder.ly;
+        return true;
     }
 
 }

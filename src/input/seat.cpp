@@ -24,43 +24,10 @@ namespace frost::input {
             const double sx = constraint->current.cursor_hint.x;
             const double sy = constraint->current.cursor_hint.y;
 
-            struct Finder {
-                const wlr_surface* target;
-                int lx = 0;
-                int ly = 0;
-                bool found = false;
-            } finder{.target = constraint->surface};
-
-            auto callback = [](wlr_scene_buffer* buffer, int bx, int by, void* data) {
-                auto* f = static_cast<Finder*>(data);
-                if (!f->found) {
-                    if (auto* scene_surf = wlr_scene_surface_try_from_buffer(buffer);
-                        scene_surf && scene_surf->surface == f->target) {
-                        f->lx = bx;
-                        f->ly = by;
-                        f->found = true;
-                    }
-                }
-            };
-
-            wlr_scene_tree* tree = nullptr;
-            if (auto* win = Window::try_from(constraint->surface)) {
-                tree = win->scene_tree();
-            } else if (auto* layer = Layer::try_from(wlr_surface_get_root_surface(constraint->surface))) {
-                tree = layer->scene_tree();
-            }
-
-            if (tree) {
-                wlr_scene_node_for_each_buffer(&tree->node, callback, &finder);
-            } else {
-                wlr_scene_node_for_each_buffer(&input.compositor().scene().window_popups()->node, callback, &finder);
-                if (!finder.found) {
-                    wlr_scene_node_for_each_buffer(&input.compositor().scene().popups()->node, callback, &finder);
-                }
-            }
-
-            if (finder.found) {
-                input.cursor().warp(finder.lx + sx, finder.ly + sy);
+            int lx = 0;
+            int ly = 0;
+            if (input.compositor().scene().surface_coords(constraint->surface, lx, ly)) {
+                input.cursor().warp(lx + sx, ly + sy);
                 wlr_seat_pointer_warp(constraint->seat, sx, sy);
             }
         }
@@ -137,6 +104,7 @@ namespace frost::input {
     }
 
     void Seat::on_pointer_focus_change(wlr_seat_pointer_focus_change_event* event) {
+        m_input.cursor().clear_button_grab();
         if (event->new_surface == nullptr) {
             m_input.cursor().set_xcursor("default");
         }
@@ -167,6 +135,7 @@ namespace frost::input {
     }
 
     void Seat::on_start_drag(wlr_drag* drag) {
+        m_input.cursor().clear_button_grab();
         if (drag->icon) {
             wlr_scene_drag_icon_create(m_input.compositor().scene().drag_icons(), drag->icon);
             update_drag_icons_position();

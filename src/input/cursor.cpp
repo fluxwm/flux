@@ -141,6 +141,51 @@ namespace frost::input {
         m_grab.reset();
     }
 
+    bool Cursor::resolve_button_grab(int* ox, int* oy) const noexcept {
+        if (!m_button_grab || m_input.seat().pointer_button_count() == 0 || m_input.seat().is_drag_active()) {
+            return false;
+        }
+        wlr_surface* surface = m_input.seat().focused_pointer_surface();
+        if (!surface || !surface->mapped) {
+            return false;
+        }
+        const Compositor& comp = m_input.compositor();
+        wlr_surface* root = root_popup_parent(surface);
+        if (comp.is_session_locked()) {
+            const Output* lock_out = comp.output_from_lock_surface(root);
+            if (!lock_out || !lock_out->is_enabled()) {
+                return false;
+            }
+        } else {
+            if (const auto* excl = comp.exclusive_layer(); excl && !matching_exclusive_layer(surface, excl)) {
+                return false;
+            }
+            if (const Window* win = Window::try_from(root)) {
+                const Workspace* ws = win->workspace();
+                if (!ws || !ws->output().is_enabled() || ws != &ws->output().active_workspace() ||
+                    ws->output().animation().is_busy()) {
+                    return false;
+                }
+            } else if (const Layer* layer = Layer::try_from(root)) {
+                if (!layer->output() || !layer->output()->is_enabled()) {
+                    return false;
+                }
+            }
+        }
+        int x = 0;
+        int y = 0;
+        if (!comp.scene().surface_coords(surface, x, y)) {
+            return false;
+        }
+        if (ox) {
+            *ox = x;
+        }
+        if (oy) {
+            *oy = y;
+        }
+        return true;
+    }
+
     void Cursor::start_grab(Window* window, uint32_t button) {
         if (m_grab) {
             end_grab(false);
@@ -285,7 +330,7 @@ namespace frost::input {
             wlr_cursor_move(m_wlr_cursor, device, dx, dy);
             wlr_output* next_out =
                 wlr_output_layout_output_at(m_input.compositor().output_layout(), m_wlr_cursor->x, m_wlr_cursor->y);
-            if (next_out != prev_out && !m_grab && !m_input.compositor().focused_window() &&
+            if (next_out != prev_out && !m_grab && !m_button_grab && !m_input.compositor().focused_window() &&
                 !m_input.compositor().is_locked()) {
                 m_input.compositor().set_focused_output(nullptr);
             }
@@ -327,6 +372,25 @@ namespace frost::input {
             return;
         }
 
+        if (!m_input.compositor().is_session_locked() && m_input.seat().is_drag_active()) {
+            m_input.seat().notify_button(event->time_msec, event->button, event->state);
+            return;
+        }
+
+        if (m_button_grab) {
+            const bool valid = resolve_button_grab();
+            if (valid || event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
+                m_input.seat().notify_button(event->time_msec, event->button, event->state);
+                if (!valid || m_input.seat().pointer_button_count() == 0) {
+                    clear_button_grab();
+                    update_focus();
+                }
+                return;
+            }
+            clear_button_grab();
+            update_focus();
+        }
+
         if (m_input.compositor().is_session_locked()) {
             if (event->state == WL_POINTER_BUTTON_STATE_PRESSED) {
                 double sx = 0.0;
@@ -339,16 +403,7 @@ namespace frost::input {
                     }
                 }
             }
-            m_input.seat().notify_button(event->time_msec, event->button, event->state);
-            return;
-        }
-
-        if (m_input.seat().is_drag_active()) {
-            m_input.seat().notify_button(event->time_msec, event->button, event->state);
-            return;
-        }
-
-        if (event->state == WL_POINTER_BUTTON_STATE_PRESSED) {
+        } else if (event->state == WL_POINTER_BUTTON_STATE_PRESSED) {
             const auto* excl = m_input.compositor().exclusive_layer();
             if (!excl) {
                 m_input.compositor().set_focused_output(nullptr);
@@ -399,6 +454,10 @@ namespace frost::input {
             }
         }
         m_input.seat().notify_button(event->time_msec, event->button, event->state);
+        if (event->state == WL_POINTER_BUTTON_STATE_PRESSED && m_input.seat().pointer_button_count() > 0 &&
+            m_input.seat().focused_pointer_surface() && !m_input.seat().is_drag_active()) {
+            m_button_grab = true;
+        }
     }
 
     void Cursor::on_axis(wlr_pointer_axis_event* event) {
@@ -415,7 +474,10 @@ namespace frost::input {
         if (m_swiping_workspace) {
             return;
         }
-        if (event->fingers == 3 && !m_grab && !m_input.seat().is_drag_active() &&
+        if (m_button_grab && !resolve_button_grab()) {
+            clear_button_grab();
+        }
+        if (event->fingers == 3 && !m_grab && !m_button_grab && !m_input.seat().is_drag_active() &&
             m_input.compositor().begin_workspace_swipe()) {
             m_swiping_workspace = true;
             m_input.seat().clear_pointer_focus();
@@ -461,6 +523,16 @@ namespace frost::input {
         if (const auto* constraint = m_input.seat().active_constraint();
             constraint && constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED && !m_input.compositor().is_locked()) {
             return;
+        }
+
+        if (m_button_grab) {
+            int ox = 0;
+            int oy = 0;
+            if (resolve_button_grab(&ox, &oy)) {
+                m_input.seat().notify_motion(time_msec, m_wlr_cursor->x - ox, m_wlr_cursor->y - oy);
+                return;
+            }
+            clear_button_grab();
         }
 
         double sx = 0.0;
