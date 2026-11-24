@@ -493,7 +493,9 @@ namespace frost::input {
             return;
         }
 
-        if (Output* out = m_input.compositor().focused_output(); out && out->animation().is_active()) {
+        wlr_output* wlr_out =
+            wlr_output_layout_output_at(m_input.compositor().output_layout(), m_wlr_cursor->x, m_wlr_cursor->y);
+        if (Output* out = m_input.compositor().output_from_wlr(wlr_out); out && out->animation().is_active()) {
             return;
         }
 
