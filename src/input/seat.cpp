@@ -3,8 +3,10 @@
 #include "frost/input.hpp"
 #include "frost/layer.hpp"
 #include "frost/log.hpp"
+#include "frost/output.hpp"
 #include "frost/util.hpp"
 #include "frost/window.hpp"
+#include "frost/workspace.hpp"
 
 #include <algorithm>
 #include <array>
@@ -61,6 +63,28 @@ namespace frost::input {
                 input.cursor().warp(finder.lx + sx, finder.ly + sy);
                 wlr_seat_pointer_warp(constraint->seat, sx, sy);
             }
+        }
+
+        [[nodiscard]] bool is_inhibitor_visible(const Compositor& comp, wlr_surface* surface) noexcept {
+            if (!surface || !surface->mapped) {
+                return false;
+            }
+            wlr_surface* root = root_popup_parent(surface);
+            if (comp.is_session_locked()) {
+                const Output* lock_out = comp.output_from_lock_surface(root);
+                return lock_out && lock_out->is_enabled();
+            }
+            if (const Window* win = Window::try_from(root)) {
+                if (!win->workspace() || !win->scene_tree() || !win->scene_tree()->node.enabled) {
+                    return false;
+                }
+                const Output& out = win->workspace()->output();
+                return out.is_enabled() && win->workspace() == &out.active_workspace();
+            }
+            if (const Layer* layer = Layer::try_from(root)) {
+                return layer->output() && layer->output()->is_enabled();
+            }
+            return true;
         }
     }
 
@@ -210,8 +234,9 @@ namespace frost::input {
     }
 
     void Seat::update_idle_inhibit() {
-        const bool inhibited =
-            std::ranges::any_of(m_idle_inhibitors, [](const auto& inh) { return inh->surface->mapped; });
+        const auto& comp = m_input.compositor();
+        const bool inhibited = std::ranges::any_of(
+            m_idle_inhibitors, [&](const auto& inh) { return is_inhibitor_visible(comp, inh->surface); });
         wlr_idle_notifier_v1_set_inhibited(m_idle_notifier, inhibited);
     }
 

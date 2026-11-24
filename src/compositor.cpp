@@ -540,6 +540,9 @@ namespace frost {
         for (const auto& out : m_outputs) {
             out->active_workspace().restack();
         }
+        if (m_input) {
+            m_input->seat().update_idle_inhibit();
+        }
     }
 
     void Compositor::focus_window(Window* window) {
@@ -726,6 +729,7 @@ namespace frost {
         if (is_session_locked()) {
             focus_surface(m_lock->target_surface());
             m_input->cursor().update_focus();
+            m_input->seat().update_idle_inhibit();
             return;
         }
 

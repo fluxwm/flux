@@ -68,6 +68,7 @@ namespace frost::input {
         void clear_pointer_focus() noexcept { wlr_seat_pointer_clear_focus(m_wlr_seat); }
         void clear_primary_selection() noexcept { wlr_seat_set_primary_selection(m_wlr_seat, nullptr, 0); }
         void update_drag_icons_position() noexcept;
+        void update_idle_inhibit();
 
     private:
         void on_request_set_cursor(wlr_seat_pointer_request_set_cursor_event* event);
@@ -79,7 +80,6 @@ namespace frost::input {
         void on_start_drag(wlr_drag* drag);
         void on_destroy_drag();
         void on_new_idle_inhibitor(wlr_idle_inhibitor_v1* inhibitor);
-        void update_idle_inhibit();
         void update_pointer_constraint();
         void set_active_constraint(wlr_pointer_constraint_v1* constraint);
         void on_destroy_constraint();
