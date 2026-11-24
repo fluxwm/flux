@@ -10,6 +10,9 @@ namespace frost::window {
         XWayland(Compositor& compositor, wlr_xwayland_surface* surface);
         ~XWayland() override;
 
+        XWayland(const XWayland&) = delete;
+        XWayland& operator=(const XWayland&) = delete;
+
         [[nodiscard]] wlr_surface* surface() const noexcept override;
         [[nodiscard]] wlr_xwayland_surface* xwayland_surface() const noexcept override { return m_surface; }
         void apply_resize(int w, int h) noexcept override;

@@ -10,6 +10,9 @@ namespace frost::window {
         Xdg(Compositor& compositor, wlr_xdg_toplevel* toplevel);
         ~Xdg() override;
 
+        Xdg(const Xdg&) = delete;
+        Xdg& operator=(const Xdg&) = delete;
+
         [[nodiscard]] wlr_surface* surface() const noexcept override;
         [[nodiscard]] bool is_pending_center() const noexcept override { return m_pending_center_serial != 0; }
         [[nodiscard]] bool is_pending_move() const noexcept override { return m_pending_move_serial != 0; }

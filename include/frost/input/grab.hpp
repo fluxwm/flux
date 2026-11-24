@@ -57,7 +57,6 @@ namespace frost::input {
     class MoveGrab final : public Grab {
     public:
         using Grab::Grab;
-        ~MoveGrab() override = default;
 
         void start() override;
         void update(int dx, int dy) override;
@@ -72,7 +71,6 @@ namespace frost::input {
     class TiledMoveGrab final : public Grab {
     public:
         TiledMoveGrab(Window* window, uint32_t button, double cursor_x, double cursor_y) noexcept;
-        ~TiledMoveGrab() override = default;
 
         void start() override;
         void update(int dx, int dy) override;
@@ -89,7 +87,6 @@ namespace frost::input {
     public:
         ResizeGrab(Window* window, uint32_t button, double cursor_x, double cursor_y, uint32_t edges) noexcept
             : Grab(window, button, cursor_x, cursor_y), m_edges(edges) {}
-        ~ResizeGrab() override = default;
 
         void start() override;
         void update(int dx, int dy) override;
@@ -105,7 +102,6 @@ namespace frost::input {
     class TiledResizeGrab final : public Grab {
     public:
         TiledResizeGrab(Window* window, uint32_t button, double cursor_x, double cursor_y, uint32_t edges) noexcept;
-        ~TiledResizeGrab() override = default;
 
         void start() override;
         void update(int dx, int dy) override;

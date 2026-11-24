@@ -20,7 +20,6 @@ Checks: >
   -cppcoreguidelines-avoid-goto,
   -cppcoreguidelines-avoid-do-while,
   -cppcoreguidelines-avoid-non-const-global-variables,
-  -cppcoreguidelines-special-member-functions,
   -cppcoreguidelines-explicit-virtual-functions,
   -cppcoreguidelines-avoid-c-arrays,
   -cppcoreguidelines-narrowing-conversions,
@@ -80,6 +79,7 @@ WarningsAsErrors: ''
 HeaderFilterRegex: 'frost/.*'
 FormatStyle: file
 CheckOptions:
+  cppcoreguidelines-special-member-functions.AllowMissingMoveFunctionsWhenCopyIsDeleted: true
   performance-for-range-copy.WarnOnAllAutoCopies: true
   performance-inefficient-string-concatenation.StrictMode: true
 ...
