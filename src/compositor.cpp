@@ -507,7 +507,6 @@ namespace frost {
             return false;
         }
 
-        m_focused_output = nullptr;
         m_swipe_output = out;
         out->animation().begin_swipe(*out);
         dismiss_popups();
