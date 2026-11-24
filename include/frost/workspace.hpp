@@ -15,6 +15,39 @@ namespace frost {
     class Output;
     enum class Direction : uint8_t;
 
+    struct LayoutMetrics {
+        Window* master = nullptr;
+        size_t tiled_count = 0;
+        int area_x = 0;
+        int area_y = 0;
+        int area_w = 1;
+        int area_h = 1;
+        int avail_w = 1;
+        int avail_h = 1;
+        int master_w = 1;
+        int stack_x = 0;
+        int stack_w = 1;
+        int inner_gap = 0;
+        int border_width = 0;
+        float total_stack_weight = 0.0f;
+
+        [[nodiscard]] constexpr float effective_stack_weight() const noexcept {
+            return (total_stack_weight > 0.0f) ? total_stack_weight
+                                               : static_cast<float>(tiled_count > 1 ? tiled_count - 1 : 0);
+        }
+    };
+
+    struct TiledNeighbors {
+        Window* master = nullptr;
+        Window* first_stack = nullptr;
+        Window* last = nullptr;
+        Window* prev = nullptr;
+        Window* next = nullptr;
+        size_t count = 0;
+        size_t index = 0;
+        bool found = false;
+    };
+
     class Workspace {
     public:
         Workspace(uint32_t id, Output& output, Scene& scene, wlr_ext_workspace_group_handle_v1* group);
@@ -59,11 +92,14 @@ namespace frost {
         [[nodiscard]] bool is_resizing() const noexcept;
         [[nodiscard]] uint32_t tiled_resize_edges(const Window* window, double cursor_x,
                                                   double cursor_y) const noexcept;
-        [[nodiscard]] std::vector<Window*> tiled_windows() const;
+        [[nodiscard]] LayoutMetrics layout_metrics() const noexcept;
+        [[nodiscard]] TiledNeighbors tiled_neighbors(const Window* target) const noexcept;
         [[nodiscard]] float master_factor() const noexcept { return m_master_factor; }
         void set_master_factor(float factor) noexcept { m_master_factor = factor; }
 
     private:
+        [[nodiscard]] Window* top_stack_window(const Window* master, Window* fallback) const noexcept;
+
         uint32_t m_id = 1;
         Output& m_output;
         wlr_scene_tree* m_tree = nullptr;

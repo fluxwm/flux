@@ -9,72 +9,86 @@
 #include <algorithm>
 #include <cmath>
 #include <string>
-#include <vector>
 
 namespace frost {
 
     namespace {
 
-        [[nodiscard]] wlr_box tile_box(const wlr_box& usable, size_t index, size_t total, const LayoutConfig& layout,
-                                       float master_factor, std::span<Window* const> tiled) noexcept {
-            if (layout.mode == Layout::Monocle) {
-                total = 1;
-            }
-
-            const auto& gaps = layout.gaps;
-
-            const int outer = (total <= 1 && gaps.smart) ? 0 : gaps.outer;
-            const int area_x = usable.x + outer;
-            const int area_y = usable.y + outer;
-            const int area_w = std::max(1, usable.width - (2 * outer));
-            const int area_h = std::max(1, usable.height - (2 * outer));
-            wlr_box cell{};
-            if (total <= 1) {
-                cell = {.x = area_x, .y = area_y, .width = area_w, .height = area_h};
-            } else {
-                const int avail_w = std::max(1, area_w - gaps.inner);
-                const int min_w = std::min(50, avail_w / 2);
-                const int master_w = std::max(
-                    1, std::clamp(static_cast<int>(std::round(avail_w * master_factor)), min_w, avail_w - min_w));
-                if (index == 0) {
-                    cell = {.x = area_x, .y = area_y, .width = master_w, .height = area_h};
-                } else {
-                    const int stack_x = area_x + master_w + gaps.inner;
-                    const int stack_w = std::max(1, avail_w - master_w);
-                    const size_t stack_count = total - 1;
-                    const int avail_h = std::max(1, area_h - (static_cast<int>(stack_count - 1) * gaps.inner));
-
-                    float total_weight = 0.0f;
-                    for (size_t i = 1; i < total; ++i) {
-                        total_weight += (i < tiled.size()) ? tiled[i]->tile_weight() : 1.0f;
-                    }
-                    if (total_weight <= 0.0f) {
-                        total_weight = static_cast<float>(stack_count);
-                    }
-
-                    int cur_y = area_y;
-                    int stack_h = 0;
-                    for (size_t i = 1; i <= index && i < total; ++i) {
-                        const float w = (i < tiled.size()) ? tiled[i]->tile_weight() : 1.0f;
-                        stack_h = std::max(1, static_cast<int>(std::round(avail_h * (w / total_weight))));
-                        if (i < index) {
-                            cur_y += stack_h + gaps.inner;
-                        }
-                    }
-
-                    const int height = (index == total - 1) ? std::max(1, (area_y + area_h) - cur_y) : stack_h;
-                    cell = {.x = stack_x, .y = cur_y, .width = stack_w, .height = height};
-                }
-            }
-
-            const bool smart_border = (total <= 1 && gaps.smart);
-            const int bw = smart_border ? 0 : layout.border.width;
+        [[nodiscard]] constexpr wlr_box inset_border(const wlr_box& cell, int bw) noexcept {
             return {
                 .x = cell.x + bw,
                 .y = cell.y + bw,
                 .width = std::max(1, cell.width - (2 * bw)),
                 .height = std::max(1, cell.height - (2 * bw)),
             };
+        }
+
+        [[nodiscard]] LayoutMetrics compute_layout_metrics(const wlr_box& usable, size_t total,
+                                                           const LayoutConfig& layout, float master_factor,
+                                                           float raw_stack_weight) noexcept {
+            const size_t effective_total = (layout.mode == Layout::Monocle) ? std::min<size_t>(total, 1) : total;
+            const bool solitary = (effective_total <= 1);
+            const auto& gaps = layout.gaps;
+            const int outer = (solitary && gaps.smart) ? 0 : gaps.outer;
+
+            LayoutMetrics m{
+                .tiled_count = total,
+                .area_x = usable.x + outer,
+                .area_y = usable.y + outer,
+                .area_w = std::max(1, usable.width - (2 * outer)),
+                .area_h = std::max(1, usable.height - (2 * outer)),
+                .inner_gap = gaps.inner,
+                .border_width = (solitary && gaps.smart) ? 0 : layout.border.width,
+                .total_stack_weight = raw_stack_weight,
+            };
+
+            if (!solitary) {
+                m.avail_w = std::max(1, m.area_w - gaps.inner);
+                const int min_w = std::min(50, m.avail_w / 2);
+                m.master_w = std::max(
+                    1, std::clamp(static_cast<int>(std::round(m.avail_w * master_factor)), min_w, m.avail_w - min_w));
+                m.stack_x = m.area_x + m.master_w + gaps.inner;
+                m.stack_w = std::max(1, m.avail_w - m.master_w);
+                m.avail_h = std::max(1, m.area_h - (static_cast<int>(effective_total - 2) * gaps.inner));
+            }
+            return m;
+        }
+
+        [[nodiscard]] int stack_slot_height(int avail_h, float weight, float total_weight) noexcept {
+            return std::max(1, static_cast<int>(std::round(avail_h * (weight / total_weight))));
+        }
+
+        template <typename Fn>
+        void for_each_tiled_slot(std::span<Window* const> windows, const LayoutMetrics& m, Layout mode, const Fn& fn) {
+            const bool single_cell = (mode == Layout::Monocle) || (m.tiled_count <= 1);
+            const float effective_weight = m.effective_stack_weight();
+
+            size_t idx = 0;
+            int cur_y = m.area_y;
+            for (Window* w : windows) {
+                if (!w->is_tiled()) {
+                    continue;
+                }
+                wlr_box cell{};
+                if (single_cell || idx == 0) {
+                    cell = {
+                        .x = m.area_x,
+                        .y = m.area_y,
+                        .width = single_cell ? m.area_w : m.master_w,
+                        .height = m.area_h,
+                    };
+                } else {
+                    const int stack_h = stack_slot_height(m.avail_h, w->tile_weight(), effective_weight);
+                    const int height =
+                        (idx == m.tiled_count - 1) ? std::max(1, (m.area_y + m.area_h) - cur_y) : stack_h;
+                    cell = {.x = m.stack_x, .y = cur_y, .width = m.stack_w, .height = height};
+                    cur_y += stack_h + m.inner_gap;
+                }
+                if (!fn(w, inset_border(cell, m.border_width))) {
+                    return;
+                }
+                ++idx;
+            }
         }
 
     }
@@ -183,7 +197,8 @@ namespace frost {
         const wlr_box full = m_output.layout_box();
         const wlr_box& usable = m_output.usable_area();
 
-        std::vector<Window*> tiled;
+        size_t tiled_count = 0;
+        float raw_stack_weight = 0.0f;
         for (Window* w : m_windows) {
             if (w->is_fullscreen()) {
                 w->set_geometry(full);
@@ -201,12 +216,20 @@ namespace frost {
                 }
                 w->update_borders();
             } else {
-                tiled.push_back(w);
+                if (tiled_count > 0) {
+                    raw_stack_weight += w->tile_weight();
+                }
+                ++tiled_count;
             }
         }
 
-        for (size_t i = 0; i < tiled.size(); ++i) {
-            tiled[i]->set_geometry(tile_box(usable, i, tiled.size(), layout_cfg, m_master_factor, tiled));
+        if (tiled_count > 0) {
+            const LayoutMetrics metrics =
+                compute_layout_metrics(usable, tiled_count, layout_cfg, m_master_factor, raw_stack_weight);
+            for_each_tiled_slot(m_windows, metrics, layout_cfg.mode, [](Window* w, const wlr_box& box) {
+                w->set_geometry(box);
+                return true;
+            });
         }
     }
 
@@ -302,19 +325,19 @@ namespace frost {
         m_output.compositor().update_popup_positions();
     }
 
+    Window* Workspace::top_stack_window(const Window* master, Window* fallback) const noexcept {
+        auto it = std::ranges::find_if(m_focus_stack, [&](const Window* w) { return w != master && w->is_tiled(); });
+        return (it != m_focus_stack.end()) ? *it : fallback;
+    }
+
     Window* Workspace::window_in_direction(Direction direction) const {
         Window* focused = focused_window();
         if (!focused || focused->is_fullscreen() || focused->is_maximized()) {
             return nullptr;
         }
 
-        const std::vector<Window*> tiled = tiled_windows();
+        const TiledNeighbors n = tiled_neighbors(focused);
         const bool is_monocle = m_output.compositor().config().layout().mode == Layout::Monocle;
-        auto top_stack_window = [&] -> Window* {
-            auto stack_it =
-                std::ranges::find_if(m_focus_stack, [&](const Window* w) { return w != tiled[0] && w->is_tiled(); });
-            return (stack_it != m_focus_stack.end()) ? *stack_it : tiled[1];
-        };
 
         if (focused->is_floating()) {
             if (m_active_fullscreen) {
@@ -325,73 +348,103 @@ namespace frost {
             if (bg_it == m_focus_stack.end()) {
                 return nullptr;
             }
-            if ((*bg_it)->is_maximized() || tiled.size() <= 1 || is_monocle) {
+            if ((*bg_it)->is_maximized() || n.count <= 1 || is_monocle) {
                 return *bg_it;
             }
             if (direction == Direction::Left) {
-                return tiled[0];
+                return n.master;
             }
             if (direction == Direction::Right) {
-                return top_stack_window();
+                return top_stack_window(n.master, n.first_stack);
             }
             return *bg_it;
         }
 
-        if (tiled.size() <= 1) {
+        if (n.count <= 1 || !n.found) {
             return nullptr;
         }
 
-        const auto it = std::ranges::find(tiled, focused);
-        if (it == tiled.end()) {
-            return nullptr;
-        }
-        const size_t idx = static_cast<size_t>(std::distance(tiled.begin(), it));
         auto wrap = [&](Window* target) -> Window* { return m_output.adjacent_output(direction) ? nullptr : target; };
 
         if (is_monocle) {
             const bool at_edge = (direction == Direction::Left || direction == Direction::Right) ||
-                                 (direction == Direction::Up && idx == 0) ||
-                                 (direction == Direction::Down && idx == tiled.size() - 1);
-            const size_t next = (direction == Direction::Down || direction == Direction::Right)
-                                    ? ((idx + 1) % tiled.size())
-                                    : ((idx == 0) ? (tiled.size() - 1) : (idx - 1));
-            return at_edge ? wrap(tiled[next]) : tiled[next];
+                                 (direction == Direction::Up && n.index == 0) ||
+                                 (direction == Direction::Down && n.index == n.count - 1);
+            Window* target = (direction == Direction::Down || direction == Direction::Right)
+                                 ? (n.next ? n.next : n.master)
+                                 : (n.prev ? n.prev : n.last);
+            return at_edge ? wrap(target) : target;
         }
 
-        if (idx == 0) {
+        if (n.index == 0) {
             switch (direction) {
                 case Direction::Right:
-                    return top_stack_window();
+                    return top_stack_window(n.master, n.first_stack);
                 case Direction::Left:
                     return nullptr;
                 case Direction::Down:
-                    return wrap(tiled[1]);
+                    return wrap(n.first_stack);
                 case Direction::Up:
-                    return wrap(tiled.back());
+                    return wrap(n.last);
             }
         }
 
         switch (direction) {
             case Direction::Left:
-                return tiled[0];
+                return n.master;
             case Direction::Right:
                 return nullptr;
             case Direction::Up:
-                return (idx == 1) ? wrap(tiled.back()) : tiled[idx - 1];
+                return (n.index == 1) ? wrap(n.last) : n.prev;
             case Direction::Down:
-                return (idx == tiled.size() - 1) ? wrap(tiled[1]) : tiled[idx + 1];
+                return (n.index == n.count - 1) ? wrap(n.first_stack) : n.next;
         }
         return nullptr;
     }
 
-    std::vector<Window*> Workspace::tiled_windows() const {
-        std::vector<Window*> tiled;
+    LayoutMetrics Workspace::layout_metrics() const noexcept {
+        size_t count = 0;
+        Window* master = nullptr;
+        float raw_stack_weight = 0.0f;
         for (Window* w : m_windows) {
-            if (w->is_tiled()) {
-                tiled.push_back(w);
+            if (!w->is_tiled()) {
+                continue;
             }
+            if (count == 0) {
+                master = w;
+            } else {
+                raw_stack_weight += w->tile_weight();
+            }
+            ++count;
         }
-        return tiled;
+        LayoutMetrics m = compute_layout_metrics(m_output.usable_area(), count, m_output.compositor().config().layout(),
+                                                 m_master_factor, raw_stack_weight);
+        m.master = master;
+        return m;
+    }
+
+    TiledNeighbors Workspace::tiled_neighbors(const Window* target) const noexcept {
+        TiledNeighbors n;
+        for (Window* w : m_windows) {
+            if (!w->is_tiled()) {
+                continue;
+            }
+            if (n.count == 0) {
+                n.master = w;
+            } else if (n.count == 1) {
+                n.first_stack = w;
+            }
+            if (w == target) {
+                n.found = true;
+                n.index = n.count;
+                n.prev = n.last;
+            } else if (n.found && !n.next) {
+                n.next = w;
+            }
+            n.last = w;
+            ++n.count;
+        }
+        return n;
     }
 
     size_t Workspace::tiled_count() const noexcept {
@@ -400,9 +453,33 @@ namespace frost {
 
     wlr_box Workspace::next_tile_box() const noexcept {
         const auto& layout = m_output.compositor().config().layout();
-        const std::vector<Window*> tiled = tiled_windows();
-        const size_t count = (layout.mode == Layout::Monocle) ? 0 : tiled.size();
-        return tile_box(m_output.usable_area(), count, count + 1, layout, m_master_factor, tiled);
+        const auto& usable = m_output.usable_area();
+        const LayoutMetrics cur = (layout.mode == Layout::Monocle) ? LayoutMetrics{} : layout_metrics();
+        if (cur.tiled_count == 0) {
+            const LayoutMetrics m = compute_layout_metrics(usable, 1, layout, m_master_factor, 0.0f);
+            return inset_border({.x = m.area_x, .y = m.area_y, .width = m.area_w, .height = m.area_h}, m.border_width);
+        }
+
+        const LayoutMetrics m =
+            compute_layout_metrics(usable, cur.tiled_count + 1, layout, m_master_factor, cur.total_stack_weight + 1.0f);
+        const float effective_weight = m.effective_stack_weight();
+
+        int cur_y = m.area_y;
+        if (cur.tiled_count > 1) {
+            size_t idx = 0;
+            for (Window* w : m_windows) {
+                if (!w->is_tiled()) {
+                    continue;
+                }
+                if (idx > 0) {
+                    cur_y += stack_slot_height(m.avail_h, w->tile_weight(), effective_weight) + m.inner_gap;
+                }
+                ++idx;
+            }
+        }
+
+        const int height = std::max(1, (m.area_y + m.area_h) - cur_y);
+        return inset_border({.x = m.stack_x, .y = cur_y, .width = m.stack_w, .height = height}, m.border_width);
     }
 
     bool Workspace::is_solitary() const noexcept {
@@ -539,20 +616,16 @@ namespace frost {
         if (!window || m_output.compositor().config().layout().mode == Layout::Monocle) {
             return WLR_EDGE_NONE;
         }
-        const std::vector<Window*> tiled = tiled_windows();
-        if (tiled.size() <= 1) {
+        const TiledNeighbors n = tiled_neighbors(window);
+        if (n.count <= 1 || !n.found) {
             return WLR_EDGE_NONE;
         }
-        const auto it = std::ranges::find(tiled, window);
-        if (it == tiled.end()) {
-            return WLR_EDGE_NONE;
-        }
-        if (it == tiled.begin()) {
+        if (n.index == 0) {
             return WLR_EDGE_RIGHT;
         }
 
-        const size_t stack_idx = static_cast<size_t>(std::distance(tiled.begin(), it)) - 1;
-        const size_t stack_count = tiled.size() - 1;
+        const size_t stack_idx = n.index - 1;
+        const size_t stack_count = n.count - 1;
         if (stack_count <= 1) {
             return WLR_EDGE_LEFT;
         }
@@ -606,27 +679,24 @@ namespace frost {
     }
 
     void Workspace::swap_tiled_at(Window* window, double cursor_x, double cursor_y) {
-        if (!window || m_output.compositor().config().layout().mode == Layout::Monocle) {
-            return;
-        }
-        const std::vector<Window*> tiled = tiled_windows();
-        if (tiled.size() <= 1) {
-            return;
-        }
-
-        const auto& usable = m_output.usable_area();
         const auto& layout_cfg = m_output.compositor().config().layout();
+        if (!window || layout_cfg.mode == Layout::Monocle) {
+            return;
+        }
+        const LayoutMetrics metrics = layout_metrics();
+        if (metrics.tiled_count <= 1) {
+            return;
+        }
 
-        for (size_t i = 0; i < tiled.size(); ++i) {
-            const wlr_box slot = tile_box(usable, i, tiled.size(), layout_cfg, m_master_factor, tiled);
+        for_each_tiled_slot(m_windows, metrics, layout_cfg.mode, [&](Window* target, const wlr_box& slot) {
             if (wlr_box_contains_point(&slot, cursor_x, cursor_y)) {
-                Window* target = tiled[i];
                 if (target != window) {
                     swap_windows(window, target);
                 }
-                break;
+                return false;
             }
-        }
+            return true;
+        });
     }
 
     bool Workspace::swap_window_in_direction(Direction direction) {
@@ -639,26 +709,17 @@ namespace frost {
             return false;
         }
 
-        const std::vector<Window*> tiled = tiled_windows();
-        if (tiled.size() <= 1) {
+        const TiledNeighbors n = tiled_neighbors(focused);
+        if (n.count <= 1 || !n.found) {
             return false;
         }
-
-        const auto it = std::ranges::find(tiled, focused);
-        if (it == tiled.end()) {
-            return false;
-        }
-        const size_t idx = static_cast<size_t>(std::distance(tiled.begin(), it));
 
         Window* target = nullptr;
-        if (idx == 0) {
+        if (n.index == 0) {
             switch (direction) {
-                case Direction::Right: {
-                    auto stack_it = std::ranges::find_if(
-                        m_focus_stack, [&](const Window* w) { return w != tiled[0] && w->is_tiled(); });
-                    target = (stack_it != m_focus_stack.end()) ? *stack_it : tiled[1];
+                case Direction::Right:
+                    target = top_stack_window(n.master, n.first_stack);
                     break;
-                }
                 case Direction::Left:
                 case Direction::Up:
                 case Direction::Down:
@@ -667,19 +728,17 @@ namespace frost {
         } else {
             switch (direction) {
                 case Direction::Left:
-                    target = tiled[0];
+                    target = n.master;
                     break;
                 case Direction::Right:
                     return false;
                 case Direction::Up:
-                    if (idx > 1) {
-                        target = tiled[idx - 1];
+                    if (n.index > 1) {
+                        target = n.prev;
                     }
                     break;
                 case Direction::Down:
-                    if (idx + 1 < tiled.size()) {
-                        target = tiled[idx + 1];
-                    }
+                    target = n.next;
                     break;
             }
         }
