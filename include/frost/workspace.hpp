@@ -86,7 +86,7 @@ namespace frost {
 
         [[nodiscard]] bool has_closing_animations() const noexcept { return !m_closing_windows.empty(); }
         void add_closing_window(Window* window, double initial_progress = 1.0);
-        bool step_closing_animations(const timespec& now) noexcept;
+        bool step_closing_animations(TimePoint now) noexcept;
         void snap_closing_animations() noexcept;
 
         [[nodiscard]] bool is_resizing() const noexcept;

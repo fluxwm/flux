@@ -97,8 +97,7 @@ namespace frost {
 
         bool any_window_animating = false;
         bool had_animating_window = false;
-        timespec now{};
-        clock_gettime(CLOCK_MONOTONIC, &now);
+        const TimePoint now = Clock::now();
 
         if (!m_animation.is_busy() && m_active_workspace) {
             for (Window* w : m_active_workspace->windows()) {
@@ -141,7 +140,9 @@ namespace frost {
             wlr_output_state_finish(&state);
         }
 
-        wlr_scene_output_send_frame_done(m_scene_output, &now);
+        timespec frame_time{};
+        clock_gettime(CLOCK_MONOTONIC, &frame_time);
+        wlr_scene_output_send_frame_done(m_scene_output, &frame_time);
     }
 
     void Output::on_request_state(const wlr_output_event_request_state* event) {

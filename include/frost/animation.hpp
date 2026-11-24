@@ -4,8 +4,8 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
-#include <ctime>
 #include <vector>
 
 namespace frost {
@@ -14,12 +14,14 @@ namespace frost {
     class Workspace;
     class Window;
 
-    [[nodiscard]] inline double elapsed_seconds(const timespec& from, const timespec& to) noexcept {
-        return static_cast<double>(to.tv_sec - from.tv_sec) + (static_cast<double>(to.tv_nsec - from.tv_nsec) * 1e-9);
+    using Clock = std::chrono::steady_clock;
+    using TimePoint = Clock::time_point;
+
+    [[nodiscard]] inline double elapsed_seconds(TimePoint from, TimePoint to) noexcept {
+        return std::chrono::duration<double>(to - from).count();
     }
 
-    [[nodiscard]] inline double step_dt(const timespec& from, const timespec& to, double max_dt,
-                                        double slowdown) noexcept {
+    [[nodiscard]] inline double step_dt(TimePoint from, TimePoint to, double max_dt, double slowdown) noexcept {
         return std::clamp(elapsed_seconds(from, to), 0.0, max_dt) / std::max(0.001, slowdown);
     }
 
@@ -90,13 +92,19 @@ namespace frost {
         int border_width = 0;
         bool is_floating = false;
         Spring spring{1.0, {.stiffness = 1000.0, .damping_ratio = 1.0, .pos_epsilon = 0.005, .vel_epsilon = 0.05}};
-        timespec last_time{};
+        TimePoint last_time{};
 
+        ClosingWindow() = default;
         ~ClosingWindow() {
             if (tree) {
                 wlr_scene_node_destroy(&tree->node);
             }
         }
+
+        ClosingWindow(const ClosingWindow&) = delete;
+        ClosingWindow& operator=(const ClosingWindow&) = delete;
+        ClosingWindow(ClosingWindow&&) = delete;
+        ClosingWindow& operator=(ClosingWindow&&) = delete;
 
         void apply_transform(double progress) noexcept;
     };
@@ -127,7 +135,7 @@ namespace frost {
         bool m_swiping = false;
         double m_swipe_progress = 0.0;
         double m_swipe_velocity = 0.0;
-        timespec m_last_time{};
+        TimePoint m_last_time{};
         bool m_has_last_time = false;
     };
 
@@ -158,7 +166,7 @@ namespace frost {
         void reset_open_transform() noexcept;
 
         void apply_position() noexcept;
-        bool step(const timespec& now) noexcept;
+        bool step(TimePoint now) noexcept;
         void snap() noexcept;
 
         [[nodiscard]] bool can_animate() const noexcept;
@@ -170,7 +178,7 @@ namespace frost {
         Spring m_spring_y{};
         Spring m_open_spring{1.0,
                              {.stiffness = 900.0, .damping_ratio = 1.0, .pos_epsilon = 0.005, .vel_epsilon = 0.05}};
-        timespec m_last_time{};
+        TimePoint m_last_time{};
         int m_base_x = 0;
         int m_base_y = 0;
         int m_target_x = 0;

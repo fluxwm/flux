@@ -107,7 +107,7 @@ namespace frost {
         from.prepare_slide();
         to.activate();
 
-        clock_gettime(CLOCK_MONOTONIC, &m_last_time);
+        m_last_time = Clock::now();
 
         m_spring.reset(start_x, start_v);
         m_spring.set_target(0.0);
@@ -163,8 +163,7 @@ namespace frost {
         m_outgoing = target;
         apply_positions(offset);
 
-        timespec now{};
-        clock_gettime(CLOCK_MONOTONIC, &now);
+        const TimePoint now = Clock::now();
         if (m_has_last_time) {
             const double dt = elapsed_seconds(m_last_time, now);
             if (dt > 1e-4) {
@@ -187,8 +186,7 @@ namespace frost {
         }
         m_swiping = false;
 
-        timespec now{};
-        clock_gettime(CLOCK_MONOTONIC, &now);
+        const TimePoint now = Clock::now();
         if (m_has_last_time && elapsed_seconds(m_last_time, now) > 0.08) {
             m_swipe_velocity = 0.0;
         }
@@ -242,8 +240,7 @@ namespace frost {
             return;
         }
 
-        timespec now{};
-        clock_gettime(CLOCK_MONOTONIC, &now);
+        const TimePoint now = Clock::now();
         const double dt = step_dt(m_last_time, now, 0.1, output.compositor().config().animations().slowdown);
         m_last_time = now;
 
@@ -300,7 +297,7 @@ namespace frost {
         m_opening = true;
         m_open_spring.reset(0.0, 0.0);
         m_open_spring.set_target(1.0);
-        clock_gettime(CLOCK_MONOTONIC, &m_last_time);
+        m_last_time = Clock::now();
         apply_open_transform();
         if (auto* out = m_window.output(); out && out->raw()) {
             wlr_output_schedule_frame(out->raw());
@@ -367,7 +364,7 @@ namespace frost {
                     m_spring_x.reset(m_base_x, 0.0);
                     m_spring_y.reset(m_base_y, 0.0);
                     if (!m_opening) {
-                        clock_gettime(CLOCK_MONOTONIC, &m_last_time);
+                        m_last_time = Clock::now();
                     }
                     m_moving = true;
                     if (auto* out = m_window.output(); out && out->raw()) {
@@ -392,7 +389,7 @@ namespace frost {
         }
     }
 
-    bool WindowAnimation::step(const timespec& now) noexcept {
+    bool WindowAnimation::step(TimePoint now) noexcept {
         if (!m_moving && !m_opening) {
             return false;
         }

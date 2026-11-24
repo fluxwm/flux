@@ -578,7 +578,7 @@ namespace frost {
         closing->apply_transform(initial_p);
         closing->spring.reset(initial_p, 0.0);
         closing->spring.set_target(0.0);
-        clock_gettime(CLOCK_MONOTONIC, &closing->last_time);
+        closing->last_time = Clock::now();
 
         m_closing_windows.push_back(std::move(closing));
         if (m_output.raw()) {
@@ -586,7 +586,7 @@ namespace frost {
         }
     }
 
-    bool Workspace::step_closing_animations(const timespec& now) noexcept {
+    bool Workspace::step_closing_animations(TimePoint now) noexcept {
         if (m_closing_windows.empty()) {
             return false;
         }

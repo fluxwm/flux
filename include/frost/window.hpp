@@ -76,7 +76,7 @@ namespace frost {
         [[nodiscard]] bool has_visible_borders() const noexcept;
         [[nodiscard]] float tile_weight() const noexcept { return m_tile_weight; }
         void set_tile_weight(float weight) noexcept { m_tile_weight = weight; }
-        virtual void set_tiled_resizing(bool resizing) noexcept {}
+        virtual void set_tiled_resizing(bool /*resizing*/) noexcept {}
         [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
         [[nodiscard]] uint32_t workspace_id() const noexcept { return m_workspace_id; }
         [[nodiscard]] Output* output() const noexcept;
@@ -89,7 +89,7 @@ namespace frost {
         }
 
         void snap_animation() noexcept;
-        bool step_animation(const timespec& now) noexcept { return m_animation.step(now); }
+        bool step_animation(TimePoint now) noexcept { return m_animation.step(now); }
 
         void set_activated(bool activated) noexcept;
         void update_borders() noexcept;
@@ -105,7 +105,7 @@ namespace frost {
         void set_floating(bool floating);
         void toggle_floating();
         void set_floating_in_grab(bool floating, const wlr_box& box) noexcept;
-        [[nodiscard]] Compositor& compositor() noexcept { return m_compositor; }
+        [[nodiscard]] Compositor& compositor() const noexcept { return m_compositor; }
         [[nodiscard]] bool is_grabbed() const noexcept;
         [[nodiscard]] bool is_resizing() const noexcept;
 
@@ -113,7 +113,7 @@ namespace frost {
         void begin_resize(uint32_t edges, const wlr_box& grab_box) noexcept;
         virtual void apply_resize(int w, int h) noexcept = 0;
         void finish_resize() noexcept;
-        virtual void set_decoration(wlr_xdg_toplevel_decoration_v1* decoration) {}
+        virtual void set_decoration(wlr_xdg_toplevel_decoration_v1* /*decoration*/) {}
         virtual void close() noexcept = 0;
 
     protected:
@@ -136,10 +136,10 @@ namespace frost {
         [[nodiscard]] virtual std::pair<int, int> preferred_size() const noexcept = 0;
         virtual void apply_activated(bool activated) noexcept = 0;
         virtual void apply_fullscreen(bool fullscreen) noexcept = 0;
-        virtual void apply_maximized(bool maximized) noexcept {}
-        virtual void apply_tiled(uint32_t edges) noexcept {}
+        virtual void apply_maximized(bool /*maximized*/) noexcept {}
+        virtual void apply_tiled(uint32_t /*edges*/) noexcept {}
         virtual void schedule_configure() noexcept {}
-        virtual void configure_position(int x, int y) noexcept {}
+        virtual void configure_position(int /*x*/, int /*y*/) noexcept {}
         [[nodiscard]] virtual bool configure_geometry(const wlr_box& box) noexcept = 0;
         virtual void start_resizing() noexcept {}
         virtual void end_resizing() noexcept { m_resize_edges = WLR_EDGE_NONE; }
