@@ -14,6 +14,18 @@
 
 namespace frost::input {
 
+    namespace {
+
+        [[nodiscard]] Layer* matching_exclusive_layer(wlr_surface* surface, const Layer* excl) noexcept {
+            auto* layer = Layer::try_from(root_popup_parent(surface));
+            if (layer && layer->is_mapped() && layer->is_exclusive() && layer->layer() == excl->layer()) {
+                return layer;
+            }
+            return nullptr;
+        }
+
+    }
+
     Cursor::Cursor(Input& input)
         : m_input(input), m_wlr_cursor(wlr_cursor_create()),
           m_pointer_gestures(wlr_pointer_gestures_v1_create(m_input.compositor().display())),
@@ -347,8 +359,7 @@ namespace frost::input {
             Window* window =
                 m_input.compositor().scene().window_at(m_wlr_cursor->x, m_wlr_cursor->y, &surface, &sx, &sy);
             if (excl) {
-                const auto* layer = Layer::try_from(root_popup_parent(surface));
-                if (layer && layer->is_mapped() && layer->is_exclusive() && layer->layer() == excl->layer()) {
+                if (const auto* layer = matching_exclusive_layer(surface, excl)) {
                     m_input.compositor().set_focused_output(layer->output());
                     m_input.compositor().focus_surface(surface);
                 }
@@ -452,12 +463,10 @@ namespace frost::input {
         wlr_surface* surface = m_input.compositor().scene().surface_at(m_wlr_cursor->x, m_wlr_cursor->y, &sx, &sy);
         if (surface) {
             if (!m_input.compositor().is_session_locked()) {
-                if (const auto* excl = m_input.compositor().exclusive_layer()) {
-                    const auto* layer = Layer::try_from(root_popup_parent(surface));
-                    if (!layer || !layer->is_mapped() || !layer->is_exclusive() || layer->layer() != excl->layer()) {
-                        m_input.seat().clear_pointer_focus();
-                        return;
-                    }
+                if (const auto* excl = m_input.compositor().exclusive_layer();
+                    excl && !matching_exclusive_layer(surface, excl)) {
+                    m_input.seat().clear_pointer_focus();
+                    return;
                 }
             }
             m_input.seat().notify_enter(surface, sx, sy);
