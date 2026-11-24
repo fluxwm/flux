@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.10.0](https://github.com/frostwm/frost/compare/v0.9.1...v0.10.0) (2026-11-24)
+
+
+### Features
+
+* add --config option to CLI ([19ff6ca](https://github.com/frostwm/frost/commit/19ff6ca2a697231e65c5c0e4dd496d33f61a2402))
+* add animation slowdown speed multiplier ([616151a](https://github.com/frostwm/frost/commit/616151a483134c938211d003366e769927a51d44))
+* add animations configuration block ([b3e3428](https://github.com/frostwm/frost/commit/b3e342869b26f58b7bd086deb8371b0731ed7ee4))
+* add directional swap-window action ([a0a5025](https://github.com/frostwm/frost/commit/a0a50255000255671b481b701e3be8d3a76446e1))
+* add ext-session-lock-v1 protocol support ([9a6d193](https://github.com/frostwm/frost/commit/9a6d193606ccc5b8ae04d1b12cf567f6a43d0dbc))
+* add interactive dragging for tiled windows ([1103b23](https://github.com/frostwm/frost/commit/1103b23ebe2dcaf501a0224bf264c573ccff4785))
+* add interactive mouse resizing for tiled windows ([7b588c6](https://github.com/frostwm/frost/commit/7b588c6bc9d44a6063c67c750f826bde0505a73f))
+* add mouse natural-scroll configuration ([af1750b](https://github.com/frostwm/frost/commit/af1750bfaf6465cb414c9bb98a90d1b667409a96))
+* add spring-physics window open and close animations ([8e40655](https://github.com/frostwm/frost/commit/8e4065521fb18d05e1e1970f8b29de8a5f6c58d1))
+* add spring-physics window position animations ([4b620cc](https://github.com/frostwm/frost/commit/4b620cc3f769a1f68cdf7e58d18024146a33cb89))
+* add wp-drm-lease-v1 protocol support ([3b77626](https://github.com/frostwm/frost/commit/3b77626eb7df0f8207b96e8c6a9140f6a45b816a))
+* allow recovery session lock client after crash ([f435fe7](https://github.com/frostwm/frost/commit/f435fe7bfc3be1e6599dd5a0054dc872c3167b31))
+* support single-edge resizing for floating windows ([c8a7a5e](https://github.com/frostwm/frost/commit/c8a7a5e0644413cc0c1800ae3ed7c7069da0ecca))
+
+
+### Bug Fixes
+
+* configure per-spring settle thresholds ([09ee53a](https://github.com/frostwm/frost/commit/09ee53af6863e8e73bd095c004f5adae166c065c))
+* mark keybind keycodes as consumed before dispatching actions ([1a386ba](https://github.com/frostwm/frost/commit/1a386ba10a33cd2fa9d219c9a99dff7c78564c61))
+* wrap subsurface trees in owned scene trees to prevent use-after-free ([0669013](https://github.com/frostwm/frost/commit/06690136e017fdb9eef7665318ec4c04b6f5e578))
+
+
+### Performance Improvements
+
+* unify workspace layout metrics and avoid tiled vector allocations ([c913a0e](https://github.com/frostwm/frost/commit/c913a0eac2a4e8f34a849f1b19c1fa88cc903b45))
+
+
+### Refactoring
+
+* avoid string copy when parsing keybind combos ([c3e8fff](https://github.com/frostwm/frost/commit/c3e8fff469e0c903898f55aa9cc83e17d90118d4))
+* deduplicate exclusive layer matching in cursor ([82d0c06](https://github.com/frostwm/frost/commit/82d0c06370fefe58a3d9a15ca1e4e72994f87c33))
+* encapsulate interactive grabs into Grab hierarchy ([07835ae](https://github.com/frostwm/frost/commit/07835aedb693c38ed0e651441065978f82261674))
+* extract Border, WindowAnimation, and ClosingWindow from Window and Workspace ([1934501](https://github.com/frostwm/frost/commit/193450116fc4db6c3eb19f4935879b0449209e5d))
+* extract session lock subsystem from compositor ([cd707d1](https://github.com/frostwm/frost/commit/cd707d182ed2fe06876a73f401c522f28e533362))
+* make Scene::interactive_node_at non-mutating ([b58af19](https://github.com/frostwm/frost/commit/b58af19b5202cc3f74f93cafcafc9723c09b78ed))
+* modernize callbacks, lambdas, and range traversal ([6aaebe4](https://github.com/frostwm/frost/commit/6aaebe4896b0dd004c09d5e975882dc43f37a1c8))
+* rename project from flux to frost ([0eae3d8](https://github.com/frostwm/frost/commit/0eae3d8002c5448ccd8bdedb4cd205c8688452c2))
+* replace wlr_log with std::format logger and exhaustive action visitor ([2256d5b](https://github.com/frostwm/frost/commit/2256d5bb86ba17c22b8b150a56a9efd52d71759e))
+* scope C keyword macros to affected wlroots headers ([68a287e](https://github.com/frostwm/frost/commit/68a287e83feaf5bf1a2c1ac810a8f1894ac68955))
+* simplify animation cancellation and remove unused include ([fd7f5ed](https://github.com/frostwm/frost/commit/fd7f5edd08fccfb2a7830bfafe3f9408f849fcee))
+* simplify window border updates and foreign toplevel state ([b233058](https://github.com/frostwm/frost/commit/b2330581288d3139cc9a31067321656495c82953))
+* split Window into Xdg and XWayland subclasses ([88a4156](https://github.com/frostwm/frost/commit/88a4156224e65c25e26f93c440b64cdae351755f))
+* use standard-layout WlListener hook and store listeners inline ([2ba4c75](https://github.com/frostwm/frost/commit/2ba4c75a87a4e7aecd6d549d64cb9df1c5cbe34f))
+* use steady_clock for animations and enforce Rule of Five ([a6d3cd0](https://github.com/frostwm/frost/commit/a6d3cd01661b4a7e119c2d000a67e6d582768970))
+
 ## [0.9.1](https://github.com/frostwm/frost/compare/v0.9.0...v0.9.1) (2026-11-15)
 
 
