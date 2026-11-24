@@ -129,26 +129,29 @@ namespace frost {
             return wlr_scene_node_at(&m_scene_lock->node, lx, ly, sx, sy);
         }
 
-        wlr_scene_node* node = nullptr;
-        wl_list_for_each_reverse(node, &m_scene->tree.children, link) {
-            if (node == &m_scene_drag_icons->node) {
-                continue;
+        auto find_hit = [&](this auto const& self, wlr_scene_node* node) -> wlr_scene_node* {
+            if (!node->enabled || node == &m_scene_drag_icons->node) {
+                return nullptr;
             }
-            auto find_hit = [&](this auto const& self, wlr_scene_node* n) -> wlr_scene_node* {
-                wlr_scene_node* hit = wlr_scene_node_at(n, lx, ly, sx, sy);
-                if (hit && hit->type == WLR_SCENE_NODE_RECT && hit->parent && !hit->parent->node.data) {
-                    hit->parent->node.enabled = false;
-                    wlr_scene_node* next = self(n);
-                    hit->parent->node.enabled = true;
-                    return next;
+            if (node->type == WLR_SCENE_NODE_TREE) {
+                if (node->data) {
+                    return wlr_scene_node_at(node, lx, ly, sx, sy);
                 }
-                return hit;
-            };
-            if (wlr_scene_node* hit = find_hit(node)) {
-                return hit;
+                wlr_scene_node* child = nullptr;
+                wl_list_for_each_reverse(child, &wlr_scene_tree_from_node(node)->children, link) {
+                    if (wlr_scene_node* hit = self(child)) {
+                        return hit;
+                    }
+                }
+                return nullptr;
             }
-        }
-        return nullptr;
+            if (node->type == WLR_SCENE_NODE_RECT && node->parent && !node->parent->node.data) {
+                return nullptr;
+            }
+            return wlr_scene_node_at(node, lx, ly, sx, sy);
+        };
+
+        return find_hit(&m_scene->tree.node);
     }
 
     wlr_surface* Scene::surface_at(double lx, double ly, double* sx, double* sy) const {
