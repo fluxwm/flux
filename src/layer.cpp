@@ -1,5 +1,6 @@
 #include "frost/layer.hpp"
 #include "frost/compositor.hpp"
+#include "frost/log.hpp"
 #include "frost/output.hpp"
 
 namespace frost {
@@ -48,8 +49,8 @@ namespace frost {
     }
 
     void Layer::on_map() {
-        wlr_log(WLR_DEBUG, "layer surface mapped: namespace '%s'",
-                m_layer_surface->_namespace ? m_layer_surface->_namespace : "");
+        log_debug("layer surface mapped: namespace '{}'",
+                  m_layer_surface->_namespace ? m_layer_surface->_namespace : "");
 
         m_output.arrange_layers();
 
@@ -63,8 +64,8 @@ namespace frost {
 
     void Layer::on_unmap() {
         if (m_layer_surface) {
-            wlr_log(WLR_DEBUG, "layer surface unmapped: namespace '%s'",
-                    m_layer_surface->_namespace ? m_layer_surface->_namespace : "");
+            log_debug("layer surface unmapped: namespace '{}'",
+                      m_layer_surface->_namespace ? m_layer_surface->_namespace : "");
         }
         m_output.compositor().dismiss_popups(m_scene_tree);
         m_output.arrange_layers();

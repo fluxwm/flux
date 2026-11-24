@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <format>
 #include <print>
+#include <string>
 #include <string_view>
 #include <unistd.h>
 
@@ -49,6 +50,27 @@ namespace frost {
             return file_and_line.empty() ? "frost" : "wlroots";
         }
 
+        void emit_formatted_line(wlr_log_importance importance, std::string_view target, std::string_view msg) {
+            while (msg.ends_with('\n') || msg.ends_with('\r')) {
+                msg.remove_suffix(1);
+            }
+
+            const auto now = system_clock::now();
+            const auto local_now =
+                s_tz ? s_tz->to_local(now) : local_time<system_clock::duration>(now.time_since_epoch());
+            const auto time = floor<microseconds>(local_now);
+
+            const auto idx = static_cast<size_t>(importance);
+            const auto& style = idx < level_styles.size() ? level_styles[idx] : level_styles[2];
+
+            if (s_use_color) {
+                std::println(stderr, "\033[2m{:%T}\033[0m {}{}\033[0m \033[2m{}:\033[0m {}", time, style.color,
+                             style.name, target, msg);
+            } else {
+                std::println(stderr, "{:%T} {} {}: {}", time, style.name, target, msg);
+            }
+        }
+
         void log_callback(wlr_log_importance importance, const char* fmt, va_list args) {
             if (importance > s_verbosity) {
                 return;
@@ -72,10 +94,6 @@ namespace frost {
                 }
             }
 
-            while (msg.ends_with('\n') || msg.ends_with('\r')) {
-                msg.remove_suffix(1);
-            }
-
             char target_buf[32];
             const std::string_view target = determine_target(file_and_line, target_buf);
 
@@ -83,21 +101,24 @@ namespace frost {
                 return;
             }
 
-            const auto now = system_clock::now();
-            const auto local_now =
-                s_tz ? s_tz->to_local(now) : local_time<system_clock::duration>(now.time_since_epoch());
-            const auto time = floor<microseconds>(local_now);
-
-            const auto idx = static_cast<size_t>(importance);
-            const auto& style = idx < level_styles.size() ? level_styles[idx] : level_styles[2];
-
-            if (s_use_color) {
-                std::println(stderr, "\033[2m{:%T}\033[0m {}{}\033[0m \033[2m{}:\033[0m {}", time, style.color,
-                             style.name, target, msg);
-            } else {
-                std::println(stderr, "{:%T} {} {}: {}", time, style.name, target, msg);
-            }
+            emit_formatted_line(importance, target, msg);
         }
+    }
+
+    namespace detail {
+
+        bool log_enabled(wlr_log_importance importance) noexcept {
+            return importance <= s_verbosity;
+        }
+
+        void log_emit(wlr_log_importance importance, std::source_location loc, std::string_view fmt,
+                      std::format_args args) {
+            char target_buf[32];
+            const std::string_view target = determine_target(loc.file_name(), target_buf);
+            const std::string formatted = std::vformat(fmt, args);
+            emit_formatted_line(importance, target, formatted);
+        }
+
     }
 
     void log_init(wlr_log_importance importance) {

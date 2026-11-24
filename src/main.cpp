@@ -35,7 +35,7 @@ int main(int argc, char* argv[]) {
     }
 
     frost::log_init(log_level);
-    wlr_log(WLR_INFO, "starting version %s", FROST_VERSION);
+    frost::log_info("starting version {}", FROST_VERSION);
 
     frost::Compositor compositor;
     if (!compositor.init(config_path)) {

@@ -2,6 +2,7 @@
 #include "frost/compositor.hpp"
 #include "frost/config.hpp"
 #include "frost/input.hpp"
+#include "frost/log.hpp"
 
 #include <algorithm>
 
@@ -73,7 +74,7 @@ namespace frost::input {
             if (xkb_context* context = xkb_context_new(XKB_CONTEXT_NO_FLAGS)) {
                 xkb_keymap* keymap = xkb_keymap_new_from_names(context, &rules, XKB_KEYMAP_COMPILE_NO_FLAGS);
                 if (!keymap) {
-                    wlr_log(WLR_ERROR, "failed to compile xkb keymap, falling back to default");
+                    log_error("failed to compile xkb keymap, falling back to default");
                     if (xkb_context* fallback_ctx = xkb_context_new(XKB_CONTEXT_NO_ENVIRONMENT_NAMES)) {
                         keymap = xkb_keymap_new_from_names(fallback_ctx, nullptr, XKB_KEYMAP_COMPILE_NO_FLAGS);
                         xkb_context_unref(fallback_ctx);
@@ -84,11 +85,11 @@ namespace frost::input {
                     xkb_keymap_unref(keymap);
                     keymap_updated = true;
                 } else {
-                    wlr_log(WLR_ERROR, "failed to compile any valid xkb keymap");
+                    log_error("failed to compile any valid xkb keymap");
                 }
                 xkb_context_unref(context);
             } else {
-                wlr_log(WLR_ERROR, "failed to create xkb context");
+                log_error("failed to create xkb context");
             }
         }
 

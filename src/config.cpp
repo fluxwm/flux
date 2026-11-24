@@ -1,4 +1,5 @@
 #include "frost/config.hpp"
+#include "frost/log.hpp"
 
 #include <kdlpp.h>
 
@@ -86,20 +87,19 @@ namespace frost {
             std::string_view name = node_name(node);
             const auto& args = node.args();
             if (args.empty() || args[0].type() != kdl::Type::Number) {
-                wlr_log(WLR_ERROR, "%.*s requires an integer argument", static_cast<int>(name.size()), name.data());
+                log_error("{} requires an integer argument", name);
                 return false;
             }
             try {
                 const int32_t val = args[0].as<int32_t>();
                 if (val < min) {
-                    wlr_log(WLR_ERROR, "invalid %.*s '%d' (must be >= %d)", static_cast<int>(name.size()), name.data(),
-                            val, min);
+                    log_error("invalid {} '{}' (must be >= {})", name, val, min);
                     return false;
                 }
                 out = val;
                 return true;
             } catch (const std::exception& e) {
-                wlr_log(WLR_ERROR, "failed to parse %.*s: %s", static_cast<int>(name.size()), name.data(), e.what());
+                log_error("failed to parse {}: {}", name, e.what());
                 return false;
             }
         }
@@ -117,20 +117,19 @@ namespace frost {
             std::string_view name = node_name(node);
             const auto& args = node.args();
             if (args.empty() || args[0].type() != kdl::Type::Number) {
-                wlr_log(WLR_ERROR, "%.*s requires a number argument", static_cast<int>(name.size()), name.data());
+                log_error("{} requires a number argument", name);
                 return false;
             }
             try {
                 const double val = args[0].as<double>();
                 if (!std::isfinite(val) || val < min || val > max) {
-                    wlr_log(WLR_ERROR, "invalid %.*s '%g' (must be between %g and %g)", static_cast<int>(name.size()),
-                            name.data(), val, min, max);
+                    log_error("invalid {} '{:g}' (must be between {:g} and {:g})", name, val, min, max);
                     return false;
                 }
                 out = val;
                 return true;
             } catch (const std::exception& e) {
-                wlr_log(WLR_ERROR, "failed to parse %.*s: %s", static_cast<int>(name.size()), name.data(), e.what());
+                log_error("failed to parse {}: {}", name, e.what());
                 return false;
             }
         }
@@ -139,7 +138,7 @@ namespace frost {
             std::string_view name = node_name(node);
             const auto& args = node.args();
             if (args.empty() || args[0].type() != kdl::Type::String) {
-                wlr_log(WLR_ERROR, "%.*s requires a string argument", static_cast<int>(name.size()), name.data());
+                log_error("{} requires a string argument", name);
                 return std::nullopt;
             }
             return std::string(u8_view(args[0].as<std::u8string_view>()));
@@ -169,8 +168,7 @@ namespace frost {
                 return Direction::Down;
             }
             std::string_view name = node_name(node);
-            wlr_log(WLR_ERROR, "invalid direction '%s' for %.*s", dir->c_str(), static_cast<int>(name.size()),
-                    name.data());
+            log_error("invalid direction '{}' for {}", *dir, name);
             return std::nullopt;
         }
 
@@ -261,8 +259,7 @@ namespace frost {
                 xkb_keysym_t keysym = XKB_KEY_NoSymbol;
 
                 if (!parse_combo(combo, modifiers, keysym)) {
-                    wlr_log(WLR_ERROR, "invalid key combo in config: '%.*s'", static_cast<int>(combo.size()),
-                            combo.data());
+                    log_error("invalid key combo in config: '{}'", combo);
                     continue;
                 }
 
@@ -271,8 +268,7 @@ namespace frost {
 
                 for (const auto& arg : bind_node.args()) {
                     if (arg.type() != kdl::Type::String) {
-                        wlr_log(WLR_ERROR, "invalid argument on bind '%.*s'", static_cast<int>(combo.size()),
-                                combo.data());
+                        log_error("invalid argument on bind '{}'", combo);
                         continue;
                     }
                     std::string_view flag = u8_view(arg.as<std::u8string_view>());
@@ -281,8 +277,7 @@ namespace frost {
                     } else if (iequals(flag, "locked")) {
                         locked = true;
                     } else {
-                        wlr_log(WLR_ERROR, "unknown flag '%.*s' on bind '%.*s'", static_cast<int>(flag.size()),
-                                flag.data(), static_cast<int>(combo.size()), combo.data());
+                        log_error("unknown flag '{}' on bind '{}'", flag, combo);
                     }
                 }
 
@@ -291,9 +286,7 @@ namespace frost {
                     auto action_opt = parse_action(action_node);
                     if (!action_opt) {
                         std::string_view aname = node_name(action_node);
-                        wlr_log(WLR_ERROR, "unknown or invalid action '%.*s' for bind '%.*s'",
-                                static_cast<int>(aname.size()), aname.data(), static_cast<int>(combo.size()),
-                                combo.data());
+                        log_error("unknown or invalid action '{}' for bind '{}'", aname, combo);
                         continue;
                     }
 
@@ -323,7 +316,7 @@ namespace frost {
                 out = args[0].as<bool>();
                 return;
             }
-            wlr_log(WLR_ERROR, "%.*s requires a boolean or no argument", static_cast<int>(name.size()), name.data());
+            log_error("{} requires a boolean or no argument", name);
         }
 
         void parse_keyboard(KeyboardConfig& keyboard, const kdl::Node& keyboard_node) {
@@ -346,8 +339,7 @@ namespace frost {
                 } else if (iequals(name, "rules")) {
                     parse_string(child, keyboard.rules);
                 } else {
-                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in keyboard config", static_cast<int>(name.size()),
-                            name.data());
+                    log_error("unknown setting '{}' in keyboard config", name);
                 }
             }
         }
@@ -358,8 +350,7 @@ namespace frost {
                 if (iequals(name, "natural-scroll")) {
                     parse_bool(child, mouse.natural_scroll);
                 } else {
-                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in mouse config", static_cast<int>(name.size()),
-                            name.data());
+                    log_error("unknown setting '{}' in mouse config", name);
                 }
             }
         }
@@ -372,8 +363,7 @@ namespace frost {
                 } else if (iequals(name, "natural-scroll")) {
                     parse_bool(child, touchpad.natural_scroll);
                 } else {
-                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in touchpad config", static_cast<int>(name.size()),
-                            name.data());
+                    log_error("unknown setting '{}' in touchpad config", name);
                 }
             }
         }
@@ -391,8 +381,7 @@ namespace frost {
                 } else if (iequals(name, "middle-click-paste")) {
                     parse_bool(child, middle_click_paste);
                 } else {
-                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in input config", static_cast<int>(name.size()),
-                            name.data());
+                    log_error("unknown setting '{}' in input config", name);
                 }
             }
         }
@@ -405,8 +394,7 @@ namespace frost {
                 } else if (iequals(name, "size")) {
                     parse_int(child, cursor.size, 1);
                 } else {
-                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in cursor config", static_cast<int>(name.size()),
-                            name.data());
+                    log_error("unknown setting '{}' in cursor config", name);
                 }
             }
         }
@@ -417,8 +405,7 @@ namespace frost {
                 if (iequals(name, "workspace-swipe")) {
                     parse_bool(child, gestures.workspace_swipe);
                 } else {
-                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in gestures config", static_cast<int>(name.size()),
-                            name.data());
+                    log_error("unknown setting '{}' in gestures config", name);
                 }
             }
         }
@@ -433,8 +420,7 @@ namespace frost {
                 } else if (iequals(name, "smart")) {
                     parse_bool(child, gaps.smart);
                 } else {
-                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in gaps config", static_cast<int>(name.size()),
-                            name.data());
+                    log_error("unknown setting '{}' in gaps config", name);
                 }
             }
         }
@@ -470,8 +456,7 @@ namespace frost {
                 }
             }
             std::string_view name = node_name(node);
-            wlr_log(WLR_ERROR, "invalid color '%s' for %.*s", str_opt->c_str(), static_cast<int>(name.size()),
-                    name.data());
+            log_error("invalid color '{}' for {}", *str_opt, name);
         }
 
         void parse_border(BorderConfig& border, const kdl::Node& border_node) {
@@ -484,8 +469,7 @@ namespace frost {
                 } else if (iequals(name, "inactive-color")) {
                     parse_color(child, border.inactive_color);
                 } else {
-                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in border config", static_cast<int>(name.size()),
-                            name.data());
+                    log_error("unknown setting '{}' in border config", name);
                 }
             }
         }
@@ -504,8 +488,7 @@ namespace frost {
                 return;
             }
             std::string_view name = node_name(node);
-            wlr_log(WLR_ERROR, "invalid layout mode '%s' for %.*s", mode->c_str(), static_cast<int>(name.size()),
-                    name.data());
+            log_error("invalid layout mode '{}' for {}", *mode, name);
         }
 
         void parse_layout(LayoutConfig& layout, const kdl::Node& layout_node) {
@@ -518,8 +501,7 @@ namespace frost {
                 } else if (iequals(name, "border")) {
                     parse_border(layout.border, child);
                 } else {
-                    wlr_log(WLR_ERROR, "unknown section '%.*s' in layout config", static_cast<int>(name.size()),
-                            name.data());
+                    log_error("unknown section '{}' in layout config", name);
                 }
             }
         }
@@ -534,8 +516,7 @@ namespace frost {
                 } else if (iequals(name, "slowdown")) {
                     parse_double(child, animations.slowdown, 0.001, 100.0);
                 } else {
-                    wlr_log(WLR_ERROR, "unknown setting '%.*s' in animations config", static_cast<int>(name.size()),
-                            name.data());
+                    log_error("unknown setting '{}' in animations config", name);
                 }
             }
         }
@@ -544,8 +525,7 @@ namespace frost {
             for (const auto& child : environment_node.children()) {
                 std::string_view name = node_name(child);
                 if (name.empty() || name.contains('=')) {
-                    wlr_log(WLR_ERROR, "invalid environment variable name '%.*s'", static_cast<int>(name.size()),
-                            name.data());
+                    log_error("invalid environment variable name '{}'", name);
                     continue;
                 }
 
@@ -573,8 +553,7 @@ namespace frost {
                 auto action_opt = parse_action(action_node);
                 if (!action_opt) {
                     std::string_view aname = node_name(action_node);
-                    wlr_log(WLR_ERROR, "unknown or invalid action '%.*s' in autostart", static_cast<int>(aname.size()),
-                            aname.data());
+                    log_error("unknown or invalid action '{}' in autostart", aname);
                     continue;
                 }
 
@@ -629,25 +608,24 @@ namespace frost {
             std::error_code ec;
             std::filesystem::create_directories(parent_dir, ec);
             if (ec) {
-                wlr_log(WLR_ERROR, "failed to create config directory '%s': %s", parent_dir.c_str(),
-                        ec.message().c_str());
+                log_error("failed to create config directory '{}': {}", parent_dir.c_str(), ec.message());
                 return false;
             }
         }
 
         std::ofstream file(m_path, std::ios::binary);
         if (!file.is_open()) {
-            wlr_log(WLR_ERROR, "failed to write default config to '%s'", m_path.c_str());
+            log_error("failed to write default config to '{}'", m_path.c_str());
             return false;
         }
 
         file.write(default_config_kdl.data(), static_cast<std::streamsize>(default_config_kdl.size()));
         if (file.fail()) {
-            wlr_log(WLR_ERROR, "error writing default config to '%s'", m_path.c_str());
+            log_error("error writing default config to '{}'", m_path.c_str());
             return false;
         }
 
-        wlr_log(WLR_INFO, "generated default config at '%s'", m_path.c_str());
+        log_info("generated default config at '{}'", m_path.c_str());
         return true;
     }
 
@@ -752,10 +730,10 @@ namespace frost {
         try {
             doc = kdl::parse(u8view);
         } catch (const kdl::ParseError& e) {
-            wlr_log(WLR_ERROR, "kdl parse error in '%s': %s", source_name, e.what());
+            log_error("kdl parse error in '{}': {}", source_name, e.what());
             return false;
         } catch (const std::exception& e) {
-            wlr_log(WLR_ERROR, "error reading kdl config '%s': %s", source_name, e.what());
+            log_error("error reading kdl config '{}': {}", source_name, e.what());
             return false;
         }
 
@@ -790,7 +768,7 @@ namespace frost {
             } else if (iequals(name, "binds")) {
                 parse_binds(keybinds, node);
             } else {
-                wlr_log(WLR_ERROR, "unknown section '%.*s' in config", static_cast<int>(name.size()), name.data());
+                log_error("unknown section '{}' in config", name);
             }
         }
 
@@ -805,7 +783,7 @@ namespace frost {
         m_environment = std::move(environment);
         m_autostart = std::move(autostart);
         m_keybinds = std::move(keybinds);
-        wlr_log(WLR_INFO, "loaded config from '%s'", source_name);
+        log_info("loaded config from '{}'", source_name);
 
         if (m_on_reload) {
             m_on_reload();
@@ -818,13 +796,13 @@ namespace frost {
 
         std::error_code ec;
         if (m_path.empty() || !std::filesystem::exists(m_path, ec)) {
-            wlr_log(WLR_ERROR, "config file does not exist: %s", m_path.c_str());
+            log_error("config file does not exist: {}", m_path.c_str());
             return false;
         }
 
         std::ifstream file(m_path, std::ios::binary);
         if (!file.is_open()) {
-            wlr_log(WLR_ERROR, "failed to open config file: %s", m_path.c_str());
+            log_error("failed to open config file: {}", m_path.c_str());
             return false;
         }
 

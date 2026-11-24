@@ -2,6 +2,7 @@
 #include "frost/compositor.hpp"
 #include "frost/input.hpp"
 #include "frost/layer.hpp"
+#include "frost/log.hpp"
 #include "frost/util.hpp"
 #include "frost/window.hpp"
 
@@ -134,7 +135,7 @@ namespace frost::input {
         if (wlr_seat_validate_pointer_grab_serial(m_wlr_seat, event->origin, event->serial)) {
             wlr_seat_start_pointer_drag(m_wlr_seat, event->drag, event->serial);
         } else {
-            wlr_log(WLR_DEBUG, "failed to validate serial %u for drag start request", event->serial);
+            log_debug("failed to validate serial {} for drag start request", event->serial);
             if (event->drag->source) {
                 wlr_data_source_destroy(event->drag->source);
             }

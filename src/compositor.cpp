@@ -1,6 +1,7 @@
 #include "frost/compositor.hpp"
 #include "frost/input.hpp"
 #include "frost/layer.hpp"
+#include "frost/log.hpp"
 #include "frost/output.hpp"
 #include "frost/popup.hpp"
 #include "frost/util.hpp"
@@ -73,7 +74,7 @@ namespace frost {
     bool Compositor::init(std::optional<std::filesystem::path> config_path) {
         m_display = wl_display_create();
         if (!m_display) {
-            wlr_log(WLR_ERROR, "failed to create wl_display");
+            log_error("failed to create wl_display");
             return false;
         }
 
@@ -96,13 +97,13 @@ namespace frost {
 
         m_backend = wlr_backend_autocreate(event_loop, &m_session);
         if (!m_backend) {
-            wlr_log(WLR_ERROR, "failed to create wlr_backend");
+            log_error("failed to create wlr_backend");
             return false;
         }
 
         m_renderer = wlr_renderer_autocreate(m_backend);
         if (!m_renderer) {
-            wlr_log(WLR_ERROR, "failed to create wlr_renderer");
+            log_error("failed to create wlr_renderer");
             return false;
         }
 
@@ -110,7 +111,7 @@ namespace frost {
 
         m_allocator = wlr_allocator_autocreate(m_backend, m_renderer);
         if (!m_allocator) {
-            wlr_log(WLR_ERROR, "failed to create wlr_allocator");
+            log_error("failed to create wlr_allocator");
             return false;
         }
 
@@ -121,7 +122,7 @@ namespace frost {
         m_xwayland = wlr_xwayland_create(m_display, wlr_comp, true);
         if (m_xwayland) {
             setenv("DISPLAY", m_xwayland->display_name, 1);
-            wlr_log(WLR_INFO, "ready on X11 display: %s", m_xwayland->display_name);
+            log_info("ready on X11 display: {}", m_xwayland->display_name);
             m_xwayland_listeners.listen(&m_xwayland->events.ready, [this](void*) {
                 wlr_xwayland_set_seat(m_xwayland, m_input->seat().raw());
                 m_input->cursor().set_xwayland_cursor(m_xwayland);
@@ -233,7 +234,7 @@ namespace frost {
         setenv("XDG_SESSION_TYPE", "wayland", 1);
         setenv("XDG_CURRENT_DESKTOP", "frost", 1);
         setenv("XDG_SESSION_DESKTOP", "frost", 1);
-        wlr_log(WLR_INFO, "ready on Wayland socket: %s", socket);
+        log_info("ready on Wayland socket: {}", socket);
         return true;
     }
 
@@ -337,6 +338,8 @@ namespace frost {
                     }
                 } else if constexpr (std::is_same_v<T, action::Spawn>) {
                     spawn(act);
+                } else {
+                    static_assert(false, "Unhandled Action");
                 }
             },
             action);
@@ -353,7 +356,7 @@ namespace frost {
 
         const pid_t pid = fork();
         if (pid < 0) {
-            wlr_log(WLR_ERROR, "failed to fork process '%s'", action.program.c_str());
+            log_error("failed to fork process '{}'", action.program);
             return;
         }
 
@@ -427,8 +430,8 @@ namespace frost {
         dismiss_popups();
 
         m_focused_output = output;
-        wlr_log(WLR_DEBUG, "output '%s': switching from workspace %u to %u", output->raw()->name,
-                output->active_workspace().id(), id);
+        log_debug("output '{}': switching from workspace {} to {}", output->raw()->name,
+                  output->active_workspace().id(), id);
 
         Workspace& old_ws = output->active_workspace();
         Workspace& new_ws = output->workspace(id);
@@ -521,7 +524,7 @@ namespace frost {
 
         Output& out = old_ws->output();
         out.animation().cancel();
-        wlr_log(WLR_DEBUG, "moving window to workspace %u on output '%s'", id, out.raw()->name);
+        log_debug("moving window to workspace {} on output '{}'", id, out.raw()->name);
 
         Workspace& new_ws = out.workspace(id);
         window->set_workspace(&new_ws);
@@ -893,12 +896,12 @@ namespace frost {
     void Compositor::on_new_output(wlr_output* output) {
         if (output->non_desktop) {
             if (m_drm_lease_mgr) {
-                wlr_log(WLR_DEBUG, "offering non-desktop output '%s' for DRM lease", output->name);
+                log_debug("offering non-desktop output '{}' for DRM lease", output->name);
                 if (!wlr_drm_lease_v1_manager_offer_output(m_drm_lease_mgr, output)) {
-                    wlr_log(WLR_ERROR, "failed to offer non-desktop output '%s' for DRM lease", output->name);
+                    log_error("failed to offer non-desktop output '{}' for DRM lease", output->name);
                 }
             } else {
-                wlr_log(WLR_DEBUG, "ignoring non-desktop output '%s'", output->name);
+                log_debug("ignoring non-desktop output '{}'", output->name);
             }
             return;
         }
@@ -1006,15 +1009,15 @@ namespace frost {
 
     void Compositor::on_drm_lease_request(wlr_drm_lease_request_v1* request) {
         if (is_session_locked()) {
-            wlr_log(WLR_ERROR, "session lock active, rejecting DRM lease request");
+            log_error("session lock active, rejecting DRM lease request");
             wlr_drm_lease_request_v1_reject(request);
             return;
         }
 
         if (wlr_drm_lease_request_v1_grant(request)) {
-            wlr_log(WLR_DEBUG, "granted DRM lease request");
+            log_debug("granted DRM lease request");
         } else {
-            wlr_log(WLR_ERROR, "failed to grant DRM lease request, rejecting");
+            log_error("failed to grant DRM lease request, rejecting");
             wlr_drm_lease_request_v1_reject(request);
         }
     }
@@ -1034,7 +1037,7 @@ namespace frost {
         }
 
         if (!root_tree) {
-            wlr_log(WLR_ERROR, "popup parent surface has no associated scene tree");
+            log_error("popup parent surface has no associated scene tree");
             return;
         }
 
@@ -1044,7 +1047,7 @@ namespace frost {
     void Compositor::on_new_layer(wlr_layer_surface_v1* layer_surface) {
         Output* output = layer_surface->output ? output_from_wlr(layer_surface->output) : focused_output();
         if (!output) {
-            wlr_log(WLR_ERROR, "no output available for layer surface");
+            log_error("no output available for layer surface");
             wlr_layer_surface_v1_destroy(layer_surface);
             return;
         }

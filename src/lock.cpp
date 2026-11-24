@@ -1,6 +1,7 @@
 #include "frost/lock.hpp"
 #include "frost/compositor.hpp"
 #include "frost/input.hpp"
+#include "frost/log.hpp"
 #include "frost/output.hpp"
 #include "frost/scene.hpp"
 
@@ -23,7 +24,7 @@ namespace frost {
 
     void Lock::on_new_lock(wlr_session_lock_v1* lock) {
         if (m_lock) {
-            wlr_log(WLR_ERROR, "session lock already active, rejecting new lock");
+            log_error("session lock already active, rejecting new lock");
             wlr_session_lock_v1_destroy(lock);
             return;
         }
@@ -33,7 +34,7 @@ namespace frost {
         m_unlocked = false;
 
         if (m_persistent) {
-            wlr_log(WLR_INFO, "session lock client attached to existing locked session");
+            log_info("session lock client attached to existing locked session");
         } else {
             m_compositor.scene().set_session_lock_active(true);
             m_compositor.scene().update_lock_background(m_compositor.outputs());
@@ -69,11 +70,11 @@ namespace frost {
     void Lock::on_new_surface(wlr_session_lock_surface_v1* lock_surface) {
         Output* output = m_compositor.output_from_wlr(lock_surface->output);
         if (!output) {
-            wlr_log(WLR_ERROR, "lock surface requested for unknown output");
+            log_error("lock surface requested for unknown output");
             return;
         }
         if (output->lock_surface()) {
-            wlr_log(WLR_ERROR, "duplicate lock surface requested for output");
+            log_error("duplicate lock surface requested for output");
             return;
         }
         output->set_lock_surface(lock_surface);
@@ -98,7 +99,7 @@ namespace frost {
             m_persistent = false;
             m_compositor.scene().set_session_lock_active(false);
         } else {
-            wlr_log(WLR_INFO, "session lock client died; session remains locked");
+            log_info("session lock client died; session remains locked");
         }
         m_compositor.refocus();
     }

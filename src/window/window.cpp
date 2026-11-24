@@ -1,6 +1,7 @@
 #include "frost/window.hpp"
 #include "frost/compositor.hpp"
 #include "frost/input.hpp"
+#include "frost/log.hpp"
 #include "frost/output.hpp"
 #include "frost/workspace.hpp"
 
@@ -54,7 +55,7 @@ namespace frost {
     }
 
     void Window::on_map() {
-        wlr_log(WLR_DEBUG, "window mapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
+        log_debug("window mapped: '{}' [{}]", m_title, m_app_id);
 
         const auto state = foreign_toplevel_state();
         m_ext_toplevel_handle = wlr_ext_foreign_toplevel_handle_v1_create(m_compositor.foreign_toplevel_list(), &state);
@@ -106,7 +107,7 @@ namespace frost {
         m_activated = false;
         m_border.hide();
 
-        wlr_log(WLR_DEBUG, "window unmapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
+        log_debug("window unmapped: '{}' [{}]", m_title, m_app_id);
         m_compositor.unmap_window(this);
     }
 
@@ -526,13 +527,13 @@ namespace frost {
 
     void Window::update_title(const char* title) {
         m_title = title ? title : "";
-        wlr_log(WLR_DEBUG, "window title updated: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
+        log_debug("window title updated: '{}' [{}]", m_title, m_app_id);
         update_foreign_toplevel();
     }
 
     void Window::update_app_id(const char* app_id) {
         m_app_id = app_id ? app_id : "";
-        wlr_log(WLR_DEBUG, "window app_id updated: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
+        log_debug("window app_id updated: '{}' [{}]", m_title, m_app_id);
         update_foreign_toplevel();
     }
 
