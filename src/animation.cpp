@@ -479,6 +479,12 @@ namespace frost {
                     orig_h = surf->surface->current.height > 0
                                  ? surf->surface->current.height
                                  : (surf->surface == td->main_surface ? td->fallback_h : 0);
+                    if (const auto* sub = wlr_subsurface_try_from_wlr_surface(surf->surface);
+                        sub && buffer->node.parent) {
+                        wlr_scene_node_set_position(&buffer->node.parent->node,
+                                                    static_cast<int>(std::round(sub->current.x * td->scale)),
+                                                    static_cast<int>(std::round(sub->current.y * td->scale)));
+                    }
                     if (const auto* state = wlr_alpha_modifier_v1_get_surface_state(surf->surface)) {
                         base_alpha = static_cast<float>(state->multiplier);
                     }
