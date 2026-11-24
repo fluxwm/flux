@@ -174,9 +174,8 @@ namespace frost::window {
             on_request_decoration_mode();
             wlr_xdg_toplevel_set_wm_capabilities(m_toplevel, WLR_XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN);
             m_floating = wants_floating();
-            if (!m_floating && !m_toplevel->requested.fullscreen) {
-                wlr_xdg_toplevel_set_tiled(m_toplevel, tiled_edges);
-            }
+            wlr_xdg_toplevel_set_tiled(m_toplevel,
+                                       (!m_floating && !m_toplevel->requested.fullscreen) ? tiled_edges : 0);
             if (m_toplevel->requested.fullscreen) {
                 set_fullscreen(true);
             } else if (!m_floating && m_workspace) {

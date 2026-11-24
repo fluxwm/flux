@@ -96,6 +96,7 @@ namespace frost {
             reparent_to_workspace();
         }
         m_maximized = false;
+        m_floating = false;
         m_floating_override = false;
         m_tile_weight = 1.0f;
         reset_placement_state();
