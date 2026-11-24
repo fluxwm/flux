@@ -578,6 +578,7 @@ namespace frost {
         for (const auto& out : m_outputs) {
             out->active_workspace().restack();
         }
+        update_popup_positions();
         if (m_input) {
             m_input->seat().update_idle_inhibit();
         }

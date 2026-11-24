@@ -6,6 +6,7 @@
 namespace frost {
 
     class Compositor;
+    class Workspace;
 
     class Popup {
     public:
@@ -33,15 +34,19 @@ namespace frost {
         void on_unmap();
         void on_request_configure(wlr_xwayland_surface_configure_event* event);
         void on_set_override_redirect();
+        void set_workspace(Workspace* workspace);
+        void on_workspace_destroy();
 
         Compositor& m_compositor;
         wlr_xdg_popup* m_xdg_popup = nullptr;
         wlr_xwayland_surface* m_xwayland_surface = nullptr;
         wlr_scene_tree* m_root_tree = nullptr;
         wlr_scene_tree* m_wrapper_tree = nullptr;
+        Workspace* m_workspace = nullptr;
 
         ListenerGroup m_listeners;
         ListenerGroup m_surface_listeners;
+        ListenerGroup m_workspace_listeners;
     };
 
 }

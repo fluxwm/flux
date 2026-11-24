@@ -3,6 +3,8 @@
 #include "frost/input.hpp"
 #include "frost/output.hpp"
 #include "frost/util.hpp"
+#include "frost/window.hpp"
+#include "frost/workspace.hpp"
 
 namespace frost {
 
@@ -42,6 +44,7 @@ namespace frost {
         m_listeners.listen(&xsurface->events.dissociate, this, &Popup::on_dissociate);
         m_listeners.listen(&xsurface->events.destroy, this, &Popup::on_destroy);
         m_listeners.listen(&xsurface->events.request_configure, this, &Popup::on_request_configure);
+        m_listeners.listen(&xsurface->events.set_geometry, this, &Popup::update_position);
         m_listeners.listen(&xsurface->events.set_override_redirect, this, &Popup::on_set_override_redirect);
 
         if (xsurface->surface) {
@@ -50,8 +53,10 @@ namespace frost {
     }
 
     Popup::~Popup() {
+        m_workspace_listeners.clear();
         m_surface_listeners.clear();
         m_listeners.clear();
+        m_workspace = nullptr;
         if (m_xdg_popup && m_xdg_popup->base) {
             if (auto* self_tree = static_cast<wlr_scene_tree*>(m_xdg_popup->base->data)) {
                 m_xdg_popup->base->data = nullptr;
@@ -75,12 +80,34 @@ namespace frost {
         }
     }
 
+    void Popup::set_workspace(Workspace* workspace) {
+        m_workspace_listeners.clear();
+        m_workspace = workspace;
+        if (m_workspace && m_workspace->tree()) {
+            m_workspace_listeners.listen(&m_workspace->tree()->node.events.destroy, this, &Popup::on_workspace_destroy);
+        }
+    }
+
+    void Popup::on_workspace_destroy() {
+        m_workspace = nullptr;
+        m_workspace_listeners.clear();
+    }
+
     void Popup::update_position() noexcept {
         if (m_wrapper_tree && m_root_tree) {
             int root_lx = 0;
             int root_ly = 0;
             const bool visible = wlr_scene_node_coords(&m_root_tree->node, &root_lx, &root_ly);
             wlr_scene_node_set_position(&m_wrapper_tree->node, root_lx, root_ly);
+            wlr_scene_node_set_enabled(&m_wrapper_tree->node, visible);
+        } else if (m_wrapper_tree && m_xwayland_surface) {
+            Workspace* ws = m_workspace;
+            if (const auto* parent = Window::try_from(m_xwayland_surface->parent); parent && parent->workspace()) {
+                ws = parent->workspace();
+            }
+            const bool visible = !ws || (ws->output().is_enabled() && ws == &ws->output().active_workspace() &&
+                                         !ws->output().animation().is_busy());
+            wlr_scene_node_set_position(&m_wrapper_tree->node, m_xwayland_surface->x, m_xwayland_surface->y);
             wlr_scene_node_set_enabled(&m_wrapper_tree->node, visible);
         }
     }
@@ -139,6 +166,7 @@ namespace frost {
     }
 
     void Popup::on_dissociate() {
+        set_workspace(nullptr);
         m_surface_listeners.clear();
         if (m_wrapper_tree) {
             wlr_scene_node_destroy(&m_wrapper_tree->node);
@@ -148,15 +176,39 @@ namespace frost {
 
     void Popup::on_map() {
         if (m_xwayland_surface) {
+            Workspace* ws = nullptr;
+            if (const auto* parent = Window::try_from(m_xwayland_surface->parent); parent && parent->workspace()) {
+                ws = parent->workspace();
+            } else if (m_xwayland_surface->pid > 0) {
+                if (const Window* focused = m_compositor.focused_window();
+                    focused && focused->xwayland_surface() &&
+                    focused->xwayland_surface()->pid == m_xwayland_surface->pid) {
+                    ws = focused->workspace();
+                }
+            }
+            if (!ws) {
+                wlr_output* wlr_out = wlr_output_layout_output_at(m_compositor.output_layout(), m_xwayland_surface->x,
+                                                                  m_xwayland_surface->y);
+                Output* out = m_compositor.output_from_wlr(wlr_out);
+                if (!out || !out->is_enabled()) {
+                    out = m_compositor.focused_output();
+                }
+                if (out) {
+                    ws = &out->active_workspace();
+                }
+            }
+            set_workspace(ws);
+
             if (m_wrapper_tree) {
                 wlr_scene_node_destroy(&m_wrapper_tree->node);
             }
             m_wrapper_tree = wlr_scene_tree_create(m_compositor.scene().window_popups());
             if (m_wrapper_tree) {
                 wlr_scene_subsurface_tree_create(m_wrapper_tree, m_xwayland_surface->surface);
-                wlr_scene_node_set_position(&m_wrapper_tree->node, m_xwayland_surface->x, m_xwayland_surface->y);
+                update_position();
             }
-            if (wlr_xwayland_surface_override_redirect_wants_focus(m_xwayland_surface) && !m_compositor.is_locked()) {
+            if (m_wrapper_tree && m_wrapper_tree->node.enabled &&
+                wlr_xwayland_surface_override_redirect_wants_focus(m_xwayland_surface) && !m_compositor.is_locked()) {
                 wlr_xwayland_surface_activate(m_xwayland_surface, true);
                 m_compositor.focus_surface(m_xwayland_surface->surface);
             }
@@ -166,6 +218,7 @@ namespace frost {
 
     void Popup::on_unmap() {
         if (m_xwayland_surface) {
+            set_workspace(nullptr);
             if (m_wrapper_tree) {
                 wlr_scene_node_destroy(&m_wrapper_tree->node);
                 m_wrapper_tree = nullptr;
