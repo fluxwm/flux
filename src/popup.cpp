@@ -2,6 +2,7 @@
 #include "frost/compositor.hpp"
 #include "frost/input.hpp"
 #include "frost/output.hpp"
+#include "frost/util.hpp"
 
 namespace frost {
 
@@ -16,7 +17,8 @@ namespace frost {
         if (parent_xdg && parent_xdg->role == WLR_XDG_SURFACE_ROLE_POPUP && parent_xdg->data) {
             parent_tree = static_cast<wlr_scene_tree*>(parent_xdg->data);
         } else {
-            wlr_scene_tree* target_layer = (parent_xdg && parent_xdg->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL)
+            wlr_xdg_surface* root_xdg = wlr_xdg_surface_try_from_wlr_surface(root_popup_parent(xdg_popup->parent));
+            wlr_scene_tree* target_layer = (root_xdg && root_xdg->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL)
                                                ? m_compositor.scene().window_popups()
                                                : m_compositor.scene().popups();
             m_wrapper_tree = wlr_scene_tree_create(target_layer);
