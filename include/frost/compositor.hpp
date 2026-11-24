@@ -148,6 +148,7 @@ namespace frost {
         std::vector<std::unique_ptr<Popup>> m_popups;
         std::vector<Window*> m_orphaned_focus_order;
         std::vector<pid_t> m_spawned_pids;
+        std::vector<wl_event_source*> m_signal_sources;
         Output* m_swipe_output = nullptr;
         uint32_t m_saved_workspace_id = 1;
 

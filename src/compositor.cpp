@@ -69,6 +69,10 @@ namespace frost {
         if (m_renderer) {
             wlr_renderer_destroy(m_renderer);
         }
+        for (wl_event_source* src : m_signal_sources) {
+            wl_event_source_remove(src);
+        }
+        m_signal_sources.clear();
         if (m_display) {
             wl_display_destroy(m_display);
         }
@@ -87,14 +91,18 @@ namespace frost {
             return 0;
         };
         for (const int sig : {SIGINT, SIGTERM}) {
-            wl_event_loop_add_signal(event_loop, sig, on_signal, this);
+            if (wl_event_source* src = wl_event_loop_add_signal(event_loop, sig, on_signal, this)) {
+                m_signal_sources.push_back(src);
+            }
         }
         auto on_sigchld = [](int, void* data) {
             auto* self = static_cast<Compositor*>(data);
             std::erase_if(self->m_spawned_pids, [](pid_t pid) { return waitpid(pid, nullptr, WNOHANG) != 0; });
             return 0;
         };
-        wl_event_loop_add_signal(event_loop, SIGCHLD, on_sigchld, this);
+        if (wl_event_source* src = wl_event_loop_add_signal(event_loop, SIGCHLD, on_sigchld, this)) {
+            m_signal_sources.push_back(src);
+        }
 
         m_config = std::make_unique<Config>(event_loop, config_path);
 
