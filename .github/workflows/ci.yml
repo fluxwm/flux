@@ -107,9 +107,95 @@ jobs:
       - name: Build
         run: cmake --build --preset release
 
+  asan:
+    name: ASan + UBSan Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: archlinux:latest
+      options: --cap-add=SYS_PTRACE
+
+    steps:
+      - name: Install system dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel \
+            cmake \
+            ninja \
+            git \
+            pkgconf \
+            wlroots0.20 \
+            wayland \
+            libxkbcommon \
+            libinput
+
+      - name: Configure Git safe directory
+        run: git config --global --add safe.directory '*'
+
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Configure CMake
+        run: cmake --preset asan
+
+      - name: Build
+        run: cmake --build --preset asan
+
+      - name: Run headless smoke test
+        timeout-minutes: 2
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: |
+          set -euo pipefail
+          ./build-asan/frost --help
+          ./build-asan/frost --version
+
+          tmpdir="$(mktemp -d)"
+          pid=""
+          cleanup() {
+            if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+              kill -KILL "$pid" 2>/dev/null || true
+            fi
+            rm -rf "$tmpdir"
+          }
+          trap cleanup EXIT
+
+          chmod 700 "$tmpdir"
+          cat > "$tmpdir/config.kdl" <<EOF
+          environment {
+              FROST_SMOKE "ok"
+          }
+          autostart {
+              spawn-sh "test \"\$FROST_SMOKE\" = ok && touch \"$tmpdir/spawned\""
+          }
+          EOF
+
+          XDG_RUNTIME_DIR="$tmpdir" \
+            WLR_BACKENDS=headless \
+            WLR_RENDERER=pixman \
+            WLR_HEADLESS_OUTPUTS=2 \
+            ./build-asan/frost -d -c "$tmpdir/config.kdl" &
+          pid=$!
+
+          for _ in $(seq 1 50); do
+            if [ -e "$tmpdir/spawned" ] && compgen -G "$tmpdir/wayland-*" >/dev/null; then
+              break
+            fi
+            sleep 0.1
+          done
+
+          kill -0 "$pid"
+          test -e "$tmpdir/spawned"
+          compgen -G "$tmpdir/wayland-*" >/dev/null
+
+          kill -TERM "$pid"
+          wait "$pid"
+          pid=""
+
   ci:
     name: CI
-    needs: [format, tidy, build]
+    needs: [format, tidy, build, asan]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -118,7 +204,8 @@ jobs:
         run: |
           if [ "${{ needs.format.result }}" != "success" ] || \
              [ "${{ needs.tidy.result }}" != "success" ] || \
-             [ "${{ needs.build.result }}" != "success" ]; then
+             [ "${{ needs.build.result }}" != "success" ] || \
+             [ "${{ needs.asan.result }}" != "success" ]; then
             echo "One or more required CI checks failed."
             exit 1
           fi
