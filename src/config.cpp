@@ -231,6 +231,9 @@ namespace frost {
                 for (size_t i = 1; i < raw_args.size(); ++i) {
                     if (raw_args[i].type() == kdl::Type::String) {
                         args.emplace_back(u8_view(raw_args[i].as<std::u8string_view>()));
+                    } else {
+                        log_error("spawn argument {} for '{}' must be a string", i, *program);
+                        return std::nullopt;
                     }
                 }
 
@@ -325,7 +328,7 @@ namespace frost {
                 if (iequals(name, "repeat-rate")) {
                     parse_int(child, keyboard.repeat_rate);
                 } else if (iequals(name, "repeat-delay")) {
-                    parse_int(child, keyboard.repeat_delay);
+                    parse_int(child, keyboard.repeat_delay, 1);
                 } else if (iequals(name, "numlock")) {
                     parse_bool(child, keyboard.numlock);
                 } else if (iequals(name, "layout")) {
@@ -569,6 +572,7 @@ namespace frost {
         const bool has_file =
             custom_path.has_value() || std::filesystem::exists(m_path, ec) || generate_default_config();
         if (!has_file || !reload()) {
+            log_error("falling back to built-in default config");
             load_from_string(default_config_kdl, "built-in defaults");
         }
         setup_watcher(event_loop);
