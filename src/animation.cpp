@@ -455,7 +455,7 @@ namespace frost {
 
     void WindowAnimation::apply_open_transform() noexcept {
         const wlr_box box = m_window.geometry_box();
-        if (box.width <= 0 || box.height <= 0) {
+        if (m_opening && (box.width <= 0 || box.height <= 0)) {
             return;
         }
 
