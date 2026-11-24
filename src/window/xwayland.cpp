@@ -179,6 +179,9 @@ namespace frost::window {
         }
         wlr_xwayland_surface_set_maximized(m_surface, m_maximized, m_maximized);
 
+        m_animation.set_target(m_surface->x, m_surface->y);
+        snap_animation();
+
         Window::on_map();
     }
 
