@@ -192,10 +192,17 @@ namespace frost::window {
     }
 
     void XWayland::on_request_configure(wlr_xwayland_surface_configure_event* event) {
+        if (is_grabbed()) {
+            static_cast<void>(configure_geometry(geometry_box()));
+            return;
+        }
         if (!is_mapped() || is_floating()) {
             m_animation.set_target(event->x, event->y);
             if (is_mapped()) {
                 m_animation.set_has_initial_position(true);
+                if ((event->mask & (XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y)) != 0) {
+                    m_placed = true;
+                }
             }
             snap_animation();
             wlr_xwayland_surface_configure(m_surface, event->x, event->y, event->width, event->height);
