@@ -3,6 +3,9 @@
 #include "frost/listener.hpp"
 #include "frost/wlroots.hpp"
 
+#include <memory>
+#include <vector>
+
 namespace frost {
     class Input;
 }

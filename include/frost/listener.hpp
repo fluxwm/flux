@@ -2,10 +2,10 @@
 
 #include "frost/wlroots.hpp"
 
+#include <deque>
 #include <functional>
-#include <memory>
+#include <type_traits>
 #include <utility>
-#include <vector>
 
 namespace frost {
 
@@ -13,25 +13,34 @@ namespace frost {
     public:
         using Callback = std::move_only_function<void(void*)>;
 
-        WlListener(wl_signal* signal, Callback callback) : m_callback(std::move(callback)) {
-            m_listener.notify = &WlListener::handle_notify;
-            wl_signal_add(signal, &m_listener);
+        WlListener(wl_signal* signal, Callback callback)
+            : m_hook{.listener = {}, .owner = this}, m_callback(std::move(callback)) {
+            m_hook.listener.notify = &WlListener::handle_notify;
+            wl_signal_add(signal, &m_hook.listener);
         }
 
-        ~WlListener() { wl_list_remove(&m_listener.link); }
+        ~WlListener() { wl_list_remove(&m_hook.listener.link); }
 
         WlListener(const WlListener&) = delete;
         WlListener& operator=(const WlListener&) = delete;
+        WlListener(WlListener&&) = delete;
+        WlListener& operator=(WlListener&&) = delete;
 
     private:
+        struct Hook {
+            wl_listener listener{};
+            WlListener* owner = nullptr;
+        };
+        static_assert(std::is_standard_layout_v<Hook>);
+
         static void handle_notify(wl_listener* listener, void* data) {
-            auto* self = reinterpret_cast<WlListener*>(listener);
-            if (self->m_callback) {
-                self->m_callback(data);
+            auto* hook = reinterpret_cast<Hook*>(listener);
+            if (hook->owner && hook->owner->m_callback) {
+                hook->owner->m_callback(data);
             }
         }
 
-        wl_listener m_listener{};
+        Hook m_hook{};
         Callback m_callback;
     };
 
@@ -42,12 +51,12 @@ namespace frost {
 
         ListenerGroup(const ListenerGroup&) = delete;
         ListenerGroup& operator=(const ListenerGroup&) = delete;
-        ListenerGroup(ListenerGroup&&) noexcept = default;
-        ListenerGroup& operator=(ListenerGroup&&) noexcept = default;
+        ListenerGroup(ListenerGroup&&) noexcept = delete;
+        ListenerGroup& operator=(ListenerGroup&&) noexcept = delete;
 
         template <typename F>
         void listen(wl_signal* signal, F&& callback) {
-            m_listeners.push_back(std::make_unique<WlListener>(signal, std::forward<F>(callback)));
+            m_listeners.emplace_back(signal, std::forward<F>(callback));
         }
 
         template <typename Owner, typename Base>
@@ -63,7 +72,7 @@ namespace frost {
         void clear() noexcept { m_listeners.clear(); }
 
     private:
-        std::vector<std::unique_ptr<WlListener>> m_listeners;
+        std::deque<WlListener> m_listeners;
     };
 
 }
