@@ -211,10 +211,12 @@ namespace frost::input {
 
     void Seat::update_pointer_constraint() {
         wlr_surface* surface = focused_pointer_surface();
+        wlr_surface* kb_surface = focused_surface();
+        const bool same_root = surface && kb_surface &&
+                               (wlr_surface_get_root_surface(surface) == wlr_surface_get_root_surface(kb_surface));
         auto* constraint =
-            (surface && surface == focused_surface())
-                ? wlr_pointer_constraints_v1_constraint_for_surface(m_pointer_constraints, surface, m_wlr_seat)
-                : nullptr;
+            same_root ? wlr_pointer_constraints_v1_constraint_for_surface(m_pointer_constraints, surface, m_wlr_seat)
+                      : nullptr;
         set_active_constraint(constraint);
     }
 

@@ -8,8 +8,12 @@
 #include "frost/window.hpp"
 #include "frost/workspace.hpp"
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
+#include <limits>
+#include <span>
 #include <string>
 
 namespace frost::input {
@@ -22,6 +26,39 @@ namespace frost::input {
                 return layer;
             }
             return nullptr;
+        }
+
+        [[nodiscard]] bool clamp_to_region(pixman_region32_t* region, double tx, double ty, double& out_x,
+                                           double& out_y) noexcept {
+            int nboxes = 0;
+            const pixman_box32_t* raw_boxes = pixman_region32_rectangles(region, &nboxes);
+            if (!raw_boxes || nboxes <= 0) {
+                return false;
+            }
+
+            bool found = false;
+            double best_dist = std::numeric_limits<double>::infinity();
+            for (const auto& b : std::span(raw_boxes, static_cast<size_t>(nboxes))) {
+                if (b.x2 <= b.x1 || b.y2 <= b.y1) {
+                    continue;
+                }
+                const double x1 = static_cast<double>(b.x1);
+                const double y1 = static_cast<double>(b.y1);
+                const double x2 = std::nextafter(static_cast<double>(b.x2), x1);
+                const double y2 = std::nextafter(static_cast<double>(b.y2), y1);
+                const double cx = std::clamp(tx, x1, x2);
+                const double cy = std::clamp(ty, y1, y2);
+                const double ddx = tx - cx;
+                const double ddy = ty - cy;
+                const double dist = (ddx * ddx) + (ddy * ddy);
+                if (!found || dist < best_dist) {
+                    found = true;
+                    best_dist = dist;
+                    out_x = cx;
+                    out_y = cy;
+                }
+            }
+            return found;
         }
 
     }
@@ -297,24 +334,51 @@ namespace frost::input {
         if (constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED) {
             return false;
         }
-        double sx = 0.0;
-        double sy = 0.0;
-        if (m_input.compositor().scene().surface_at(m_wlr_cursor->x, m_wlr_cursor->y, &sx, &sy) !=
-            constraint->surface) {
+        int ox = 0;
+        int oy = 0;
+        if (!m_input.compositor().scene().surface_coords(constraint->surface, ox, oy)) {
             return true;
         }
+        const double sx = m_wlr_cursor->x - ox;
+        const double sy = m_wlr_cursor->y - oy;
 
-        const pixman_region32_t* region =
+        pixman_region32_t* region =
             pixman_region32_not_empty(&constraint->region) || pixman_region32_not_empty(&constraint->current.region)
                 ? &constraint->region
                 : &constraint->surface->input_region;
         double confined_x = 0.0;
         double confined_y = 0.0;
-        if (!wlr_region_confine(region, sx, sy, sx + dx, sy + dy, &confined_x, &confined_y)) {
+        if (!wlr_region_confine(region, sx, sy, sx + dx, sy + dy, &confined_x, &confined_y) &&
+            !clamp_to_region(region, sx + dx, sy + dy, confined_x, confined_y)) {
             return false;
         }
-        dx = confined_x - sx;
-        dy = confined_y - sy;
+
+        double next_dx = (ox + confined_x) - m_wlr_cursor->x;
+        double next_dy = (oy + confined_y) - m_wlr_cursor->y;
+        auto contains = [&](double test_dx, double test_dy) noexcept {
+            const double next_sx = (m_wlr_cursor->x + test_dx) - ox;
+            const double next_sy = (m_wlr_cursor->y + test_dy) - oy;
+            return pixman_region32_contains_point(region, static_cast<int>(std::floor(next_sx)),
+                                                  static_cast<int>(std::floor(next_sy)), nullptr) != 0;
+        };
+        if (!contains(next_dx, next_dy)) {
+            constexpr double neg_inf = -std::numeric_limits<double>::infinity();
+            const double prev_dx =
+                std::min(std::nextafter(ox + confined_x, neg_inf) - m_wlr_cursor->x, std::nextafter(next_dx, neg_inf));
+            const double prev_dy =
+                std::min(std::nextafter(oy + confined_y, neg_inf) - m_wlr_cursor->y, std::nextafter(next_dy, neg_inf));
+            if (contains(prev_dx, next_dy)) {
+                next_dx = prev_dx;
+            } else if (contains(next_dx, prev_dy)) {
+                next_dy = prev_dy;
+            } else if (contains(prev_dx, prev_dy)) {
+                next_dx = prev_dx;
+                next_dy = prev_dy;
+            }
+        }
+
+        dx = next_dx;
+        dy = next_dy;
         return true;
     }
 
