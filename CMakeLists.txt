@@ -67,7 +67,7 @@ add_executable(frost
 target_include_directories(frost PRIVATE include "${GEN_PROTO_DIR}")
 target_link_libraries(frost PRIVATE PkgConfig::DEPS kdlpp)
 target_compile_definitions(frost PRIVATE FROST_VERSION="${PROJECT_VERSION}")
-target_compile_options(frost PRIVATE -Wno-c23-extensions)
+target_compile_options(frost PRIVATE -Wall -Wextra -Wno-c23-extensions)
 
 generate_protocol(wlr-layer-shell-unstable-v1)
 generate_protocol(wlr-output-power-management-unstable-v1)
