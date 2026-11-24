@@ -42,7 +42,6 @@ namespace frost::window {
             m_surface->data = nullptr;
         }
         if (m_scene_tree) {
-            m_scene_tree->node.data = nullptr;
             wlr_scene_node_destroy(&m_scene_tree->node);
             m_scene_tree = nullptr;
         }

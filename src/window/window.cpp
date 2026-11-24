@@ -56,10 +56,7 @@ namespace frost {
     void Window::on_map() {
         wlr_log(WLR_DEBUG, "window mapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
 
-        const wlr_ext_foreign_toplevel_handle_v1_state state{
-            .title = m_title.c_str(),
-            .app_id = m_app_id.c_str(),
-        };
+        const auto state = foreign_toplevel_state();
         m_ext_toplevel_handle = wlr_ext_foreign_toplevel_handle_v1_create(m_compositor.foreign_toplevel_list(), &state);
 
         m_compositor.map_window(this);
@@ -107,7 +104,7 @@ namespace frost {
         m_border_width = 0;
         m_border_height = 0;
         m_activated = false;
-        update_borders();
+        m_border.hide();
 
         wlr_log(WLR_DEBUG, "window unmapped: '%s' [%s]", m_title.c_str(), m_app_id.c_str());
         m_compositor.unmap_window(this);
@@ -377,17 +374,19 @@ namespace frost {
     }
 
     void Window::update_borders() noexcept {
-        if (is_mapped() && !m_fullscreen && (is_pending_center() || is_pending_move())) {
+        if (!is_mapped()) {
+            m_border.hide();
+            return;
+        }
+        if (!m_fullscreen && (is_pending_center() || is_pending_move())) {
             return;
         }
 
-        if (is_mapped()) {
-            const wlr_box box = geometry_box();
-            m_border_width = box.width;
-            m_border_height = box.height;
-        }
+        const wlr_box box = geometry_box();
+        m_border_width = box.width;
+        m_border_height = box.height;
 
-        if (!is_mapped() || !has_visible_borders()) {
+        if (!has_visible_borders()) {
             m_border.hide();
             return;
         }
@@ -510,14 +509,18 @@ namespace frost {
         wlr_scene_node_reparent(&m_scene_tree->node, target);
     }
 
+    wlr_ext_foreign_toplevel_handle_v1_state Window::foreign_toplevel_state() const noexcept {
+        return {
+            .title = m_title.c_str(),
+            .app_id = m_app_id.c_str(),
+        };
+    }
+
     void Window::update_foreign_toplevel() noexcept {
         if (!m_ext_toplevel_handle) {
             return;
         }
-        const wlr_ext_foreign_toplevel_handle_v1_state state{
-            .title = m_title.c_str(),
-            .app_id = m_app_id.c_str(),
-        };
+        const auto state = foreign_toplevel_state();
         wlr_ext_foreign_toplevel_handle_v1_update_state(m_ext_toplevel_handle, &state);
     }
 

@@ -169,6 +169,7 @@ namespace frost {
         void restore_floating_box() noexcept;
         void save_floating_box() noexcept;
         void reset_placement_state() noexcept;
+        [[nodiscard]] wlr_ext_foreign_toplevel_handle_v1_state foreign_toplevel_state() const noexcept;
         void update_foreign_toplevel() noexcept;
 
         bool m_activated = false;
