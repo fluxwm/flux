@@ -256,12 +256,13 @@ namespace frost {
 
         void parse_binds(std::vector<Keybind>& keybinds, const kdl::Node& binds_node) {
             for (const auto& bind_node : binds_node.children()) {
-                std::string combo(node_name(bind_node));
+                const std::string_view combo = node_name(bind_node);
                 uint32_t modifiers = 0;
                 xkb_keysym_t keysym = XKB_KEY_NoSymbol;
 
                 if (!parse_combo(combo, modifiers, keysym)) {
-                    wlr_log(WLR_ERROR, "invalid key combo in config: '%s'", combo.c_str());
+                    wlr_log(WLR_ERROR, "invalid key combo in config: '%.*s'", static_cast<int>(combo.size()),
+                            combo.data());
                     continue;
                 }
 
@@ -270,7 +271,8 @@ namespace frost {
 
                 for (const auto& arg : bind_node.args()) {
                     if (arg.type() != kdl::Type::String) {
-                        wlr_log(WLR_ERROR, "invalid argument on bind '%s'", combo.c_str());
+                        wlr_log(WLR_ERROR, "invalid argument on bind '%.*s'", static_cast<int>(combo.size()),
+                                combo.data());
                         continue;
                     }
                     std::string_view flag = u8_view(arg.as<std::u8string_view>());
@@ -279,8 +281,8 @@ namespace frost {
                     } else if (iequals(flag, "locked")) {
                         locked = true;
                     } else {
-                        wlr_log(WLR_ERROR, "unknown flag '%.*s' on bind '%s'", static_cast<int>(flag.size()),
-                                flag.data(), combo.c_str());
+                        wlr_log(WLR_ERROR, "unknown flag '%.*s' on bind '%.*s'", static_cast<int>(flag.size()),
+                                flag.data(), static_cast<int>(combo.size()), combo.data());
                     }
                 }
 
@@ -289,8 +291,9 @@ namespace frost {
                     auto action_opt = parse_action(action_node);
                     if (!action_opt) {
                         std::string_view aname = node_name(action_node);
-                        wlr_log(WLR_ERROR, "unknown or invalid action '%.*s' for bind '%s'",
-                                static_cast<int>(aname.size()), aname.data(), combo.c_str());
+                        wlr_log(WLR_ERROR, "unknown or invalid action '%.*s' for bind '%.*s'",
+                                static_cast<int>(aname.size()), aname.data(), static_cast<int>(combo.size()),
+                                combo.data());
                         continue;
                     }
 
