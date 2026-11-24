@@ -93,6 +93,62 @@ namespace frost {
         m_workspace_listeners.clear();
     }
 
+    bool Popup::is_visible_on(const wlr_box& output_box) const noexcept {
+        if (output_box.width <= 0 || output_box.height <= 0) {
+            return false;
+        }
+
+        wlr_scene_tree* tree = nullptr;
+        if (m_xdg_popup) {
+            if (!m_xdg_popup->base || !m_xdg_popup->base->surface || !m_xdg_popup->base->surface->mapped) {
+                return false;
+            }
+            tree = static_cast<wlr_scene_tree*>(m_xdg_popup->base->data);
+        } else if (m_xwayland_surface) {
+            if (!m_xwayland_surface->surface || !m_xwayland_surface->surface->mapped) {
+                return false;
+            }
+            tree = m_wrapper_tree;
+        }
+
+        if (!tree) {
+            return false;
+        }
+
+        int lx = 0;
+        int ly = 0;
+        if (!wlr_scene_node_coords(&tree->node, &lx, &ly)) {
+            return false;
+        }
+
+        struct HitContext {
+            wlr_box output_box;
+            bool visible = false;
+        } ctx{.output_box = output_box};
+
+        wlr_scene_node_for_each_buffer(
+            &tree->node,
+            [](wlr_scene_buffer* buffer, int sx, int sy, void* data) {
+                auto* hit = static_cast<HitContext*>(data);
+                if (hit->visible || !buffer || !buffer->buffer) {
+                    return;
+                }
+                const int w = buffer->dst_width > 0 ? buffer->dst_width : buffer->buffer->width;
+                const int h = buffer->dst_height > 0 ? buffer->dst_height : buffer->buffer->height;
+                if (w <= 0 || h <= 0) {
+                    return;
+                }
+                const wlr_box buf_box{.x = sx, .y = sy, .width = w, .height = h};
+                wlr_box intersection{};
+                if (wlr_box_intersection(&intersection, &buf_box, &hit->output_box)) {
+                    hit->visible = true;
+                }
+            },
+            &ctx);
+
+        return ctx.visible;
+    }
+
     void Popup::update_position() noexcept {
         if (m_wrapper_tree && m_root_tree) {
             int root_lx = 0;

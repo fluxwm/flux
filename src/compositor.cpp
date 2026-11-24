@@ -770,14 +770,24 @@ namespace frost {
     }
 
     bool Compositor::allows_tearing(const Output* output) const noexcept {
-        if (!output || is_locked() || !m_popups.empty()) {
+        if (!output || is_locked()) {
             return false;
         }
 
         const Window* w = output->active_workspace().focused_window();
-        return w && w->is_fullscreen() && !w->is_animating() &&
-               wlr_tearing_control_manager_v1_surface_hint_from_surface(m_tearing_control_mgr, w->surface()) ==
-                   WP_TEARING_CONTROL_V1_PRESENTATION_HINT_ASYNC;
+        if (!w || !w->is_fullscreen() || w->is_animating() ||
+            wlr_tearing_control_manager_v1_surface_hint_from_surface(m_tearing_control_mgr, w->surface()) !=
+                WP_TEARING_CONTROL_V1_PRESENTATION_HINT_ASYNC) {
+            return false;
+        }
+
+        const wlr_box output_box = output->layout_box();
+        if (output_box.width <= 0 || output_box.height <= 0) {
+            return false;
+        }
+
+        return std::ranges::none_of(m_popups,
+                                    [&output_box](const auto& popup) { return popup->is_visible_on(output_box); });
     }
 
     void Compositor::refocus() {

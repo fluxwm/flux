@@ -20,6 +20,7 @@ namespace frost {
         [[nodiscard]] wlr_xdg_popup* raw() const noexcept { return m_xdg_popup; }
         [[nodiscard]] wlr_xwayland_surface* xwayland_surface() const noexcept { return m_xwayland_surface; }
         [[nodiscard]] wlr_scene_tree* root_tree() const noexcept { return m_root_tree; }
+        [[nodiscard]] bool is_visible_on(const wlr_box& output_box) const noexcept;
         void update_position() noexcept;
 
     private:
