@@ -379,7 +379,7 @@ namespace frost {
             m_border.hide();
             return;
         }
-        if (!m_fullscreen && (is_pending_center() || is_pending_move())) {
+        if (!m_fullscreen && (is_pending_center() || (is_pending_move() && !m_border.is_enabled()))) {
             return;
         }
 
