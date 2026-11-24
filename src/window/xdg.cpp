@@ -75,9 +75,15 @@ namespace frost::window {
             wlr_xdg_toplevel_set_fullscreen(m_toplevel, true);
         } else {
             wlr_xdg_toplevel_set_fullscreen(m_toplevel, false);
-            if (!m_floating) {
+            if (!m_floating || m_maximized) {
                 wlr_xdg_toplevel_set_tiled(m_toplevel, tiled_edges);
             }
+        }
+    }
+
+    void Xdg::apply_maximized(bool maximized) noexcept {
+        if (m_toplevel->base->initialized && !m_fullscreen) {
+            wlr_xdg_toplevel_set_tiled(m_toplevel, (maximized || !m_floating) ? tiled_edges : 0);
         }
     }
 

@@ -28,6 +28,7 @@ namespace frost::window {
         }
         void apply_activated(bool activated) noexcept override;
         void apply_fullscreen(bool fullscreen) noexcept override;
+        void apply_maximized(bool maximized) noexcept override;
         void apply_tiled(uint32_t edges) noexcept override;
         void schedule_configure() noexcept override;
         [[nodiscard]] bool configure_geometry(const wlr_box& box) noexcept override;

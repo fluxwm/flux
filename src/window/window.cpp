@@ -207,7 +207,7 @@ namespace frost {
         save_floating_box();
         m_floating = floating;
         reset_placement_state();
-        apply_tiled(m_floating ? 0 : tiled_edges);
+        apply_tiled((!m_fullscreen && (!m_floating || m_maximized)) ? tiled_edges : 0);
         if (is_mapped()) {
             m_compositor.dismiss_popups(m_scene_tree);
             restore_floating_box();
