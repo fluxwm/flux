@@ -11,7 +11,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <csignal>
 #include <cstdlib>
 #include <fcntl.h>
@@ -521,9 +520,7 @@ namespace frost {
         dismiss_popups(window->scene_tree());
 
         Output& out = old_ws->output();
-        if (out.animation().is_active()) {
-            out.animation().cancel();
-        }
+        out.animation().cancel();
         wlr_log(WLR_DEBUG, "moving window to workspace %u on output '%s'", id, out.raw()->name);
 
         Workspace& new_ws = out.workspace(id);
@@ -616,12 +613,8 @@ namespace frost {
             cancel_workspace_swipe();
             dismiss_popups(focused->scene_tree());
 
-            if (cur->animation().is_active()) {
-                cur->animation().cancel();
-            }
-            if (adj->animation().is_active()) {
-                adj->animation().cancel();
-            }
+            cur->animation().cancel();
+            adj->animation().cancel();
 
             if (focused->is_floating()) {
                 focused->set_placed(false);
@@ -991,12 +984,10 @@ namespace frost {
 
         if (!enable) {
             output->active_workspace().snap_animations();
-            if (m_swipe_output == output || output->animation().is_busy()) {
-                if (m_swipe_output == output) {
-                    cancel_workspace_swipe();
-                }
+            if (m_swipe_output == output) {
+                cancel_workspace_swipe();
+            } else {
                 output->animation().cancel();
-                on_animation_finished();
             }
             if (m_focused_output == output) {
                 m_focused_output = nullptr;
