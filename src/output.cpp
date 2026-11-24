@@ -146,12 +146,16 @@ namespace frost {
     }
 
     void Output::on_request_state(const wlr_output_event_request_state* event) {
+        const bool was_enabled = is_enabled();
         if (wlr_output_commit_state(m_wlr_output, event->state)) {
-            m_compositor.sync_session_lock();
-            arrange_layers();
-            if ((event->state->committed & WLR_OUTPUT_STATE_ENABLED) != 0) {
-                m_compositor.refocus();
+            if (was_enabled != is_enabled()) {
+                m_compositor.on_output_enabled_changed(this);
+                return;
             }
+            if (is_enabled()) {
+                arrange_layers();
+            }
+            m_compositor.sync_session_lock();
         }
     }
 

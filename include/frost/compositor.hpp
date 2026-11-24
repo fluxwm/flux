@@ -110,10 +110,12 @@ namespace frost {
         void recreate_as_popup(Window* window);
         void recreate_as_window(Popup* popup);
         void remove_output(Output* output);
+        void on_output_enabled_changed(Output* output);
         void on_animation_finished();
 
     private:
         void restack_windows();
+        void attach_orphaned_windows(Output* output);
 
         void on_new_output(wlr_output* output);
         void on_new_window(wlr_xdg_toplevel* toplevel);

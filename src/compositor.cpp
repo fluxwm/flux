@@ -981,9 +981,21 @@ namespace frost {
             new_out->set_active_workspace(&new_out->workspace(m_saved_workspace_id));
             new_out->active_workspace().activate();
         }
+        attach_orphaned_windows(new_out);
+        for (const auto& out : m_outputs) {
+            out->arrange_layers();
+        }
+        sync_session_lock();
+        refocus();
+    }
+
+    void Compositor::attach_orphaned_windows(Output* output) {
+        if (!output) {
+            return;
+        }
         for (const auto& win : m_windows) {
             if (!win->workspace()) {
-                win->set_workspace(&new_out->workspace(win->workspace_id()));
+                win->set_workspace(&output->workspace(win->workspace_id()));
             }
         }
         for (Window* win : std::views::reverse(m_orphaned_focus_order)) {
@@ -992,8 +1004,31 @@ namespace frost {
             }
         }
         m_orphaned_focus_order.clear();
+    }
+
+    void Compositor::on_output_enabled_changed(Output* output) {
+        if (!output) {
+            return;
+        }
+
+        if (!output->is_enabled()) {
+            output->active_workspace().snap_animations();
+            if (m_swipe_output == output) {
+                cancel_workspace_swipe();
+            } else {
+                output->animation().cancel();
+            }
+            if (m_focused_output == output) {
+                m_focused_output = nullptr;
+            }
+        } else {
+            attach_orphaned_windows(output);
+        }
+
         for (const auto& out : m_outputs) {
-            out->arrange_layers();
+            if (out->is_enabled()) {
+                out->arrange_layers();
+            }
         }
         sync_session_lock();
         refocus();
@@ -1053,26 +1088,7 @@ namespace frost {
             return;
         }
 
-        if (!enable) {
-            output->active_workspace().snap_animations();
-            if (m_swipe_output == output) {
-                cancel_workspace_swipe();
-            } else {
-                output->animation().cancel();
-            }
-            if (m_focused_output == output) {
-                m_focused_output = nullptr;
-            }
-        } else {
-            for (const auto& win : m_windows) {
-                if (!win->workspace()) {
-                    win->set_workspace(&output->workspace(win->workspace_id()));
-                }
-            }
-            output->arrange_layers();
-        }
-        sync_session_lock();
-        refocus();
+        on_output_enabled_changed(output);
     }
 
     void Compositor::on_drm_lease_request(wlr_drm_lease_request_v1* request) {
