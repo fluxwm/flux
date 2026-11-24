@@ -16,8 +16,11 @@
 #include <cstdlib>
 #include <fcntl.h>
 #include <ranges>
+#include <string>
+#include <string_view>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <unordered_map>
 #include <vector>
 
 namespace frost {
@@ -354,6 +357,41 @@ namespace frost {
         }
         argv.push_back(nullptr);
 
+        std::unordered_map<std::string_view, const std::optional<std::string>*> overrides;
+        overrides.reserve(m_config->environment().size());
+        for (const auto& env_var : m_config->environment()) {
+            overrides[env_var.name] = &env_var.value;
+        }
+
+        std::vector<std::string> env_storage;
+        if (environ) {
+            for (char* const* ep = environ; *ep != nullptr; ++ep) {
+                std::string_view entry(*ep);
+                const size_t eq = entry.find('=');
+                const std::string_view key = (eq != std::string_view::npos) ? entry.substr(0, eq) : entry;
+                if (!overrides.contains(key)) {
+                    env_storage.emplace_back(entry);
+                }
+            }
+        }
+        for (const auto& [name, val_ptr] : overrides) {
+            if (val_ptr->has_value()) {
+                std::string entry;
+                entry.reserve(name.size() + 1 + val_ptr->value().size());
+                entry.append(name);
+                entry.push_back('=');
+                entry.append(**val_ptr);
+                env_storage.push_back(std::move(entry));
+            }
+        }
+
+        std::vector<char*> envp;
+        envp.reserve(env_storage.size() + 1);
+        for (auto& entry : env_storage) {
+            envp.push_back(entry.data());
+        }
+        envp.push_back(nullptr);
+
         const pid_t pid = fork();
         if (pid < 0) {
             log_error("failed to fork process '{}'", action.program);
@@ -370,14 +408,6 @@ namespace frost {
             sigemptyset(&set);
             sigprocmask(SIG_SETMASK, &set, nullptr);
 
-            for (const auto& [name, value] : m_config->environment()) {
-                if (value) {
-                    setenv(name.c_str(), value->c_str(), 1);
-                } else {
-                    unsetenv(name.c_str());
-                }
-            }
-
             const int dev_null = open("/dev/null", O_RDWR);
             if (dev_null >= 0) {
                 dup2(dev_null, STDIN_FILENO);
@@ -387,7 +417,7 @@ namespace frost {
 
             closefrom(3);
 
-            execvp(action.program.c_str(), const_cast<char* const*>(argv.data()));
+            execvpe(argv[0], const_cast<char* const*>(argv.data()), envp.data());
             _exit(1);
         }
 
