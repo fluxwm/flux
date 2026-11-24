@@ -104,7 +104,7 @@ namespace frost {
         void set_geometry(const wlr_box& box) noexcept;
         void center(const wlr_box& area) noexcept;
         void toggle_maximize();
-        void set_fullscreen(bool fullscreen);
+        void set_fullscreen(bool fullscreen, Output* target_output = nullptr);
         void toggle_fullscreen() { set_fullscreen(!m_fullscreen); }
         void set_floating(bool floating);
         void toggle_floating();

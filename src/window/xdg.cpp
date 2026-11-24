@@ -72,11 +72,6 @@ namespace frost::window {
     void Xdg::apply_fullscreen(bool fullscreen) noexcept {
         if (fullscreen) {
             wlr_xdg_toplevel_set_tiled(m_toplevel, 0);
-            if (m_toplevel->requested.fullscreen_output) {
-                if (Output* out = m_compositor.output_from_wlr(m_toplevel->requested.fullscreen_output)) {
-                    set_output(out);
-                }
-            }
             wlr_xdg_toplevel_set_fullscreen(m_toplevel, true);
         } else {
             wlr_xdg_toplevel_set_fullscreen(m_toplevel, false);
@@ -177,7 +172,7 @@ namespace frost::window {
             wlr_xdg_toplevel_set_tiled(m_toplevel,
                                        (!m_floating && !m_toplevel->requested.fullscreen) ? tiled_edges : 0);
             if (m_toplevel->requested.fullscreen) {
-                set_fullscreen(true);
+                set_fullscreen(true, m_compositor.output_from_wlr(m_toplevel->requested.fullscreen_output));
             } else if (!m_floating && m_workspace) {
                 set_geometry(m_workspace->next_tile_box());
             } else {
@@ -235,7 +230,10 @@ namespace frost::window {
 
     void Xdg::on_request_fullscreen() {
         if (m_toplevel->base->initialized) {
-            set_fullscreen(m_toplevel->requested.fullscreen);
+            Output* target = m_toplevel->requested.fullscreen
+                                 ? m_compositor.output_from_wlr(m_toplevel->requested.fullscreen_output)
+                                 : nullptr;
+            set_fullscreen(m_toplevel->requested.fullscreen, target);
         }
     }
 

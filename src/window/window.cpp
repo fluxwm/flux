@@ -261,8 +261,12 @@ namespace frost {
         set_floating(floating);
     }
 
-    void Window::set_fullscreen(bool fullscreen) {
-        if (m_fullscreen == fullscreen) {
+    void Window::set_fullscreen(bool fullscreen, Output* target_output) {
+        if (target_output && !target_output->is_enabled()) {
+            target_output = nullptr;
+        }
+        const bool output_changed = fullscreen && target_output && target_output != output();
+        if (m_fullscreen == fullscreen && !output_changed) {
             schedule_configure();
             return;
         }
@@ -270,14 +274,29 @@ namespace frost {
 
         save_floating_box();
 
+        const bool was_fullscreen = m_fullscreen;
+        const bool was_focused = is_mapped() && m_compositor.focused_window() == this;
         m_fullscreen = fullscreen;
         reset_placement_state();
+
+        if (is_mapped()) {
+            m_compositor.dismiss_popups(m_scene_tree);
+        }
+
+        Workspace* old_ws = m_workspace;
+        if (output_changed) {
+            set_workspace(&target_output->active_workspace());
+        }
 
         if (m_fullscreen) {
             if (m_animation.is_opening()) {
                 m_animation.reset_open_transform();
             }
-            apply_fullscreen(true);
+            if (!was_fullscreen) {
+                apply_fullscreen(true);
+            } else {
+                schedule_configure();
+            }
         } else {
             if (!m_slide_hidden) {
                 wlr_scene_node_set_enabled(&m_scene_tree->node, true);
@@ -287,7 +306,9 @@ namespace frost {
         }
 
         if (is_mapped()) {
-            m_compositor.dismiss_popups(m_scene_tree);
+            if (output_changed && old_ws) {
+                old_ws->arrange();
+            }
             restore_floating_box();
             if (m_fullscreen && m_workspace) {
                 m_workspace->promote(this);
@@ -295,7 +316,11 @@ namespace frost {
             if (m_workspace) {
                 m_workspace->arrange();
             }
-            m_compositor.refocus();
+            if (output_changed && was_focused) {
+                m_compositor.focus_window(this);
+            } else {
+                m_compositor.refocus();
+            }
         } else if (m_fullscreen && m_workspace) {
             set_geometry(m_workspace->output().layout_box());
         }
