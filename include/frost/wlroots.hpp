@@ -2,7 +2,6 @@
 
 #define WLR_USE_UNSTABLE
 
-#include <cmath>
 #include <libinput.h>
 
 #pragma GCC diagnostic push
@@ -10,10 +9,13 @@
 #pragma GCC diagnostic ignored "-Wpedantic"
 
 extern "C" {
-#define static
-#define namespace _namespace
 #include <pixman.h>
 #include <wayland-server-core.h>
+
+#define static
+#include <wlr/render/color.h>
+#undef static
+
 #include <wlr/backend.h>
 #include <wlr/backend/libinput.h>
 #include <wlr/backend/session.h>
@@ -45,7 +47,6 @@ extern "C" {
 #include <wlr/types/wlr_idle_notify_v1.h>
 #include <wlr/types/wlr_input_device.h>
 #include <wlr/types/wlr_keyboard.h>
-#include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_linux_dmabuf_v1.h>
 #include <wlr/types/wlr_linux_drm_syncobj_v1.h>
 #include <wlr/types/wlr_output.h>
@@ -58,7 +59,6 @@ extern "C" {
 #include <wlr/types/wlr_primary_selection.h>
 #include <wlr/types/wlr_primary_selection_v1.h>
 #include <wlr/types/wlr_relative_pointer_v1.h>
-#include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_screencopy_v1.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_session_lock_v1.h>
@@ -80,12 +80,19 @@ extern "C" {
 #include <wlr/util/log.h>
 #include <wlr/util/region.h>
 #include <xcb/xcb.h>
+#include <xkbcommon/xkbcommon.h>
+
+#define namespace _namespace
+#include <wlr/types/wlr_layer_shell_v1.h>
+#undef namespace
+
+#define static
+#include <wlr/types/wlr_scene.h>
+#undef static
+
 #define class _class
 #include <wlr/xwayland.h>
 #undef class
-#include <xkbcommon/xkbcommon.h>
-#undef namespace
-#undef static
 }
 
 #pragma GCC diagnostic pop
