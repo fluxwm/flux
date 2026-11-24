@@ -28,9 +28,9 @@ namespace frost {
     }
 
     void Layer::on_commit() {
-        if (m_layer_surface->current.committed & WLR_LAYER_SURFACE_V1_STATE_LAYER) {
+        if ((m_layer_surface->current.committed & WLR_LAYER_SURFACE_V1_STATE_LAYER) && m_scene_tree) {
             wlr_scene_tree* new_parent = m_output.compositor().scene().layer_tree(layer());
-            wlr_scene_node_reparent(&scene_tree()->node, new_parent);
+            wlr_scene_node_reparent(&m_scene_tree->node, new_parent);
         }
 
         constexpr uint32_t arrange_mask = WLR_LAYER_SURFACE_V1_STATE_DESIRED_SIZE | WLR_LAYER_SURFACE_V1_STATE_ANCHOR |
