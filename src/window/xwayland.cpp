@@ -128,8 +128,8 @@ namespace frost::window {
             return true;
         }
         if (const auto* hints = m_surface->size_hints) {
-            if (hints->min_width > 0 && hints->min_height > 0 &&
-                (hints->min_width == hints->max_width || hints->min_height == hints->max_height)) {
+            if ((hints->max_width > 0 && hints->min_width == hints->max_width) ||
+                (hints->max_height > 0 && hints->min_height == hints->max_height)) {
                 return true;
             }
         }
