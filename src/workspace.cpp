@@ -282,7 +282,11 @@ namespace frost {
                 } else {
                     w->reparent_to_workspace();
                 }
-                wlr_scene_node_set_enabled(&w->scene_tree()->node, w == m_active_fullscreen);
+                const bool should_show = (w == m_active_fullscreen);
+                if (!should_show) {
+                    w->clear_slide_clip();
+                }
+                wlr_scene_node_set_enabled(&w->scene_tree()->node, should_show && !w->is_slide_hidden());
             }
         }
 
@@ -339,6 +343,10 @@ namespace frost {
             if (!w->is_floating() && !w->is_fullscreen()) {
                 place(w);
             }
+        }
+
+        if (is_busy_output && m_tree && m_tree->node.enabled && m_output.compositor().outputs().size() > 1) {
+            apply_slide_clip(m_tree->node.x);
         }
 
         m_output.compositor().update_popup_positions();

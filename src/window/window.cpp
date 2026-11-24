@@ -279,7 +279,9 @@ namespace frost {
             }
             apply_fullscreen(true);
         } else {
-            wlr_scene_node_set_enabled(&m_scene_tree->node, true);
+            if (!m_slide_hidden) {
+                wlr_scene_node_set_enabled(&m_scene_tree->node, true);
+            }
             reparent_to_workspace();
             apply_fullscreen(false);
         }

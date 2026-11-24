@@ -74,6 +74,7 @@ namespace frost {
         [[nodiscard]] wlr_box geometry_box() const noexcept;
         [[nodiscard]] bool is_animating() const noexcept { return m_animation.is_active(); }
         [[nodiscard]] bool is_activated() const noexcept { return m_activated; }
+        [[nodiscard]] bool is_slide_hidden() const noexcept { return m_slide_hidden; }
         [[nodiscard]] bool has_visible_borders() const noexcept;
         [[nodiscard]] float tile_weight() const noexcept { return m_tile_weight; }
         void set_tile_weight(float weight) noexcept { m_tile_weight = weight; }
