@@ -12,7 +12,8 @@ namespace frost {
         }
     }
 
-    void Border::update(int w, int h, int bw, const std::array<float, 4>& color, float opacity) noexcept {
+    void Border::update(int w, int h, int bw, const std::array<float, 4>& color, float opacity,
+                        const wlr_box* clip) noexcept {
         if (!m_rects[0]) {
             return;
         }
@@ -23,21 +24,23 @@ namespace frost {
             color[3] * opacity,
         };
 
-        wlr_scene_node_set_position(&m_rects[0]->node, -bw, -bw);
-        wlr_scene_rect_set_size(m_rects[0], w + (2 * bw), bw);
+        const auto boxes = std::to_array<wlr_box>({
+            {.x = -bw, .y = -bw, .width = w + (2 * bw), .height = bw},
+            {.x = -bw, .y = h, .width = w + (2 * bw), .height = bw},
+            {.x = -bw, .y = 0, .width = bw, .height = h},
+            {.x = w, .y = 0, .width = bw, .height = h},
+        });
 
-        wlr_scene_node_set_position(&m_rects[1]->node, -bw, h);
-        wlr_scene_rect_set_size(m_rects[1], w + (2 * bw), bw);
-
-        wlr_scene_node_set_position(&m_rects[2]->node, -bw, 0);
-        wlr_scene_rect_set_size(m_rects[2], bw, h);
-
-        wlr_scene_node_set_position(&m_rects[3]->node, w, 0);
-        wlr_scene_rect_set_size(m_rects[3], bw, h);
-
-        for (auto* rect : m_rects) {
-            wlr_scene_rect_set_color(rect, c.data());
-            wlr_scene_node_set_enabled(&rect->node, true);
+        for (size_t i = 0; i < m_rects.size(); ++i) {
+            wlr_box r = boxes[i];
+            if (clip && !wlr_box_intersection(&r, &r, clip)) {
+                wlr_scene_node_set_enabled(&m_rects[i]->node, false);
+                continue;
+            }
+            wlr_scene_node_set_position(&m_rects[i]->node, r.x, r.y);
+            wlr_scene_rect_set_size(m_rects[i], r.width, r.height);
+            wlr_scene_rect_set_color(m_rects[i], c.data());
+            wlr_scene_node_set_enabled(&m_rects[i]->node, true);
         }
     }
 

@@ -119,12 +119,14 @@ namespace frost {
         if (m_output.animation().is_busy()) {
             return;
         }
+        clear_slide_clips();
         wlr_scene_node_set_position(&m_tree->node, 0, 0);
         wlr_scene_node_set_enabled(&m_tree->node, true);
         m_output.compositor().update_popup_positions();
     }
 
     void Workspace::deactivate() noexcept {
+        clear_slide_clips();
         wlr_scene_node_set_enabled(&m_tree->node, false);
         wlr_scene_node_set_position(&m_tree->node, 0, 0);
         prepare_slide();
@@ -134,6 +136,19 @@ namespace frost {
         snap_animations();
         restack();
         wlr_ext_workspace_handle_v1_set_active(m_handle, false);
+    }
+
+    void Workspace::apply_slide_clip(int offset_x) noexcept {
+        const wlr_box out_box = m_output.layout_box();
+        for (Window* w : m_windows) {
+            w->set_slide_clip(out_box, offset_x);
+        }
+    }
+
+    void Workspace::clear_slide_clips() noexcept {
+        for (Window* w : m_windows) {
+            w->clear_slide_clip();
+        }
     }
 
     void Workspace::snap_animations() noexcept {

@@ -4,6 +4,7 @@
 #include "frost/scene.hpp"
 #include "frost/wlroots.hpp"
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -93,6 +94,8 @@ namespace frost {
 
         void set_activated(bool activated) noexcept;
         void update_borders() noexcept;
+        void set_slide_clip(const wlr_box& output_box, int ws_offset_x) noexcept;
+        void clear_slide_clip() noexcept;
         void set_workspace(Workspace* ws) noexcept;
         void reparent_to_workspace() noexcept;
         void set_position(int x, int y) noexcept;
@@ -134,6 +137,10 @@ namespace frost {
         void update_app_id(const char* app_id);
 
         [[nodiscard]] virtual std::pair<int, int> preferred_size() const noexcept = 0;
+        [[nodiscard]] virtual std::pair<int, int> geometry_offset() const noexcept { return {0, 0}; }
+        [[nodiscard]] virtual wlr_scene_node* clip_target() const noexcept {
+            return m_scene_tree ? &m_scene_tree->node : nullptr;
+        }
         virtual void apply_activated(bool activated) noexcept = 0;
         virtual void apply_fullscreen(bool fullscreen) noexcept = 0;
         virtual void apply_maximized(bool /*maximized*/) noexcept {}
@@ -172,6 +179,8 @@ namespace frost {
         [[nodiscard]] wlr_ext_foreign_toplevel_handle_v1_state foreign_toplevel_state() const noexcept;
         void update_foreign_toplevel() noexcept;
 
+        std::optional<wlr_box> m_slide_clip;
+        bool m_slide_hidden = false;
         bool m_activated = false;
         float m_tile_weight = 1.0f;
         wlr_box m_floating_box{};

@@ -83,6 +83,7 @@ namespace frost {
             m_workspace->add_closing_window(this, open_progress);
         }
 
+        clear_slide_clip();
         snap_animation();
         m_animation.set_has_initial_position(false);
         if (m_ext_toplevel_handle) {
@@ -399,7 +400,81 @@ namespace frost {
         const auto& color = m_activated ? border_cfg.active_color : border_cfg.inactive_color;
 
         m_border.update(scaled_extent(m_border_width, scale), scaled_extent(m_border_height, scale), border_cfg.width,
-                        color, static_cast<float>(p));
+                        color, static_cast<float>(p), m_slide_clip ? &*m_slide_clip : nullptr);
+    }
+
+    void Window::set_slide_clip(const wlr_box& output_box, int ws_offset_x) noexcept {
+        if (!is_mapped() || !m_scene_tree || output_box.width <= 0 || output_box.height <= 0) {
+            return;
+        }
+        if (!m_scene_tree->node.enabled && !m_slide_hidden) {
+            return;
+        }
+
+        const wlr_box local_clip{
+            .x = output_box.x - (ws_offset_x + m_animation.base_x()),
+            .y = output_box.y - m_animation.base_y(),
+            .width = output_box.width,
+            .height = output_box.height,
+        };
+
+        const wlr_box geo = geometry_box();
+        const auto [gx, gy] = geometry_offset();
+        const auto* s = surface();
+        const int surf_w = (s && s->current.width > 0) ? s->current.width : geo.width;
+        const int surf_h = (s && s->current.height > 0) ? s->current.height : geo.height;
+        const int bw = has_visible_borders() ? m_compositor.config().layout().border.width : 0;
+        const int min_x = std::min(-bw, -gx);
+        const int min_y = std::min(-bw, -gy);
+        const int max_x = std::max(geo.width + bw, surf_w - gx);
+        const int max_y = std::max(geo.height + bw, surf_h - gy);
+        const wlr_box outer{
+            .x = min_x,
+            .y = min_y,
+            .width = std::max(0, max_x - min_x),
+            .height = std::max(0, max_y - min_y),
+        };
+
+        wlr_box visible{};
+        if (!wlr_box_intersection(&visible, &outer, &local_clip)) {
+            m_slide_clip = local_clip;
+            m_slide_hidden = true;
+            wlr_scene_node_set_enabled(&m_scene_tree->node, false);
+            return;
+        }
+
+        m_slide_clip = local_clip;
+        if (m_slide_hidden) {
+            m_slide_hidden = false;
+            wlr_scene_node_set_enabled(&m_scene_tree->node, true);
+        }
+        if (wlr_scene_node* target = clip_target()) {
+            const wlr_box surf_clip{
+                .x = local_clip.x + gx,
+                .y = local_clip.y + gy,
+                .width = local_clip.width,
+                .height = local_clip.height,
+            };
+            wlr_scene_subsurface_tree_set_clip(target, &surf_clip);
+        }
+        update_borders();
+    }
+
+    void Window::clear_slide_clip() noexcept {
+        if (!m_slide_clip && !m_slide_hidden) {
+            return;
+        }
+        m_slide_clip.reset();
+        if (wlr_scene_node* target = clip_target()) {
+            wlr_scene_subsurface_tree_set_clip(target, nullptr);
+        }
+        if (m_slide_hidden) {
+            m_slide_hidden = false;
+            if (m_scene_tree) {
+                wlr_scene_node_set_enabled(&m_scene_tree->node, true);
+            }
+        }
+        update_borders();
     }
 
     wlr_box Window::geometry_box() const noexcept {
@@ -500,6 +575,7 @@ namespace frost {
             snap_animation();
             m_workspace = ws;
             reparent_to_workspace();
+            clear_slide_clip();
         }
         if (ws && is_mapped()) {
             ws->promote(this);

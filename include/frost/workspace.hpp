@@ -68,6 +68,8 @@ namespace frost {
         void activate() noexcept;
         void deactivate() noexcept;
         void prepare_slide() noexcept;
+        void apply_slide_clip(int offset_x) noexcept;
+        void clear_slide_clips() noexcept;
         void snap_animations() noexcept;
 
         void promote(Window* window);

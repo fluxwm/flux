@@ -20,6 +20,9 @@ namespace frost::window {
 
     protected:
         [[nodiscard]] std::pair<int, int> preferred_size() const noexcept override;
+        [[nodiscard]] std::pair<int, int> geometry_offset() const noexcept override {
+            return {m_toplevel->base->geometry.x, m_toplevel->base->geometry.y};
+        }
         void apply_activated(bool activated) noexcept override;
         void apply_fullscreen(bool fullscreen) noexcept override;
         void apply_tiled(uint32_t edges) noexcept override;

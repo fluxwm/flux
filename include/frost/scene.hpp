@@ -2,6 +2,7 @@
 
 #include "frost/wlroots.hpp"
 
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <span>
@@ -14,9 +15,12 @@ namespace frost {
     class Border {
     public:
         void init(wlr_scene_tree* parent) noexcept;
-        void update(int w, int h, int bw, const std::array<float, 4>& color, float opacity = 1.0f) noexcept;
+        void update(int w, int h, int bw, const std::array<float, 4>& color, float opacity = 1.0f,
+                    const wlr_box* clip = nullptr) noexcept;
         void hide() noexcept;
-        [[nodiscard]] bool is_enabled() const noexcept { return m_rects[0] && m_rects[0]->node.enabled; }
+        [[nodiscard]] bool is_enabled() const noexcept {
+            return std::ranges::any_of(m_rects, [](const auto* r) { return r && r->node.enabled; });
+        }
 
     private:
         std::array<wlr_scene_rect*, 4> m_rects{};

@@ -17,6 +17,9 @@ namespace frost::window {
 
     protected:
         [[nodiscard]] std::pair<int, int> preferred_size() const noexcept override;
+        [[nodiscard]] wlr_scene_node* clip_target() const noexcept override {
+            return m_subsurface_tree ? &m_subsurface_tree->node : nullptr;
+        }
         void apply_activated(bool activated) noexcept override;
         void apply_fullscreen(bool fullscreen) noexcept override;
         void apply_maximized(bool maximized) noexcept override;

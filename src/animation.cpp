@@ -70,6 +70,17 @@ namespace frost {
             wlr_scene_node_set_enabled(&m_outgoing->tree()->node, true);
         }
         if (m_current) {
+            if (m_current->output().compositor().outputs().size() > 1) {
+                m_current->apply_slide_clip(current_x);
+                if (m_outgoing && m_outgoing != m_current) {
+                    m_outgoing->apply_slide_clip(current_x + m_outgoing_offset);
+                }
+            } else {
+                m_current->clear_slide_clips();
+                if (m_outgoing && m_outgoing != m_current) {
+                    m_outgoing->clear_slide_clips();
+                }
+            }
             m_current->output().compositor().update_popup_positions();
         }
     }
@@ -136,7 +147,11 @@ namespace frost {
         constexpr double swipe_distance = 350.0;
         const double delta = (natural_scroll ? dx : -dx) / swipe_distance;
         const uint32_t cur_id = m_current->id();
-        const double min_progress = (cur_id < 9) ? -1.0 : 0.0;
+        uint32_t max_id = 9;
+        for (const auto& ws : output.workspaces()) {
+            max_id = std::max(max_id, ws->id());
+        }
+        const double min_progress = (cur_id < max_id) ? -1.0 : 0.0;
         const double max_progress = (cur_id > 1) ? 1.0 : 0.0;
         const double old_progress = m_swipe_progress;
         m_swipe_progress = std::clamp(m_swipe_progress + delta, min_progress, max_progress);
@@ -146,7 +161,7 @@ namespace frost {
         const int offset = static_cast<int>(std::round(m_swipe_progress * span));
 
         Workspace* target = nullptr;
-        if (offset < 0 && cur_id < 9) {
+        if (offset < 0 && cur_id < max_id) {
             target = &output.workspace(cur_id + 1);
             m_outgoing_offset = span;
         } else if (offset > 0 && cur_id > 1) {
