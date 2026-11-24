@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <format>
 #include <string>
 
 namespace frost {
@@ -97,12 +98,15 @@ namespace frost {
         : m_id(id), m_output(output), m_tree(wlr_scene_tree_create(scene.windows())) {
         wlr_scene_node_set_enabled(&m_tree->node, false);
 
-        const std::string id_str = std::to_string(id);
+        const std::string name = std::to_string(id);
+        const char* out_name = output.raw() ? output.raw()->name : nullptr;
+        const std::string handle_id = (out_name && *out_name != '\0') ? std::format("{}:{}", out_name, id) : "";
         constexpr uint32_t caps = EXT_WORKSPACE_HANDLE_V1_WORKSPACE_CAPABILITIES_ACTIVATE;
-        m_handle = wlr_ext_workspace_handle_v1_create(group->manager, id_str.c_str(), caps);
+        m_handle =
+            wlr_ext_workspace_handle_v1_create(group->manager, handle_id.empty() ? nullptr : handle_id.c_str(), caps);
         m_handle->data = this;
         wlr_ext_workspace_handle_v1_set_group(m_handle, group);
-        wlr_ext_workspace_handle_v1_set_name(m_handle, id_str.c_str());
+        wlr_ext_workspace_handle_v1_set_name(m_handle, name.c_str());
         wlr_ext_workspace_handle_v1_set_coordinates(m_handle, &m_id, 1);
     }
 
