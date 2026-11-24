@@ -808,8 +808,15 @@ namespace frost {
             if (root && root->mapped) {
                 const auto* layer = Layer::try_from(root);
                 const auto* xsurf = wlr_xwayland_surface_try_from_wlr_surface(root);
-                if ((layer && layer->is_focusable() && layer->output()->is_enabled()) ||
-                    (xsurf && xsurf->override_redirect && wlr_xwayland_surface_override_redirect_wants_focus(xsurf))) {
+                bool keep_focus = layer && layer->is_focusable() && layer->output()->is_enabled();
+                if (!keep_focus && xsurf && xsurf->override_redirect &&
+                    wlr_xwayland_surface_override_redirect_wants_focus(xsurf)) {
+                    update_popup_positions();
+                    int lx = 0;
+                    int ly = 0;
+                    keep_focus = m_scene->surface_coords(focused, lx, ly);
+                }
+                if (keep_focus) {
                     restack_windows();
                     m_input->cursor().update_focus();
                     return;
