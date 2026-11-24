@@ -467,7 +467,9 @@ namespace frost {
         cancel_workspace_swipe();
         dismiss_popups();
 
-        m_focused_output = output;
+        if (output->is_enabled()) {
+            m_focused_output = output;
+        }
         log_debug("output '{}': switching from workspace {} to {}", output->raw()->name,
                   output->active_workspace().id(), id);
 
@@ -483,7 +485,11 @@ namespace frost {
             new_ws.activate();
         }
 
-        focus_window(new_ws.focused_window());
+        if (output->is_enabled()) {
+            focus_window(new_ws.focused_window());
+        } else {
+            restack_windows();
+        }
     }
 
     bool Compositor::begin_workspace_swipe() {
@@ -591,14 +597,15 @@ namespace frost {
 
         if (window) {
             Workspace* ws = window->workspace();
-            if (ws) {
-                m_focused_output = &ws->output();
-                ws->promote(window);
+            if (!ws || !ws->output().is_enabled()) {
+                return;
+            }
+            m_focused_output = &ws->output();
+            ws->promote(window);
 
-                if (ws != &ws->output().active_workspace()) {
-                    focus_workspace(&ws->output(), ws->id());
-                    return;
-                }
+            if (ws != &ws->output().active_workspace()) {
+                focus_workspace(&ws->output(), ws->id());
+                return;
             }
         }
 
@@ -696,10 +703,19 @@ namespace frost {
     }
 
     void Compositor::map_window(Window* window) {
-        if (Output* out = window->output() ? window->output() : focused_output()) {
+        Output* out = window->output();
+        if (!out || !out->is_enabled()) {
+            if (Output* enabled = focused_output()) {
+                out = enabled;
+            }
+        }
+        if (out) {
             Workspace& ws = out->active_workspace();
             window->set_workspace(&ws);
             ws.arrange();
+            if (is_locked() || !out->is_enabled()) {
+                restack_windows();
+            }
         }
         focus_window(window);
     }

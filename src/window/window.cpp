@@ -539,7 +539,8 @@ namespace frost {
 
     void Window::on_set_parent() {
         Window* parent = query_parent();
-        const bool output_changed = parent && parent->output() && parent->output() != output();
+        const bool output_changed =
+            parent && parent->output() && parent->output()->is_enabled() && parent->output() != output();
         if (output_changed) {
             set_placed(false);
             set_output(parent->output());
