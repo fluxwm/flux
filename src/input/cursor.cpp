@@ -280,8 +280,13 @@ namespace frost::input {
                                                              static_cast<uint64_t>(time_msec) * 1000, dx, dy,
                                                              unaccel_dx, unaccel_dy);
         if (apply_constraint(dx, dy)) {
+            wlr_output* prev_out =
+                wlr_output_layout_output_at(m_input.compositor().output_layout(), m_wlr_cursor->x, m_wlr_cursor->y);
             wlr_cursor_move(m_wlr_cursor, device, dx, dy);
-            if (!m_grab && !m_input.compositor().focused_window() && !m_input.compositor().is_locked()) {
+            wlr_output* next_out =
+                wlr_output_layout_output_at(m_input.compositor().output_layout(), m_wlr_cursor->x, m_wlr_cursor->y);
+            if (next_out != prev_out && !m_grab && !m_input.compositor().focused_window() &&
+                !m_input.compositor().is_locked()) {
                 m_input.compositor().set_focused_output(nullptr);
             }
             process_motion(time_msec);
