@@ -70,6 +70,7 @@ namespace frost::input {
         }
         void clear_pointer_focus() noexcept { wlr_seat_pointer_notify_clear_focus(m_wlr_seat); }
         void clear_primary_selection() noexcept { wlr_seat_set_primary_selection(m_wlr_seat, nullptr, 0); }
+        void cancel_drag() noexcept;
         void update_drag_icons_position() noexcept;
         void update_idle_inhibit();
 

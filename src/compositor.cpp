@@ -1159,6 +1159,7 @@ namespace frost {
         }
         if (layer->is_exclusive()) {
             cancel_animations();
+            m_input->seat().cancel_drag();
             dismiss_popups(nullptr, layer->scene_tree());
         }
         if (layer->scene_tree()) {

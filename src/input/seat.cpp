@@ -124,10 +124,11 @@ namespace frost::input {
     }
 
     void Seat::on_request_start_drag(wlr_seat_request_start_drag_event* event) {
-        if (wlr_seat_validate_pointer_grab_serial(m_wlr_seat, event->origin, event->serial)) {
+        if (!m_input.compositor().is_locked() &&
+            wlr_seat_validate_pointer_grab_serial(m_wlr_seat, event->origin, event->serial)) {
             wlr_seat_start_pointer_drag(m_wlr_seat, event->drag, event->serial);
         } else {
-            log_debug("failed to validate serial {} for drag start request", event->serial);
+            log_debug("rejecting drag start request for serial {}", event->serial);
             if (event->drag->source) {
                 wlr_data_source_destroy(event->drag->source);
             }
@@ -148,6 +149,20 @@ namespace frost::input {
         m_drag_listeners.clear();
         m_input.cursor().set_xcursor("default");
         m_input.compositor().refocus();
+    }
+
+    void Seat::cancel_drag() noexcept {
+        if (!m_wlr_seat || !m_wlr_seat->drag) {
+            return;
+        }
+        m_drag_listeners.clear();
+        if (auto* source = m_wlr_seat->drag->source) {
+            wlr_data_source_destroy(source);
+        }
+        if (m_wlr_seat->drag) {
+            wlr_seat_keyboard_end_grab(m_wlr_seat);
+        }
+        m_input.cursor().set_xcursor("default");
     }
 
     void Seat::update_drag_icons_position() noexcept {

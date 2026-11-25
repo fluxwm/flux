@@ -39,6 +39,7 @@ namespace frost {
             m_compositor.scene().set_session_lock_active(true);
             m_compositor.scene().update_lock_background(m_compositor.outputs());
             m_compositor.cancel_animations();
+            m_compositor.input().seat().cancel_drag();
             m_compositor.refocus();
         }
         m_compositor.dismiss_popups();

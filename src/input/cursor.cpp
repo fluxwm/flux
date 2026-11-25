@@ -435,7 +435,7 @@ namespace frost::input {
             return;
         }
 
-        if (!m_input.compositor().is_session_locked() && m_input.seat().is_drag_active()) {
+        if (m_input.seat().is_drag_active()) {
             m_input.seat().notify_button(event->time_msec, event->button, event->state);
             return;
         }
