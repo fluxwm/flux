@@ -243,10 +243,8 @@ namespace frost {
                 }
             }
             if (!ws) {
-                wlr_output* wlr_out = wlr_output_layout_output_at(m_compositor.output_layout(), m_xwayland_surface->x,
-                                                                  m_xwayland_surface->y);
-                Output* out = m_compositor.output_from_wlr(wlr_out);
-                if (!out || !out->is_enabled()) {
+                Output* out = m_compositor.output_at(m_xwayland_surface->x, m_xwayland_surface->y);
+                if (!out) {
                     out = m_compositor.focused_output();
                 }
                 if (out) {

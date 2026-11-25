@@ -26,8 +26,10 @@ namespace frost::input {
     void MoveGrab::end(bool commit) {
         if (commit && m_window->is_mapped()) {
             Compositor& comp = m_window->compositor();
-            if (Output* out = comp.focused_output(); out && m_window->output() != out) {
+            if (Output* out = comp.output_at(m_cursor_x, m_cursor_y); out && m_window->output() != out) {
+                out->animation().cancel();
                 m_window->set_output(out);
+                comp.set_focused_output(out);
                 comp.refocus();
             }
         }
@@ -56,11 +58,13 @@ namespace frost::input {
     void TiledMoveGrab::end(bool commit) {
         if (commit && m_window->is_mapped()) {
             Compositor& comp = m_window->compositor();
-            if (Output* out = comp.focused_output(); out && m_window->output() != out) {
+            if (Output* out = comp.output_at(m_cursor_x, m_cursor_y); out && m_window->output() != out) {
+                out->animation().cancel();
                 const wlr_box cur = m_window->geometry_box();
                 m_window->set_position(cur.x, cur.y);
                 m_window->set_output(out);
                 out->active_workspace().swap_tiled_at(m_window, m_cursor_x, m_cursor_y);
+                comp.set_focused_output(out);
                 comp.refocus();
                 return;
             }

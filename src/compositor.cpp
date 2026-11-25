@@ -497,10 +497,8 @@ namespace frost {
             return false;
         }
 
-        wlr_output* wlr_out =
-            wlr_output_layout_output_at(m_output_layout, m_input->cursor().x(), m_input->cursor().y());
-        Output* out = output_from_wlr(wlr_out);
-        if (!out || !out->is_enabled()) {
+        Output* out = output_at(m_input->cursor().x(), m_input->cursor().y());
+        if (!out) {
             out = focused_output();
         }
         if (!out) {
@@ -682,6 +680,11 @@ namespace frost {
         }
         auto it = std::ranges::find_if(m_outputs, [wlr_out](const auto& o) { return o->matches(wlr_out); });
         return it != m_outputs.end() ? it->get() : nullptr;
+    }
+
+    Output* Compositor::output_at(double lx, double ly) const noexcept {
+        Output* out = output_from_wlr(wlr_output_layout_output_at(m_output_layout, lx, ly));
+        return (out && out->is_enabled()) ? out : nullptr;
     }
 
     Output* Compositor::focused_output() const noexcept {

@@ -51,6 +51,7 @@ namespace frost {
         [[nodiscard]] const Scene& scene() const noexcept { return *m_scene; }
         [[nodiscard]] wlr_output_layout* output_layout() const noexcept { return m_output_layout; }
         [[nodiscard]] Output* output_from_wlr(wlr_output* wlr_out) const noexcept;
+        [[nodiscard]] Output* output_at(double lx, double ly) const noexcept;
         [[nodiscard]] Output* focused_output() const noexcept;
         void set_focused_output(Output* output) noexcept { m_focused_output = output; }
         [[nodiscard]] std::span<const std::unique_ptr<Output>> outputs() const noexcept { return m_outputs; }

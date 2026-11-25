@@ -420,7 +420,6 @@ namespace frost::input {
         if (m_grab) {
             m_input.seat().notify_activity();
             if (event->state == WL_POINTER_BUTTON_STATE_RELEASED && event->button == m_grab->button()) {
-                m_input.compositor().set_focused_output(nullptr);
                 end_grab();
                 return;
             }
@@ -504,10 +503,13 @@ namespace frost::input {
                 }
             } else if (surface != nullptr) {
                 if (auto* layer = Layer::try_from(root_popup_parent(surface)); layer && layer->is_focusable()) {
+                    m_input.compositor().set_focused_output(layer->output());
                     m_input.compositor().focus_surface(surface);
                 } else if (auto* xsurf = wlr_xwayland_surface_try_from_wlr_surface(surface);
                            xsurf && xsurf->override_redirect &&
                            wlr_xwayland_surface_override_redirect_wants_focus(xsurf)) {
+                    m_input.compositor().set_focused_output(
+                        m_input.compositor().output_at(m_wlr_cursor->x, m_wlr_cursor->y));
                     wlr_xwayland_surface_activate(xsurf, true);
                     m_input.compositor().focus_surface(surface);
                 } else {
