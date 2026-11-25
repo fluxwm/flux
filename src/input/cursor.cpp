@@ -484,7 +484,7 @@ namespace frost::input {
             if (excl) {
                 if (const auto* layer = matching_exclusive_layer(surface, excl)) {
                     m_input.compositor().set_focused_output(layer->output());
-                    m_input.compositor().focus_surface(surface);
+                    m_input.compositor().focus_surface(layer->surface());
                 }
             } else if (window != nullptr) {
                 m_input.compositor().focus_window(window);
@@ -504,7 +504,7 @@ namespace frost::input {
             } else if (surface != nullptr) {
                 if (auto* layer = Layer::try_from(root_popup_parent(surface)); layer && layer->is_focusable()) {
                     m_input.compositor().set_focused_output(layer->output());
-                    m_input.compositor().focus_surface(surface);
+                    m_input.compositor().focus_surface(layer->surface());
                 } else if (auto* xsurf = wlr_xwayland_surface_try_from_wlr_surface(surface);
                            xsurf && xsurf->override_redirect &&
                            wlr_xwayland_surface_override_redirect_wants_focus(xsurf)) {
