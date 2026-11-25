@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.10.1](https://github.com/frostwm/frost/compare/v0.10.0...v0.10.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* align XWayland fixed-size floating check with XDG ([05f9b33](https://github.com/frostwm/frost/commit/05f9b3393379263c2bfc9ef78921923b9445dc6c))
+* always reset open animation transform when geometry is empty ([a3b3c78](https://github.com/frostwm/frost/commit/a3b3c787c59648c5b90285404393043647c9c089))
+* apply tiled edges when maximizing floating XDG windows ([eeddba4](https://github.com/frostwm/frost/commit/eeddba44c44162156e70e1f77b6ce138a56379d7))
+* block tearing only for popups visible on the output ([7bfae90](https://github.com/frostwm/frost/commit/7bfae90df9e7c0070f88a8e36727bd13c03f9c35))
+* build spawn environment in parent before fork ([4ebb4bd](https://github.com/frostwm/frost/commit/4ebb4bd14bb7e45348e0d0d75ef753398d428e09))
+* cancel active drags on session lock and exclusive layer focus ([9a50ac1](https://github.com/frostwm/frost/commit/9a50ac1d342649970db99c36e66c62c44b5abba4))
+* check animation state on output under cursor during focus update ([3c81d99](https://github.com/frostwm/frost/commit/3c81d99e3531e599e514a1ace41324e3d5baecdd))
+* clip sliding workspaces across outputs and allow dynamic swipe bounds ([c41d5be](https://github.com/frostwm/frost/commit/c41d5be212ad84c97c9b4e54811f88a763b0cc08))
+* drop focus on hidden XWayland override-redirect popups during refocus ([65cf8d5](https://github.com/frostwm/frost/commit/65cf8d569ea0ffc7e2a077918bf6caff7e8c0cef))
+* focus root layer surface on layer popup and subsurface clicks ([8796f9e](https://github.com/frostwm/frost/commit/8796f9ee07dcfeed3c5f95d889096602701ad3af))
+* guard focus and mapping on disabled outputs and locked restacks ([49786d4](https://github.com/frostwm/frost/commit/49786d4e315a291c9bc95533967ed5bcc8621580))
+* guard null scene tree when reparenting layer surfaces ([bb25330](https://github.com/frostwm/frost/commit/bb253302d85ffdfb845ea3df4e4c55fb23f8ea4a))
+* hide XWayland override-redirect popups on inactive workspaces ([862a8f1](https://github.com/frostwm/frost/commit/862a8f186493357e74720452bd45f5c1eee7149c))
+* honor idle inhibitors only for visible surfaces ([79426de](https://github.com/frostwm/frost/commit/79426defeee71d9a4f68d37ccd8a51735913f546))
+* ignore XWayland configure moves during grabs and track client placement ([031979d](https://github.com/frostwm/frost/commit/031979dd8260cf9f04ca49a9f177c72ac617fc71))
+* keep pointer focus on grabbed surface while buttons are held ([2c24171](https://github.com/frostwm/frost/commit/2c24171f5225e531fbedc9690d9555fa09626c9d))
+* preserve empty-workspace output focus until cursor crosses outputs ([57867cc](https://github.com/frostwm/frost/commit/57867cc5cf28c34e9b3d2da424cb5eaac6cfb537))
+* preserve focused output across pointer grabs and surface clicks ([a03294b](https://github.com/frostwm/frost/commit/a03294ba7dd3b90e03d924913de5aee7f3ed1e82))
+* preserve focused output until workspace swipe commits ([9551ec7](https://github.com/frostwm/frost/commit/9551ec79d950cea1d58f249088fbdcefe8229ed2))
+* preserve slide clipping for fullscreen windows during restack ([4a04b14](https://github.com/frostwm/frost/commit/4a04b140b2f2bdc7e16f7c8564f061587b38dee2))
+* remove signal event sources on compositor shutdown ([a7ee43f](https://github.com/frostwm/frost/commit/a7ee43f1d0114e502a0c544da0af620421c8d7a9))
+* reset floating and tiled state on window unmap and remap ([fe53f5f](https://github.com/frostwm/frost/commit/fe53f5f418ccb92569eec9526eb086362d976ebf))
+* resolve root popup parent when selecting fallback scene layer ([e4b3bd2](https://github.com/frostwm/frost/commit/e4b3bd2e12076d34556ea75543fd2ed6e69e5fe9))
+* scale subsurface positions during window open animation ([88d5ab7](https://github.com/frostwm/frost/commit/88d5ab774cdf52b4be2721f494f72883235e3d5e))
+* scope ext-workspace-v1 IDs by output name ([fa6decf](https://github.com/frostwm/frost/commit/fa6decf1da1fafcb101f6bd79ab30c2b85e111f8))
+* scope XDG fullscreen output selection to client requests ([4db92e8](https://github.com/frostwm/frost/commit/4db92e85fceef668e25eeb6cd4bd566e118b1210))
+* support subsurface pointer constraints and prevent confinement escapes ([4952636](https://github.com/frostwm/frost/commit/4952636f41b8658a6977992268b6008072705334))
+* sync XWayland scene coordinates on map ([22d7668](https://github.com/frostwm/frost/commit/22d7668fb030edb9d7764cf58000fa2a0052493d))
+* unify output enable/disable state handling across backend and power events ([5925f47](https://github.com/frostwm/frost/commit/5925f479a8793b2cd0cf91dfc9000108706639eb))
+* update visible window borders during pending move ([eea049c](https://github.com/frostwm/frost/commit/eea049c9e07daf0cf7bcea397ffc515125421a3e))
+* validate spawn arguments, clamp repeat-delay, and log config fallback ([03ad0c1](https://github.com/frostwm/frost/commit/03ad0c19947271bb207489c1cba0503bf6844efb))
+
+
+### Documentation
+
+* add project tagline and status badges to README ([315e289](https://github.com/frostwm/frost/commit/315e28910b18a74d94a1c8c857e79e09676965fc))
+
+
+### Build System
+
+* add CMakePresets for debug, release, and asan builds ([4bc05b1](https://github.com/frostwm/frost/commit/4bc05b197aa69647673386fa6a0f1481eb28b97c))
+
+
+### Continuous Integration
+
+* add headless ASan and UBSan smoke test job ([c0ca38b](https://github.com/frostwm/frost/commit/c0ca38b41efeb07c3f67db6e2cb94abda7bcdcf8))
+* use CMakePresets for tidy and build jobs ([0961b35](https://github.com/frostwm/frost/commit/0961b35c0a3a95cba2ab761f2e9ae4ff71eb5f6f))
+
 ## [0.10.0](https://github.com/frostwm/frost/compare/v0.9.1...v0.10.0) (2026-11-24)
 
 
