@@ -42,7 +42,7 @@ namespace frost::window {
         void on_request_fullscreen();
         void on_set_title();
         void on_set_app_id();
-        void on_set_hints();
+        void update_floating();
         void on_set_override_redirect();
 
         wlr_xwayland_surface* m_surface = nullptr;

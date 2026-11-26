@@ -22,7 +22,8 @@ namespace frost::window {
         m_listeners.listen(&surface->events.set_title, this, &XWayland::on_set_title);
         m_listeners.listen(&surface->events.set_class, this, &XWayland::on_set_app_id);
         m_listeners.listen(&surface->events.set_parent, this, &XWayland::on_set_parent);
-        m_listeners.listen(&surface->events.set_hints, this, &XWayland::on_set_hints);
+        m_listeners.listen(&surface->events.set_size_hints, this, &XWayland::update_floating);
+        m_listeners.listen(&surface->events.set_window_type, this, &XWayland::update_floating);
         m_listeners.listen(&surface->events.set_override_redirect, this, &XWayland::on_set_override_redirect);
 
         if (surface->x != 0 || surface->y != 0) {
@@ -241,7 +242,7 @@ namespace frost::window {
         update_app_id(m_surface->_class);
     }
 
-    void XWayland::on_set_hints() {
+    void XWayland::update_floating() {
         if (!m_floating && !m_floating_override && wants_floating()) {
             set_floating(true);
         }
