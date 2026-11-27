@@ -653,6 +653,26 @@ namespace frost {
             set_floating(true);
         } else if (output_changed && is_mapped()) {
             m_compositor.refocus();
+        } else if (is_mapped()) {
+            on_modal_changed();
+        }
+    }
+
+    void Window::on_modal_changed() {
+        if (!is_mapped() || !m_workspace) {
+            return;
+        }
+        if (Window* focused = m_compositor.focused_window(); focused && focused->workspace() == m_workspace) {
+            if (Window* target = m_workspace->resolve_modal(focused); target && target != focused) {
+                m_workspace->promote(target);
+                m_compositor.refocus();
+                return;
+            }
+        }
+        m_workspace->restack();
+        if (m_workspace == &m_workspace->output().active_workspace()) {
+            m_compositor.input().seat().update_idle_inhibit();
+            m_compositor.update_cursor_focus();
         }
     }
 

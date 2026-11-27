@@ -217,6 +217,14 @@ namespace frost {
             }
         });
 
+        auto* xdg_dialog_mgr = wlr_xdg_wm_dialog_v1_create(m_display, 1);
+        m_listeners.listen(&xdg_dialog_mgr->events.new_dialog, [](void* data) {
+            auto* dialog = static_cast<wlr_xdg_dialog_v1*>(data);
+            if (auto* window = Window::try_from(dialog->xdg_toplevel)) {
+                window->set_dialog(dialog);
+            }
+        });
+
         m_input = std::make_unique<Input>(*this);
         m_config->set_on_reload([this] {
             if (!m_config->animations().enabled) {
@@ -597,6 +605,7 @@ namespace frost {
             if (!ws || !ws->output().is_enabled()) {
                 return;
             }
+            window = ws->resolve_modal(window);
             m_focused_output = &ws->output();
             ws->promote(window);
 

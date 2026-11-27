@@ -14,10 +14,12 @@ namespace frost::window {
         Xdg& operator=(const Xdg&) = delete;
 
         [[nodiscard]] wlr_surface* surface() const noexcept override;
+        [[nodiscard]] bool is_modal() const noexcept override;
         [[nodiscard]] bool is_pending_center() const noexcept override { return m_pending_center_serial != 0; }
         [[nodiscard]] bool is_pending_move() const noexcept override { return m_pending_move_serial != 0; }
         void set_tiled_resizing(bool resizing) noexcept override;
         void set_decoration(wlr_xdg_toplevel_decoration_v1* decoration) override;
+        void set_dialog(wlr_xdg_dialog_v1* dialog) override;
         void apply_resize(int w, int h) noexcept override;
         void close() noexcept override;
 
@@ -53,15 +55,18 @@ namespace frost::window {
         void on_set_app_id();
         void on_request_decoration_mode();
         void on_destroy_decoration();
+        void on_destroy_dialog();
 
         wlr_xdg_toplevel* m_toplevel = nullptr;
         wlr_xdg_toplevel_decoration_v1* m_decoration = nullptr;
+        wlr_xdg_dialog_v1* m_dialog = nullptr;
         uint32_t m_resize_serial = 0;
         uint32_t m_pending_center_serial = 0;
         uint32_t m_pending_move_serial = 0;
 
         ListenerGroup m_listeners;
         ListenerGroup m_decoration_listeners;
+        ListenerGroup m_dialog_listeners;
     };
 
 }

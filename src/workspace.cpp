@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <format>
 #include <string>
 
@@ -207,8 +208,30 @@ namespace frost {
         if (m_focus_stack.size() < 2) {
             return nullptr;
         }
-        std::ranges::rotate(m_focus_stack, m_focus_stack.begin() + 1);
-        return m_focus_stack.front();
+        Window* initial = m_focus_stack.front();
+        for (size_t i = 0; i < m_focus_stack.size(); ++i) {
+            std::ranges::rotate(m_focus_stack, m_focus_stack.begin() + 1);
+            if (resolve_modal(m_focus_stack.front()) == m_focus_stack.front()) {
+                return m_focus_stack.front() != initial ? m_focus_stack.front() : nullptr;
+            }
+        }
+        return nullptr;
+    }
+
+    Window* Workspace::resolve_modal(Window* window) const noexcept {
+        if (!window) {
+            return nullptr;
+        }
+        Window* cur = window;
+        for (size_t depth = 0; depth < m_focus_stack.size(); ++depth) {
+            auto it = std::ranges::find_if(
+                m_focus_stack, [cur](const Window* w) { return w != cur && w->is_modal() && w->parent() == cur; });
+            if (it == m_focus_stack.end()) {
+                break;
+            }
+            cur = *it;
+        }
+        return cur;
     }
 
     void Workspace::arrange() {
@@ -254,7 +277,7 @@ namespace frost {
 
     void Workspace::restack() {
         const bool is_busy_output = m_output.animation().is_busy();
-        Window* focused = focused_window();
+        Window* focused = resolve_modal(focused_window());
         Window* top_fullscreen = (focused && focused->is_fullscreen()) ? focused : nullptr;
 
         if (m_active_fullscreen && !m_active_fullscreen->is_fullscreen()) {
@@ -323,8 +346,40 @@ namespace frost {
             }
         }
 
-        for (Window* w : m_focus_stack) {
-            if (w->is_floating()) {
+        const bool has_floating_modal =
+            std::ranges::any_of(m_focus_stack, [](const Window* w) { return w->is_floating() && w->is_modal(); });
+        if (!has_floating_modal) {
+            for (Window* w : m_focus_stack) {
+                if (w->is_floating()) {
+                    place(w);
+                }
+            }
+        } else {
+            std::vector<Window*> floating;
+            floating.reserve(m_focus_stack.size());
+            for (Window* w : m_focus_stack) {
+                if (w->is_floating()) {
+                    floating.push_back(w);
+                }
+            }
+            bool changed = true;
+            for (size_t pass = 0; changed && pass < floating.size(); ++pass) {
+                changed = false;
+                for (size_t i = 0; i < floating.size(); ++i) {
+                    const Window* w = floating[i];
+                    if (!w->is_modal()) {
+                        continue;
+                    }
+                    const Window* parent = w->parent();
+                    const auto cur_it = floating.begin() + static_cast<std::ptrdiff_t>(i);
+                    const auto parent_it = std::ranges::find(floating.begin(), cur_it, parent);
+                    if (parent_it != cur_it) {
+                        std::rotate(parent_it, cur_it, cur_it + 1);
+                        changed = true;
+                    }
+                }
+            }
+            for (Window* w : floating) {
                 place(w);
             }
         }

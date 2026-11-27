@@ -31,6 +31,7 @@ namespace frost::window {
     }
 
     Xdg::~Xdg() {
+        m_dialog_listeners.clear();
         m_decoration_listeners.clear();
         m_listeners.clear();
         if (m_toplevel && m_toplevel->base) {
@@ -59,6 +60,24 @@ namespace frost::window {
         m_decoration_listeners.listen(&decoration->events.request_mode, this, &Xdg::on_request_decoration_mode);
         m_decoration_listeners.listen(&decoration->events.destroy, this, &Xdg::on_destroy_decoration);
         on_request_decoration_mode();
+    }
+
+    bool Xdg::is_modal() const noexcept {
+        return m_dialog && m_dialog->modal && query_parent() != nullptr;
+    }
+
+    void Xdg::set_dialog(wlr_xdg_dialog_v1* dialog) {
+        m_dialog = dialog;
+        m_dialog_listeners.clear();
+        m_dialog_listeners.listen(&dialog->events.set_modal, [this](void*) {
+            if (query_parent()) {
+                on_modal_changed();
+            }
+        });
+        m_dialog_listeners.listen(&dialog->events.destroy, this, &Xdg::on_destroy_dialog);
+        if (is_modal()) {
+            on_modal_changed();
+        }
     }
 
     void Xdg::close() noexcept {
@@ -260,6 +279,15 @@ namespace frost::window {
     void Xdg::on_destroy_decoration() {
         m_decoration_listeners.clear();
         m_decoration = nullptr;
+    }
+
+    void Xdg::on_destroy_dialog() {
+        const bool was_modal = is_modal();
+        m_dialog_listeners.clear();
+        m_dialog = nullptr;
+        if (was_modal) {
+            on_modal_changed();
+        }
     }
 
 }

@@ -495,7 +495,8 @@ namespace frost::input {
                                               window->workspace()->tiled_count() > 1 &&
                                               m_input.compositor().config().layout().mode != Layout::Monocle;
                 const bool can_tiled_move = event->button == btn_left && window->is_tiled() && window->workspace();
-                if (mods == WLR_MODIFIER_LOGO && (event->button == btn_left || event->button == btn_right) &&
+                if (mods == WLR_MODIFIER_LOGO && window == m_input.compositor().focused_window() &&
+                    (event->button == btn_left || event->button == btn_right) &&
                     (window->is_floating() || can_tiled_resize || can_tiled_move)) {
                     m_input.seat().notify_activity();
                     start_grab(window, event->button);

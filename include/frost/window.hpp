@@ -64,6 +64,7 @@ namespace frost {
         [[nodiscard]] bool is_fullscreen() const noexcept { return m_fullscreen; }
         [[nodiscard]] bool is_floating() const noexcept { return !m_fullscreen && !m_maximized && m_floating; }
         [[nodiscard]] bool is_tiled() const noexcept { return !m_fullscreen && !m_maximized && !m_floating; }
+        [[nodiscard]] virtual bool is_modal() const noexcept { return false; }
         [[nodiscard]] bool is_placed() const noexcept { return m_placed; }
         [[nodiscard]] virtual bool is_pending_center() const noexcept { return false; }
         [[nodiscard]] virtual bool is_pending_move() const noexcept { return false; }
@@ -81,6 +82,7 @@ namespace frost {
         virtual void set_tiled_resizing(bool /*resizing*/) noexcept {}
         [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
         [[nodiscard]] uint32_t workspace_id() const noexcept { return m_workspace_id; }
+        [[nodiscard]] Window* parent() const noexcept { return query_parent(); }
         [[nodiscard]] Output* output() const noexcept;
         void set_output(Output* output) noexcept;
         void set_placed(bool placed) noexcept {
@@ -118,6 +120,7 @@ namespace frost {
         virtual void apply_resize(int w, int h) noexcept = 0;
         void finish_resize() noexcept;
         virtual void set_decoration(wlr_xdg_toplevel_decoration_v1* /*decoration*/) {}
+        virtual void set_dialog(wlr_xdg_dialog_v1* /*dialog*/) {}
         virtual void close() noexcept = 0;
 
     protected:
@@ -134,6 +137,7 @@ namespace frost {
         void check_center() noexcept;
         void on_destroy();
         void on_set_parent();
+        void on_modal_changed();
         void update_title(const char* title);
         void update_app_id(const char* app_id);
 
