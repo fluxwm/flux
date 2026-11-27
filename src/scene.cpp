@@ -93,15 +93,17 @@ namespace frost {
         return m_scene_top;
     }
 
-    wlr_scene_output* Scene::attach_output(wlr_output* output, wlr_output_layout_output* layout_output) {
+    wlr_scene_output* Scene::create_output(wlr_output* output) {
         if (!m_scene || !output) {
             return nullptr;
         }
-        wlr_scene_output* scene_output = wlr_scene_output_create(m_scene, output);
-        if (scene_output && layout_output && m_scene_layout) {
+        return wlr_scene_output_create(m_scene, output);
+    }
+
+    void Scene::add_to_output_layout(wlr_output_layout_output* layout_output, wlr_scene_output* scene_output) noexcept {
+        if (m_scene_layout && layout_output && scene_output) {
             wlr_scene_output_layout_add_output(m_scene_layout, layout_output, scene_output);
         }
-        return scene_output;
     }
 
     void Scene::set_session_lock_active(bool active) {

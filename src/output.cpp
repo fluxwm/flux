@@ -2,6 +2,7 @@
 #include "frost/compositor.hpp"
 #include "frost/config.hpp"
 #include "frost/layer.hpp"
+#include "frost/log.hpp"
 #include "frost/scene.hpp"
 #include "frost/util.hpp"
 #include "frost/window.hpp"
@@ -9,33 +10,49 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <ctime>
+#include <limits>
 #include <utility>
 
 namespace frost {
+
+    namespace {
+
+        [[nodiscard]] wlr_output_mode* find_matching_mode(wlr_output* output, const OutputMode& req) noexcept {
+            wlr_output_mode* best = nullptr;
+            int32_t best_diff = std::numeric_limits<int32_t>::max();
+            wlr_output_mode* mode = nullptr;
+            wl_list_for_each(mode, &output->modes, link) {
+                if (mode->width != req.width || mode->height != req.height) {
+                    continue;
+                }
+                if (req.refresh_mhz) {
+                    const int32_t diff = std::abs(mode->refresh - *req.refresh_mhz);
+                    if (diff <= 1000 && diff < best_diff) {
+                        best_diff = diff;
+                        best = mode;
+                    }
+                } else if (!best || mode->refresh > best->refresh) {
+                    best = mode;
+                }
+            }
+            return best;
+        }
+
+    }
 
     Output::Output(Compositor& compositor, wlr_output* wlr_output)
         : m_compositor(compositor), m_wlr_output(wlr_output) {
         wlr_output_init_render(m_wlr_output, m_compositor.allocator(), m_compositor.renderer());
 
-        wlr_output_state state;
-        wlr_output_state_init(&state);
-        wlr_output_state_set_enabled(&state, true);
-
-        wlr_output_mode* mode = wlr_output_preferred_mode(m_wlr_output);
-        if (mode != nullptr) {
-            wlr_output_state_set_mode(&state, mode);
-        }
-
-        wlr_output_commit_state(m_wlr_output, &state);
-        wlr_output_state_finish(&state);
+        apply_config(m_compositor.config().output_config(m_wlr_output), true);
 
         m_listeners.listen(&m_wlr_output->events.frame, this, &Output::on_frame);
         m_listeners.listen(&m_wlr_output->events.request_state, this, &Output::on_request_state);
         m_listeners.listen(&m_wlr_output->events.destroy, this, &Output::on_destroy);
 
-        wlr_output_layout_output* l_output = wlr_output_layout_add_auto(m_compositor.output_layout(), m_wlr_output);
-        m_scene_output = m_compositor.scene().attach_output(m_wlr_output, l_output);
+        m_scene_output = m_compositor.scene().create_output(m_wlr_output);
 
         if (wlr_output_is_wl(m_wlr_output)) {
             wlr_wl_output_set_title(m_wlr_output, "Frost");
@@ -64,11 +81,7 @@ namespace frost {
             wlr_output_layout_remove(m_compositor.output_layout(), m_wlr_output);
         }
         m_animation.cancel();
-        for (auto& layer : std::exchange(m_layers, {})) {
-            wlr_layer_surface_v1* raw = layer->raw();
-            layer.reset();
-            wlr_layer_surface_v1_destroy(raw);
-        }
+        destroy_layers();
         m_workspaces.clear();
         if (m_workspace_group) {
             wlr_ext_workspace_group_handle_v1_destroy(m_workspace_group);
@@ -145,10 +158,126 @@ namespace frost {
         wlr_scene_output_send_frame_done(m_scene_output, &frame_time);
     }
 
+    bool Output::apply_config(const OutputConfig* cfg, bool initial) {
+        const bool prev_config_disabled = m_config_disabled;
+        const bool prev_dpms_off = m_dpms_off;
+        m_config_disabled = (cfg && !cfg->enabled);
+        if (m_config_disabled) {
+            m_dpms_off = false;
+        }
+        const bool want_enabled = !m_config_disabled && !m_dpms_off;
+        const float target_scale = cfg ? cfg->scale : 1.0f;
+        const wl_output_transform target_transform = cfg ? cfg->transform : WL_OUTPUT_TRANSFORM_NORMAL;
+
+        wlr_output_mode* target_mode = nullptr;
+        bool use_custom_mode = false;
+        int32_t custom_w = 0;
+        int32_t custom_h = 0;
+        int32_t custom_refresh = 0;
+
+        if (want_enabled) {
+            if (cfg && cfg->mode) {
+                if (!wl_list_empty(&m_wlr_output->modes)) {
+                    target_mode = find_matching_mode(m_wlr_output, *cfg->mode);
+                    if (!target_mode) {
+                        if (cfg->mode->refresh_mhz) {
+                            log_error(
+                                "mode {}x{}@{:.3f}Hz not available on output '{}', falling back to preferred mode",
+                                cfg->mode->width, cfg->mode->height,
+                                static_cast<double>(*cfg->mode->refresh_mhz) / 1000.0, m_wlr_output->name);
+                        } else {
+                            log_error("mode {}x{} not available on output '{}', falling back to preferred mode",
+                                      cfg->mode->width, cfg->mode->height, m_wlr_output->name);
+                        }
+                        target_mode = wlr_output_preferred_mode(m_wlr_output);
+                    }
+                } else {
+                    use_custom_mode = true;
+                    custom_w = cfg->mode->width;
+                    custom_h = cfg->mode->height;
+                    custom_refresh = cfg->mode->refresh_mhz.value_or(0);
+                }
+            } else {
+                target_mode = wlr_output_preferred_mode(m_wlr_output);
+            }
+        }
+
+        if (!initial) {
+            const bool enable_changed = (m_wlr_output->enabled != want_enabled);
+            if (!want_enabled) {
+                if (!enable_changed) {
+                    if (m_config_disabled) {
+                        m_layout_box = {};
+                    }
+                    return true;
+                }
+            } else {
+                const bool scale_changed = std::abs(m_wlr_output->scale - target_scale) > 1e-4f;
+                const bool transform_changed = m_wlr_output->transform != target_transform;
+                const bool refresh_changed = custom_refresh > 0 && m_wlr_output->refresh != custom_refresh;
+                const bool mode_changed =
+                    use_custom_mode
+                        ? (m_wlr_output->width != custom_w || m_wlr_output->height != custom_h || refresh_changed)
+                        : (target_mode != nullptr && m_wlr_output->current_mode != target_mode);
+                if (!enable_changed && !scale_changed && !transform_changed && !mode_changed) {
+                    return true;
+                }
+            }
+        }
+
+        wlr_output_state state;
+        wlr_output_state_init(&state);
+        wlr_output_state_set_enabled(&state, want_enabled);
+        if (want_enabled) {
+            if (use_custom_mode) {
+                wlr_output_state_set_custom_mode(&state, custom_w, custom_h, custom_refresh);
+            } else if (target_mode) {
+                wlr_output_state_set_mode(&state, target_mode);
+            }
+            wlr_output_state_set_scale(&state, target_scale);
+            wlr_output_state_set_transform(&state, target_transform);
+        }
+
+        const bool committed = wlr_output_commit_state(m_wlr_output, &state);
+        wlr_output_state_finish(&state);
+
+        if (!committed) {
+            log_error("failed to commit configuration for output '{}'", m_wlr_output->name);
+            if (initial && want_enabled) {
+                wlr_output_state fallback;
+                wlr_output_state_init(&fallback);
+                wlr_output_state_set_enabled(&fallback, true);
+                if (wlr_output_mode* pref = wlr_output_preferred_mode(m_wlr_output)) {
+                    wlr_output_state_set_mode(&fallback, pref);
+                }
+                wlr_output_state_set_scale(&fallback, 1.0f);
+                wlr_output_state_set_transform(&fallback, WL_OUTPUT_TRANSFORM_NORMAL);
+                const bool fallback_committed = wlr_output_commit_state(m_wlr_output, &fallback);
+                wlr_output_state_finish(&fallback);
+                return fallback_committed;
+            }
+            if (!initial) {
+                m_config_disabled = prev_config_disabled;
+                m_dpms_off = prev_dpms_off;
+            }
+            return false;
+        }
+        if (m_config_disabled) {
+            m_layout_box = {};
+        }
+        return true;
+    }
+
     void Output::on_request_state(const wlr_output_event_request_state* event) {
+        if (m_config_disabled) {
+            return;
+        }
         const bool was_enabled = is_enabled();
         if (wlr_output_commit_state(m_wlr_output, event->state)) {
             if (was_enabled != is_enabled()) {
+                if (is_enabled()) {
+                    m_dpms_off = false;
+                }
                 m_compositor.on_output_enabled_changed(this);
                 return;
             }
@@ -202,8 +331,43 @@ namespace frost {
         }
     }
 
+    void Output::destroy_layers() {
+        for (auto& layer : std::exchange(m_layers, {})) {
+            wlr_layer_surface_v1* raw = layer->raw();
+            layer.reset();
+            wlr_layer_surface_v1_destroy(raw);
+        }
+    }
+
     void Output::arrange_layers() {
         const wlr_box output_box = layout_box();
+        if (m_layout_box.width > 0 && m_layout_box.height > 0 &&
+            (m_layout_box.x != output_box.x || m_layout_box.y != output_box.y ||
+             m_layout_box.width != output_box.width || m_layout_box.height != output_box.height)) {
+            const int dx = output_box.x - m_layout_box.x;
+            const int dy = output_box.y - m_layout_box.y;
+            for (const auto& ws : m_workspaces) {
+                for (Window* w : ws->windows()) {
+                    if (!w->is_floating() || !w->is_placed()) {
+                        continue;
+                    }
+                    wlr_box wbox = w->geometry_box();
+                    if (dx != 0 || dy != 0) {
+                        wbox.x += dx;
+                        wbox.y += dy;
+                        w->set_position(wbox.x, wbox.y);
+                        w->snap_animation();
+                    }
+                    wlr_box intersection{};
+                    if (output_box.width > 0 && output_box.height > 0 &&
+                        !wlr_box_intersection(&intersection, &wbox, &output_box)) {
+                        w->set_placed(false);
+                    }
+                }
+            }
+        }
+        m_layout_box = output_box;
+
         wlr_box full_area = output_box;
         wlr_box usable_area = output_box;
 

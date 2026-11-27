@@ -116,7 +116,10 @@ namespace frost {
 
     private:
         void restack_windows();
-        void attach_orphaned_windows(Output* output);
+        void arrange_output_layout();
+        void evacuate_output(Output* output);
+        void apply_output_configs();
+        void attach_orphaned_windows(Output* output, bool restore_workspace = false);
 
         void on_new_output(wlr_output* output);
         void on_new_window(wlr_xdg_toplevel* toplevel);

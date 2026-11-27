@@ -232,12 +232,7 @@ namespace frost {
                 restack_windows();
             }
             m_input->apply_config();
-            for (const auto& out : m_outputs) {
-                for (const auto& ws : out->workspaces()) {
-                    ws->arrange();
-                }
-            }
-            m_input->cursor().update_focus();
+            apply_output_configs();
         });
 
         const char* socket = wl_display_add_socket_auto(m_display);
@@ -911,16 +906,60 @@ namespace frost {
         }
     }
 
-    void Compositor::remove_output(Output* output) {
+    void Compositor::arrange_output_layout() {
+        for (const auto& out : m_outputs) {
+            if (out->is_config_disabled()) {
+                wlr_output_layout_remove(m_output_layout, out->raw());
+            }
+        }
+
+        auto add_to_layout = [&](Output* out, const std::optional<OutputPosition>& pos) {
+            const bool was_in_layout = wlr_output_layout_get(m_output_layout, out->raw()) != nullptr;
+            wlr_output_layout_output* l_out = pos ? wlr_output_layout_add(m_output_layout, out->raw(), pos->x, pos->y)
+                                                  : wlr_output_layout_add_auto(m_output_layout, out->raw());
+            if (!was_in_layout && l_out) {
+                m_scene->add_to_output_layout(l_out, out->scene_output());
+            }
+        };
+
+        for (const auto& out : m_outputs) {
+            if (out->is_config_disabled()) {
+                continue;
+            }
+            if (const auto* cfg = m_config->output_config(out->raw()); cfg && cfg->position) {
+                add_to_layout(out.get(), cfg->position);
+            }
+        }
+
+        for (const auto& out : m_outputs) {
+            if (out->is_config_disabled()) {
+                continue;
+            }
+            const auto* cfg = m_config->output_config(out->raw());
+            if (!cfg || !cfg->position) {
+                add_to_layout(out.get(), std::nullopt);
+            }
+        }
+    }
+
+    void Compositor::evacuate_output(Output* output) {
         if (!output) {
             return;
         }
 
-        const bool is_nested = output->is_nested();
+        if (m_input) {
+            if (Window* grabbed = m_input->cursor().grabbed_window(); grabbed && grabbed->output() == output) {
+                m_input->cursor().cancel_grab();
+            }
+        }
+        output->destroy_layers();
+
+        output->active_workspace().snap_animations();
         if (m_swipe_output == output) {
             cancel_workspace_swipe();
+        } else {
+            output->animation().cancel();
         }
-        output->animation().cancel();
         if (m_focused_output == output) {
             m_focused_output = nullptr;
         }
@@ -928,7 +967,8 @@ namespace frost {
         auto it =
             std::ranges::find_if(m_outputs, [output](const auto& o) { return o.get() != output && o->is_enabled(); });
         if (it == m_outputs.end()) {
-            it = std::ranges::find_if(m_outputs, [output](const auto& o) { return o.get() != output; });
+            it = std::ranges::find_if(
+                m_outputs, [output](const auto& o) { return o.get() != output && !o->is_config_disabled(); });
         }
         Output* target = (it != m_outputs.end()) ? it->get() : nullptr;
         if (!target) {
@@ -941,10 +981,12 @@ namespace frost {
                 focus_order.insert(focus_order.end(), ws->focus_stack().begin(), ws->focus_stack().end());
             }
         } else {
-            m_orphaned_focus_order.clear();
             for (const auto& ws : output->workspaces()) {
-                m_orphaned_focus_order.insert(m_orphaned_focus_order.end(), ws->focus_stack().begin(),
-                                              ws->focus_stack().end());
+                for (Window* w : ws->focus_stack()) {
+                    if (!std::ranges::contains(m_orphaned_focus_order, w)) {
+                        m_orphaned_focus_order.push_back(w);
+                    }
+                }
             }
         }
 
@@ -964,7 +1006,56 @@ namespace frost {
                 win->workspace()->promote(win);
             }
         }
+    }
 
+    void Compositor::apply_output_configs() {
+        const bool had_enabled = std::ranges::any_of(m_outputs, &Output::is_enabled);
+        std::vector<Output*> newly_disabled;
+        std::vector<Output*> newly_enabled;
+        for (const auto& out : m_outputs) {
+            const bool was_enabled = out->is_enabled();
+            const bool was_config_disabled = out->is_config_disabled();
+            out->apply_config(m_config->output_config(out->raw()), false);
+            if (!was_config_disabled && out->is_config_disabled()) {
+                newly_disabled.push_back(out.get());
+            } else if (!was_enabled && out->is_enabled()) {
+                newly_enabled.push_back(out.get());
+            }
+        }
+
+        arrange_output_layout();
+
+        for (Output* out : newly_disabled) {
+            evacuate_output(out);
+        }
+
+        bool restore_ws = !had_enabled;
+        for (Output* out : newly_enabled) {
+            attach_orphaned_windows(out, restore_ws);
+            restore_ws = false;
+        }
+
+        for (const auto& out : m_outputs) {
+            if (out->is_enabled()) {
+                out->arrange_layers();
+            } else {
+                for (const auto& ws : out->workspaces()) {
+                    ws->arrange();
+                }
+            }
+        }
+
+        sync_session_lock();
+        refocus();
+    }
+
+    void Compositor::remove_output(Output* output) {
+        if (!output) {
+            return;
+        }
+
+        const bool is_nested = output->is_nested();
+        evacuate_output(output);
         erase_unique_ptr(m_outputs, output);
 
         if (is_nested && m_outputs.empty()) {
@@ -972,8 +1063,12 @@ namespace frost {
             return;
         }
 
+        arrange_output_layout();
+
         for (const auto& remaining : m_outputs) {
-            remaining->arrange_layers();
+            if (remaining->is_enabled()) {
+                remaining->arrange_layers();
+            }
         }
 
         sync_session_lock();
@@ -995,22 +1090,32 @@ namespace frost {
 
         m_outputs.push_back(std::make_unique<Output>(*this, output));
         Output* new_out = m_outputs.back().get();
-        if (m_outputs.size() == 1 && m_saved_workspace_id != 1) {
-            new_out->active_workspace().deactivate();
-            new_out->set_active_workspace(&new_out->workspace(m_saved_workspace_id));
-            new_out->active_workspace().activate();
+        arrange_output_layout();
+
+        if (new_out->is_enabled()) {
+            const auto enabled_count =
+                static_cast<size_t>(std::ranges::count_if(m_outputs, [](const auto& o) { return o->is_enabled(); }));
+            attach_orphaned_windows(new_out, enabled_count == 1);
         }
-        attach_orphaned_windows(new_out);
+
         for (const auto& out : m_outputs) {
-            out->arrange_layers();
+            if (out->is_enabled()) {
+                out->arrange_layers();
+            }
         }
         sync_session_lock();
         refocus();
     }
 
-    void Compositor::attach_orphaned_windows(Output* output) {
+    void Compositor::attach_orphaned_windows(Output* output, bool restore_workspace) {
         if (!output) {
             return;
+        }
+        if (restore_workspace && m_saved_workspace_id != 1) {
+            output->active_workspace().deactivate();
+            output->set_active_workspace(&output->workspace(m_saved_workspace_id));
+            output->active_workspace().activate();
+            m_saved_workspace_id = 1;
         }
         for (const auto& win : m_windows) {
             if (!win->workspace()) {
@@ -1083,31 +1188,25 @@ namespace frost {
 
     void Compositor::on_output_power_set_mode(wlr_output_power_v1_set_mode_event* event) {
         Output* output = output_from_wlr(event->output);
-        if (!output) {
+        if (!output || output->is_config_disabled()) {
             return;
         }
 
         const bool enable = (event->mode == ZWLR_OUTPUT_POWER_V1_MODE_ON);
-        if (output->is_enabled() == enable) {
+        const bool was_enabled = output->is_enabled();
+        const bool prev_dpms_off = output->is_dpms_off();
+        if (prev_dpms_off == !enable && was_enabled == enable) {
             return;
         }
 
-        wlr_output_state state;
-        wlr_output_state_init(&state);
-        wlr_output_state_set_enabled(&state, enable);
-        if (enable && !event->output->current_mode) {
-            if (wlr_output_mode* mode = wlr_output_preferred_mode(event->output)) {
-                wlr_output_state_set_mode(&state, mode);
-            }
-        }
-        const bool committed = wlr_output_commit_state(event->output, &state);
-        wlr_output_state_finish(&state);
-
-        if (!committed) {
+        output->set_dpms_off(!enable);
+        if (!output->apply_config(m_config->output_config(output->raw()), false)) {
+            output->set_dpms_off(prev_dpms_off);
             return;
         }
-
-        on_output_enabled_changed(output);
+        if (output->is_enabled() != was_enabled) {
+            on_output_enabled_changed(output);
+        }
     }
 
     void Compositor::on_drm_lease_request(wlr_drm_lease_request_v1* request) {
@@ -1149,7 +1248,7 @@ namespace frost {
 
     void Compositor::on_new_layer(wlr_layer_surface_v1* layer_surface) {
         Output* output = layer_surface->output ? output_from_wlr(layer_surface->output) : focused_output();
-        if (!output) {
+        if (!output || output->is_config_disabled()) {
             log_error("no output available for layer surface");
             wlr_layer_surface_v1_destroy(layer_surface);
             return;

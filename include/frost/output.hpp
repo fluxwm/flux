@@ -13,6 +13,7 @@ namespace frost {
     class Compositor;
     class Workspace;
     class Layer;
+    struct OutputConfig;
     enum class Direction : uint8_t;
 
     class Output {
@@ -30,6 +31,11 @@ namespace frost {
 
         [[nodiscard]] bool matches(const wlr_output* wlr_out) const noexcept { return m_wlr_output == wlr_out; }
         [[nodiscard]] bool is_enabled() const noexcept { return m_wlr_output->enabled; }
+        [[nodiscard]] bool is_config_disabled() const noexcept { return m_config_disabled; }
+        [[nodiscard]] bool is_dpms_off() const noexcept { return m_dpms_off; }
+        void set_dpms_off(bool off) noexcept { m_dpms_off = off; }
+        [[nodiscard]] wlr_scene_output* scene_output() const noexcept { return m_scene_output; }
+        bool apply_config(const OutputConfig* cfg, bool initial = false);
         [[nodiscard]] bool is_nested() const noexcept;
         [[nodiscard]] wlr_box layout_box() const noexcept;
         [[nodiscard]] Output* adjacent_output(Direction direction) const noexcept;
@@ -43,6 +49,7 @@ namespace frost {
 
         void add_layer(wlr_layer_surface_v1* layer_surface);
         void remove_layer(Layer* layer);
+        void destroy_layers();
         void arrange_layers();
         [[nodiscard]] std::span<const std::unique_ptr<Layer>> layers() const noexcept { return m_layers; }
 
@@ -64,6 +71,7 @@ namespace frost {
         Compositor& m_compositor;
         wlr_output* m_wlr_output = nullptr;
         wlr_scene_output* m_scene_output = nullptr;
+        wlr_box m_layout_box{};
         wlr_box m_usable_area{};
         wlr_ext_workspace_group_handle_v1* m_workspace_group = nullptr;
         std::vector<std::unique_ptr<Workspace>> m_workspaces;
@@ -74,6 +82,8 @@ namespace frost {
         wlr_scene_tree* m_scene_lock_surface = nullptr;
         uint32_t m_lock_configured_width = 0;
         uint32_t m_lock_configured_height = 0;
+        bool m_config_disabled = false;
+        bool m_dpms_off = false;
 
         ListenerGroup m_listeners;
         ListenerGroup m_lock_surface_listeners;

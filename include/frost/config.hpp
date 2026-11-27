@@ -37,6 +37,26 @@ namespace frost {
         bool natural_scroll = false;
     };
 
+    struct OutputMode {
+        int32_t width = 0;
+        int32_t height = 0;
+        std::optional<int32_t> refresh_mhz;
+    };
+
+    struct OutputPosition {
+        int32_t x = 0;
+        int32_t y = 0;
+    };
+
+    struct OutputConfig {
+        std::string name;
+        bool enabled = true;
+        std::optional<OutputMode> mode;
+        float scale = 1.0f;
+        wl_output_transform transform = WL_OUTPUT_TRANSFORM_NORMAL;
+        std::optional<OutputPosition> position;
+    };
+
     struct GesturesConfig {
         bool workspace_swipe = false;
     };
@@ -143,6 +163,7 @@ namespace frost {
         [[nodiscard]] const KeyboardConfig& keyboard() const noexcept { return m_keyboard; }
         [[nodiscard]] const MouseConfig& mouse() const noexcept { return m_mouse; }
         [[nodiscard]] const TouchpadConfig& touchpad() const noexcept { return m_touchpad; }
+        [[nodiscard]] const OutputConfig* output_config(const wlr_output* output) const noexcept;
         [[nodiscard]] const GesturesConfig& gestures() const noexcept { return m_gestures; }
         [[nodiscard]] const CursorConfig& cursor() const noexcept { return m_cursor; }
         [[nodiscard]] const LayoutConfig& layout() const noexcept { return m_layout; }
@@ -173,6 +194,7 @@ namespace frost {
         KeyboardConfig m_keyboard;
         MouseConfig m_mouse;
         TouchpadConfig m_touchpad;
+        std::vector<OutputConfig> m_outputs;
         GesturesConfig m_gestures;
         CursorConfig m_cursor;
         LayoutConfig m_layout;

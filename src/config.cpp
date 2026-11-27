@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <optional>
 #include <ranges>
 #include <string>
@@ -389,6 +390,162 @@ namespace frost {
             }
         }
 
+        void parse_output_mode(const kdl::Node& node, std::optional<OutputMode>& out) {
+            if (!node.properties().empty()) {
+                log_error("unexpected property on output mode (custom modes are not supported)");
+                return;
+            }
+            auto str_opt = parse_string(node);
+            if (!str_opt) {
+                return;
+            }
+            std::string_view sv = *str_opt;
+            const size_t x_pos = sv.find_first_of("xX");
+            if (x_pos == std::string_view::npos || x_pos == 0 || x_pos + 1 >= sv.size()) {
+                log_error("invalid output mode '{}' (expected WxH or WxH@Hz)", *str_opt);
+                return;
+            }
+
+            const std::string_view w_str = sv.substr(0, x_pos);
+            const std::string_view rest = sv.substr(x_pos + 1);
+            const size_t at_pos = rest.find('@');
+            const std::string_view h_str = (at_pos == std::string_view::npos) ? rest : rest.substr(0, at_pos);
+
+            int32_t width = 0;
+            int32_t height = 0;
+            const auto [w_ptr, w_ec] = std::from_chars(w_str.data(), w_str.data() + w_str.size(), width);
+            const auto [h_ptr, h_ec] = std::from_chars(h_str.data(), h_str.data() + h_str.size(), height);
+            if (w_ec != std::errc{} || w_ptr != w_str.data() + w_str.size() || width <= 0 || h_ec != std::errc{} ||
+                h_ptr != h_str.data() + h_str.size() || height <= 0) {
+                log_error("invalid output mode '{}' (expected positive WxH)", *str_opt);
+                return;
+            }
+
+            std::optional<int32_t> refresh_mhz;
+            if (at_pos != std::string_view::npos) {
+                const std::string_view hz_str = rest.substr(at_pos + 1);
+                double hz = 0.0;
+                const auto [hz_ptr, hz_ec] = std::from_chars(hz_str.data(), hz_str.data() + hz_str.size(), hz);
+                if (hz_ec != std::errc{} || hz_ptr != hz_str.data() + hz_str.size() || !std::isfinite(hz) || hz < 1.0 ||
+                    hz > 10000.0) {
+                    log_error("invalid refresh rate '{}' in output mode '{}'", hz_str, *str_opt);
+                    return;
+                }
+                refresh_mhz = static_cast<int32_t>(std::lround(hz * 1000.0));
+            }
+
+            out = OutputMode{.width = width, .height = height, .refresh_mhz = refresh_mhz};
+        }
+
+        void parse_output_transform(const kdl::Node& node, wl_output_transform& out) {
+            auto str_opt = parse_string(node);
+            if (!str_opt) {
+                return;
+            }
+            constexpr std::array<std::pair<std::string_view, wl_output_transform>, 8> table{
+                {
+                    {"normal", WL_OUTPUT_TRANSFORM_NORMAL},
+                    {"90", WL_OUTPUT_TRANSFORM_90},
+                    {"180", WL_OUTPUT_TRANSFORM_180},
+                    {"270", WL_OUTPUT_TRANSFORM_270},
+                    {"flipped", WL_OUTPUT_TRANSFORM_FLIPPED},
+                    {"flipped-90", WL_OUTPUT_TRANSFORM_FLIPPED_90},
+                    {"flipped-180", WL_OUTPUT_TRANSFORM_FLIPPED_180},
+                    {"flipped-270", WL_OUTPUT_TRANSFORM_FLIPPED_270},
+                },
+            };
+            for (const auto& [name, transform] : table) {
+                if (iequals(*str_opt, name)) {
+                    out = transform;
+                    return;
+                }
+            }
+            log_error("invalid output transform '{}'", *str_opt);
+        }
+
+        void parse_output_position(const kdl::Node& node, std::optional<OutputPosition>& out) {
+            const auto& args = node.args();
+            if (args.size() != 2 || !node.properties().empty() || args[0].type() != kdl::Type::Number ||
+                args[1].type() != kdl::Type::Number) {
+                log_error("output position requires two integer arguments (x y)");
+                return;
+            }
+            try {
+                const auto n0 = args[0].as<kdl::Number>();
+                const auto n1 = args[1].as<kdl::Number>();
+                if (n0.representation() != kdl::NumberRepresentation::Integer ||
+                    n1.representation() != kdl::NumberRepresentation::Integer) {
+                    log_error("output position requires two integer arguments (x y)");
+                    return;
+                }
+                const long long x = n0.as<long long>();
+                const long long y = n1.as<long long>();
+                constexpr auto min_val = static_cast<long long>(std::numeric_limits<int32_t>::min());
+                constexpr auto max_val = static_cast<long long>(std::numeric_limits<int32_t>::max());
+                if (x < min_val || x > max_val || y < min_val || y > max_val) {
+                    log_error("output position coordinates out of 32-bit range");
+                    return;
+                }
+                out = OutputPosition{.x = static_cast<int32_t>(x), .y = static_cast<int32_t>(y)};
+            } catch (const std::exception& e) {
+                log_error("failed to parse output position: {}", e.what());
+            }
+        }
+
+        void parse_output(std::vector<OutputConfig>& outputs, const kdl::Node& output_node) {
+            auto name_opt = parse_string(output_node);
+            if (!name_opt || name_opt->empty()) {
+                if (name_opt) {
+                    log_error("output section requires a non-empty name");
+                }
+                return;
+            }
+
+            OutputConfig cfg;
+            cfg.name = std::move(*name_opt);
+            for (const auto& child : output_node.children()) {
+                std::string_view name = node_name(child);
+                if (iequals(name, "off")) {
+                    bool off = !cfg.enabled;
+                    parse_bool(child, off);
+                    cfg.enabled = !off;
+                } else if (iequals(name, "mode")) {
+                    parse_output_mode(child, cfg.mode);
+                } else if (iequals(name, "scale")) {
+                    double scale = 1.0;
+                    if (parse_double(child, scale, 0.1, 10.0)) {
+                        cfg.scale = static_cast<float>(scale);
+                    }
+                } else if (iequals(name, "transform")) {
+                    parse_output_transform(child, cfg.transform);
+                } else if (iequals(name, "position")) {
+                    parse_output_position(child, cfg.position);
+                } else {
+                    log_error("unknown setting '{}' in output '{}' config", name, cfg.name);
+                }
+            }
+
+            auto it = std::ranges::find_if(outputs, [&](const OutputConfig& c) { return iequals(c.name, cfg.name); });
+            if (it != outputs.end()) {
+                *it = std::move(cfg);
+            } else {
+                outputs.push_back(std::move(cfg));
+            }
+        }
+
+        std::string output_description(const wlr_output* output) {
+            std::string desc;
+            for (const char* part : {output->make, output->model, output->serial}) {
+                if (part && *part != '\0') {
+                    if (!desc.empty()) {
+                        desc.push_back(' ');
+                    }
+                    desc.append(part);
+                }
+            }
+            return desc;
+        }
+
         void parse_cursor(CursorConfig& cursor, const kdl::Node& cursor_node) {
             for (const auto& child : cursor_node.children()) {
                 std::string_view name = node_name(child);
@@ -745,6 +902,7 @@ namespace frost {
         KeyboardConfig keyboard;
         MouseConfig mouse;
         TouchpadConfig touchpad;
+        std::vector<OutputConfig> outputs;
         GesturesConfig gestures;
         CursorConfig cursor;
         LayoutConfig layout;
@@ -759,6 +917,8 @@ namespace frost {
                 parse_autostart(autostart, node);
             } else if (iequals(name, "input")) {
                 parse_input(keyboard, mouse, touchpad, middle_click_paste, node);
+            } else if (iequals(name, "output")) {
+                parse_output(outputs, node);
             } else if (iequals(name, "gestures")) {
                 parse_gestures(gestures, node);
             } else if (iequals(name, "cursor")) {
@@ -780,6 +940,7 @@ namespace frost {
         m_keyboard = std::move(keyboard);
         m_mouse = mouse;
         m_touchpad = touchpad;
+        m_outputs = std::move(outputs);
         m_gestures = gestures;
         m_cursor = std::move(cursor);
         m_layout = layout;
@@ -812,6 +973,28 @@ namespace frost {
 
         std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         return load_from_string(content, m_path.c_str());
+    }
+
+    const OutputConfig* Config::output_config(const wlr_output* output) const noexcept {
+        if (!output) {
+            return nullptr;
+        }
+        if (output->name && *output->name != '\0') {
+            auto it = std::ranges::find_if(m_outputs, [name = std::string_view(output->name)](const OutputConfig& cfg) {
+                return iequals(cfg.name, name);
+            });
+            if (it != m_outputs.end()) {
+                return &*it;
+            }
+        }
+        if (const std::string desc = output_description(output); !desc.empty()) {
+            auto it =
+                std::ranges::find_if(m_outputs, [&desc](const OutputConfig& cfg) { return iequals(cfg.name, desc); });
+            if (it != m_outputs.end()) {
+                return &*it;
+            }
+        }
+        return nullptr;
     }
 
 }

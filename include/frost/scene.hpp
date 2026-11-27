@@ -51,7 +51,8 @@ namespace frost {
         void set_session_lock_active(bool active);
         void update_lock_background(std::span<const std::unique_ptr<Output>> outputs);
 
-        wlr_scene_output* attach_output(wlr_output* output, wlr_output_layout_output* layout_output);
+        wlr_scene_output* create_output(wlr_output* output);
+        void add_to_output_layout(wlr_output_layout_output* layout_output, wlr_scene_output* scene_output) noexcept;
 
         [[nodiscard]] wlr_surface* surface_at(double lx, double ly, double* sx, double* sy) const;
         [[nodiscard]] Window* window_at(double lx, double ly, wlr_surface** surface, double* sx, double* sy) const;

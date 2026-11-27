@@ -32,6 +32,14 @@ input {
     }
 }
 
+/-output "eDP-1" {
+    // off
+    mode "1920x1080@60.00"
+    scale 1.0
+    transform "normal"
+    position 0 0
+}
+
 gestures {
     workspace-swipe
 }
