@@ -18,6 +18,7 @@ namespace frost::window {
         [[nodiscard]] bool is_pending_center() const noexcept override { return m_pending_center_serial != 0; }
         [[nodiscard]] bool is_pending_move() const noexcept override { return m_pending_move_serial != 0; }
         void set_tiled_resizing(bool resizing) noexcept override;
+        void set_bounds(int width, int height) noexcept override;
         void set_decoration(wlr_xdg_toplevel_decoration_v1* decoration) override;
         void set_dialog(wlr_xdg_dialog_v1* dialog) override;
         void apply_resize(int w, int h) noexcept override;
@@ -63,6 +64,8 @@ namespace frost::window {
         uint32_t m_resize_serial = 0;
         uint32_t m_pending_center_serial = 0;
         uint32_t m_pending_move_serial = 0;
+        int m_bounds_width = -1;
+        int m_bounds_height = -1;
 
         ListenerGroup m_listeners;
         ListenerGroup m_decoration_listeners;

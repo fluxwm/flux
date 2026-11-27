@@ -1,5 +1,6 @@
 #include "frost/window/xdg.hpp"
 #include "frost/compositor.hpp"
+#include "frost/output.hpp"
 #include "frost/workspace.hpp"
 
 #include <algorithm>
@@ -52,6 +53,20 @@ namespace frost::window {
         if (m_toplevel->base->initialized && m_toplevel->scheduled.resizing != resizing) {
             wlr_xdg_toplevel_set_resizing(m_toplevel, resizing);
         }
+    }
+
+    void Xdg::set_bounds(int width, int height) noexcept {
+        if (!m_toplevel->base->initialized) {
+            return;
+        }
+        const int w = std::max(0, width);
+        const int h = std::max(0, height);
+        if (w == m_bounds_width && h == m_bounds_height) {
+            return;
+        }
+        m_bounds_width = w;
+        m_bounds_height = h;
+        wlr_xdg_toplevel_set_bounds(m_toplevel, w, h);
     }
 
     void Xdg::set_decoration(wlr_xdg_toplevel_decoration_v1* decoration) {
@@ -191,6 +206,8 @@ namespace frost::window {
 
     void Xdg::on_commit() {
         if (m_toplevel->base->initial_commit) {
+            m_bounds_width = -1;
+            m_bounds_height = -1;
             on_request_decoration_mode();
             wlr_xdg_toplevel_set_wm_capabilities(m_toplevel, WLR_XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN);
             m_floating = wants_floating();
@@ -202,6 +219,11 @@ namespace frost::window {
                 set_geometry(m_workspace->next_tile_box());
             } else {
                 wlr_xdg_toplevel_set_size(m_toplevel, 0, 0);
+            }
+            if (m_workspace) {
+                const wlr_box bounds =
+                    m_fullscreen ? m_workspace->output().layout_box() : m_workspace->output().usable_area();
+                set_bounds(bounds.width, bounds.height);
             }
             return;
         }

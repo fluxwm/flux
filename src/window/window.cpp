@@ -321,8 +321,13 @@ namespace frost {
             } else {
                 m_compositor.refocus();
             }
-        } else if (m_fullscreen && m_workspace) {
-            set_geometry(m_workspace->output().layout_box());
+        } else if (m_workspace) {
+            const wlr_box bounds =
+                m_fullscreen ? m_workspace->output().layout_box() : m_workspace->output().usable_area();
+            set_bounds(bounds.width, bounds.height);
+            if (m_fullscreen) {
+                set_geometry(bounds);
+            }
         }
         update_borders();
     }

@@ -242,6 +242,8 @@ namespace frost {
         size_t tiled_count = 0;
         float raw_stack_weight = 0.0f;
         for (Window* w : m_windows) {
+            const wlr_box& bounds = w->is_fullscreen() ? full : usable;
+            w->set_bounds(bounds.width, bounds.height);
             if (w->is_fullscreen()) {
                 w->set_geometry(full);
             } else if (w->is_maximized()) {

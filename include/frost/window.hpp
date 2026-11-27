@@ -80,6 +80,7 @@ namespace frost {
         [[nodiscard]] float tile_weight() const noexcept { return m_tile_weight; }
         void set_tile_weight(float weight) noexcept { m_tile_weight = weight; }
         virtual void set_tiled_resizing(bool /*resizing*/) noexcept {}
+        virtual void set_bounds(int /*width*/, int /*height*/) noexcept {}
         [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
         [[nodiscard]] uint32_t workspace_id() const noexcept { return m_workspace_id; }
         [[nodiscard]] Window* parent() const noexcept { return query_parent(); }
