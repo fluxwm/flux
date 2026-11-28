@@ -6,6 +6,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <memory>
 #include <vector>
 
 namespace frost {
@@ -13,6 +14,7 @@ namespace frost {
     class Output;
     class Workspace;
     class Window;
+    struct BorderConfig;
 
     using Clock = std::chrono::steady_clock;
     using TimePoint = Clock::time_point;
@@ -74,39 +76,44 @@ namespace frost {
         SpringConfig m_config;
     };
 
-    struct ClosingBuffer {
-        wlr_scene_buffer* buffer = nullptr;
-        int rel_x = 0;
-        int rel_y = 0;
-        int width = 0;
-        int height = 0;
-        float base_opacity = 1.0f;
-    };
-
-    struct ClosingWindow {
-        wlr_scene_tree* tree = nullptr;
-        std::vector<ClosingBuffer> buffers;
-        Border border;
-        std::array<float, 4> border_color{0.0f, 0.0f, 0.0f, 0.0f};
-        wlr_box box{};
-        int border_width = 0;
-        bool is_floating = false;
-        Spring spring{1.0, {.stiffness = 1000.0, .damping_ratio = 1.0, .pos_epsilon = 0.005, .vel_epsilon = 0.05}};
-        TimePoint last_time{};
-
+    class ClosingWindow {
+    public:
         ClosingWindow() = default;
-        ~ClosingWindow() {
-            if (tree) {
-                wlr_scene_node_destroy(&tree->node);
-            }
-        }
+        ~ClosingWindow();
 
         ClosingWindow(const ClosingWindow&) = delete;
         ClosingWindow& operator=(const ClosingWindow&) = delete;
         ClosingWindow(ClosingWindow&&) = delete;
         ClosingWindow& operator=(ClosingWindow&&) = delete;
 
+        [[nodiscard]] static std::unique_ptr<ClosingWindow>
+        capture(wlr_scene_tree* parent, const Window& window, const BorderConfig& border_cfg, double initial_progress);
+
+        [[nodiscard]] wlr_scene_tree* tree() const noexcept { return m_tree; }
+        [[nodiscard]] bool is_floating() const noexcept { return m_is_floating; }
+        bool step(TimePoint now, double slowdown) noexcept;
+
+    private:
+        struct Buffer {
+            wlr_scene_buffer* buffer = nullptr;
+            int rel_x = 0;
+            int rel_y = 0;
+            int width = 0;
+            int height = 0;
+            float base_opacity = 1.0f;
+        };
+
         void apply_transform(double progress) noexcept;
+
+        wlr_scene_tree* m_tree = nullptr;
+        std::vector<Buffer> m_buffers;
+        Border m_border;
+        std::array<float, 4> m_border_color{0.0f, 0.0f, 0.0f, 0.0f};
+        wlr_box m_box{};
+        int m_border_width = 0;
+        bool m_is_floating = false;
+        Spring m_spring{1.0, {.stiffness = 1000.0, .damping_ratio = 1.0, .pos_epsilon = 0.005, .vel_epsilon = 0.05}};
+        TimePoint m_last_time{};
     };
 
     class WorkspaceAnimation {

@@ -343,8 +343,8 @@ namespace frost {
         }
 
         for (const auto& cw : m_closing_windows) {
-            if (cw->tree && cw->is_floating) {
-                place_node(&cw->tree->node);
+            if (cw->tree() && cw->is_floating()) {
+                place_node(&cw->tree()->node);
             }
         }
 
@@ -391,8 +391,8 @@ namespace frost {
         }
 
         for (const auto& cw : m_closing_windows) {
-            if (cw->tree && !cw->is_floating) {
-                place_node(&cw->tree->node);
+            if (cw->tree() && !cw->is_floating()) {
+                place_node(&cw->tree()->node);
             }
         }
 
@@ -586,83 +586,10 @@ namespace frost {
             return;
         }
 
-        const wlr_box box = window->geometry_box();
-        if (box.width <= 0 || box.height <= 0) {
+        auto closing = ClosingWindow::capture(m_tree, *window, comp.config().layout().border, initial_progress);
+        if (!closing) {
             return;
         }
-
-        auto closing = std::make_unique<ClosingWindow>();
-        closing->tree = wlr_scene_tree_create(m_tree);
-        if (!closing->tree) {
-            return;
-        }
-
-        int win_lx = 0;
-        int win_ly = 0;
-        wlr_scene_node_coords(&window->scene_tree()->node, &win_lx, &win_ly);
-
-        closing->box = box;
-        closing->is_floating = window->is_floating();
-
-        struct CloneContext {
-            wlr_scene_tree* tree;
-            int win_lx;
-            int win_ly;
-            std::vector<ClosingBuffer>* buffers;
-        } ctx{
-            .tree = closing->tree,
-            .win_lx = win_lx,
-            .win_ly = win_ly,
-            .buffers = &closing->buffers,
-        };
-
-        wlr_scene_node_for_each_buffer(
-            &window->scene_tree()->node,
-            [](wlr_scene_buffer* src, int sx, int sy, void* data) {
-                if (!src || !src->buffer) {
-                    return;
-                }
-                auto* c = static_cast<CloneContext*>(data);
-                wlr_scene_buffer* clone = wlr_scene_buffer_create(c->tree, src->buffer);
-                if (!clone) {
-                    return;
-                }
-
-                const int orig_w = src->dst_width > 0 ? src->dst_width : src->buffer->width;
-                const int orig_h = src->dst_height > 0 ? src->dst_height : src->buffer->height;
-
-                wlr_scene_buffer_set_source_box(clone, &src->src_box);
-                wlr_scene_buffer_set_transform(clone, src->transform);
-                wlr_scene_buffer_set_filter_mode(clone, src->filter_mode);
-                clone->point_accepts_input = [](wlr_scene_buffer*, double*, double*) { return false; };
-
-                c->buffers->push_back(ClosingBuffer{
-                    .buffer = clone,
-                    .rel_x = sx - c->win_lx,
-                    .rel_y = sy - c->win_ly,
-                    .width = orig_w,
-                    .height = orig_h,
-                    .base_opacity = src->opacity,
-                });
-            },
-            &ctx);
-
-        if (closing->buffers.empty()) {
-            return;
-        }
-
-        if (window->has_visible_borders()) {
-            const auto& border_cfg = comp.config().layout().border;
-            closing->border_width = border_cfg.width;
-            closing->border_color = window->is_activated() ? border_cfg.active_color : border_cfg.inactive_color;
-            closing->border.init(closing->tree);
-        }
-
-        const double initial_p = std::clamp(initial_progress, 0.0, 1.0);
-        closing->apply_transform(initial_p);
-        closing->spring.reset(initial_p, 0.0);
-        closing->spring.set_target(0.0);
-        closing->last_time = Clock::now();
 
         m_closing_windows.push_back(std::move(closing));
         if (m_output.raw()) {
@@ -676,18 +603,7 @@ namespace frost {
         }
 
         const double slowdown = m_output.compositor().config().animations().slowdown;
-        std::erase_if(m_closing_windows, [&](auto& cw) {
-            const double dt = step_dt(cw->last_time, now, 0.05, slowdown);
-            cw->last_time = now;
-            cw->spring.advance(dt);
-
-            if (cw->spring.is_settled() || cw->spring.value() <= 0.005) {
-                return true;
-            }
-
-            cw->apply_transform(cw->spring.value());
-            return false;
-        });
+        std::erase_if(m_closing_windows, [&](auto& cw) { return !cw->step(now, slowdown); });
 
         return !m_closing_windows.empty();
     }

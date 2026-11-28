@@ -1,5 +1,6 @@
 #include "frost/animation.hpp"
 #include "frost/compositor.hpp"
+#include "frost/config.hpp"
 #include "frost/output.hpp"
 #include "frost/popup.hpp"
 #include "frost/window.hpp"
@@ -286,26 +287,129 @@ namespace frost {
         m_outgoing_offset = 0;
     }
 
+    ClosingWindow::~ClosingWindow() {
+        if (m_tree) {
+            wlr_scene_node_destroy(&m_tree->node);
+        }
+    }
+
+    std::unique_ptr<ClosingWindow> ClosingWindow::capture(wlr_scene_tree* parent, const Window& window,
+                                                          const BorderConfig& border_cfg, double initial_progress) {
+        if (!parent || !window.scene_tree()) {
+            return nullptr;
+        }
+        const wlr_box box = window.geometry_box();
+        if (box.width <= 0 || box.height <= 0) {
+            return nullptr;
+        }
+
+        auto closing = std::make_unique<ClosingWindow>();
+        closing->m_tree = wlr_scene_tree_create(parent);
+        if (!closing->m_tree) {
+            return nullptr;
+        }
+
+        int win_lx = 0;
+        int win_ly = 0;
+        wlr_scene_node_coords(&window.scene_tree()->node, &win_lx, &win_ly);
+
+        closing->m_box = box;
+        closing->m_is_floating = window.is_floating();
+
+        struct CloneContext {
+            wlr_scene_tree* tree;
+            int win_lx;
+            int win_ly;
+            std::vector<Buffer>* buffers;
+        } ctx{
+            .tree = closing->m_tree,
+            .win_lx = win_lx,
+            .win_ly = win_ly,
+            .buffers = &closing->m_buffers,
+        };
+
+        wlr_scene_node_for_each_buffer(
+            &window.scene_tree()->node,
+            [](wlr_scene_buffer* src, int sx, int sy, void* data) {
+                if (!src || !src->buffer) {
+                    return;
+                }
+                auto* c = static_cast<CloneContext*>(data);
+                wlr_scene_buffer* clone = wlr_scene_buffer_create(c->tree, src->buffer);
+                if (!clone) {
+                    return;
+                }
+
+                const int orig_w = src->dst_width > 0 ? src->dst_width : src->buffer->width;
+                const int orig_h = src->dst_height > 0 ? src->dst_height : src->buffer->height;
+
+                wlr_scene_buffer_set_source_box(clone, &src->src_box);
+                wlr_scene_buffer_set_transform(clone, src->transform);
+                wlr_scene_buffer_set_filter_mode(clone, src->filter_mode);
+                clone->point_accepts_input = [](wlr_scene_buffer*, double*, double*) { return false; };
+
+                c->buffers->push_back(Buffer{
+                    .buffer = clone,
+                    .rel_x = sx - c->win_lx,
+                    .rel_y = sy - c->win_ly,
+                    .width = orig_w,
+                    .height = orig_h,
+                    .base_opacity = src->opacity,
+                });
+            },
+            &ctx);
+
+        if (closing->m_buffers.empty()) {
+            return nullptr;
+        }
+
+        if (window.has_visible_borders()) {
+            closing->m_border_width = border_cfg.width;
+            closing->m_border_color = window.is_activated() ? border_cfg.active_color : border_cfg.inactive_color;
+            closing->m_border.init(closing->m_tree);
+        }
+
+        const double initial_p = std::clamp(initial_progress, 0.0, 1.0);
+        closing->apply_transform(initial_p);
+        closing->m_spring.reset(initial_p, 0.0);
+        closing->m_spring.set_target(0.0);
+        closing->m_last_time = Clock::now();
+        return closing;
+    }
+
+    bool ClosingWindow::step(TimePoint now, double slowdown) noexcept {
+        const double dt = step_dt(m_last_time, now, 0.05, slowdown);
+        m_last_time = now;
+        m_spring.advance(dt);
+
+        if (m_spring.is_settled() || m_spring.value() <= 0.005) {
+            return false;
+        }
+
+        apply_transform(m_spring.value());
+        return true;
+    }
+
     void ClosingWindow::apply_transform(double progress) noexcept {
         const double p = std::clamp(progress, 0.0, 1.0);
         const double scale = open_close_scale(p);
         const float opacity = static_cast<float>(p);
 
-        const int scaled_w = scaled_extent(box.width, scale);
-        const int scaled_h = scaled_extent(box.height, scale);
+        const int scaled_w = scaled_extent(m_box.width, scale);
+        const int scaled_h = scaled_extent(m_box.height, scale);
 
-        const int render_x = box.x + center_offset(box.width, scaled_w);
-        const int render_y = box.y + center_offset(box.height, scaled_h);
-        wlr_scene_node_set_position(&tree->node, render_x, render_y);
+        const int render_x = m_box.x + center_offset(m_box.width, scaled_w);
+        const int render_y = m_box.y + center_offset(m_box.height, scaled_h);
+        wlr_scene_node_set_position(&m_tree->node, render_x, render_y);
 
-        for (auto& cb : buffers) {
+        for (auto& cb : m_buffers) {
             wlr_scene_buffer_set_dest_size(cb.buffer, scaled_extent(cb.width, scale), scaled_extent(cb.height, scale));
             wlr_scene_buffer_set_opacity(cb.buffer, cb.base_opacity * opacity);
             wlr_scene_node_set_position(&cb.buffer->node, static_cast<int>(std::round(cb.rel_x * scale)),
                                         static_cast<int>(std::round(cb.rel_y * scale)));
         }
 
-        border.update(scaled_w, scaled_h, border_width, border_color, opacity);
+        m_border.update(scaled_w, scaled_h, m_border_width, m_border_color, opacity);
     }
 
     void WindowAnimation::start_open() noexcept {
