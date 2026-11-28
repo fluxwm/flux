@@ -15,6 +15,7 @@ namespace frost::window {
 
         [[nodiscard]] wlr_surface* surface() const noexcept override;
         [[nodiscard]] wlr_xwayland_surface* xwayland_surface() const noexcept override { return m_surface; }
+        [[nodiscard]] bool is_modal() const noexcept override;
         void apply_resize(int w, int h) noexcept override;
         void close() noexcept override;
 

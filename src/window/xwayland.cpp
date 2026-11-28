@@ -62,6 +62,14 @@ namespace frost::window {
         return m_surface->surface;
     }
 
+    bool XWayland::is_modal() const noexcept {
+        if (!m_surface->modal) {
+            return false;
+        }
+        const Window* parent = query_parent();
+        return parent != nullptr && parent != this;
+    }
+
     std::pair<int, int> XWayland::preferred_size() const noexcept {
         return {static_cast<int>(m_surface->width), static_cast<int>(m_surface->height)};
     }
