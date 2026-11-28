@@ -32,6 +32,20 @@ namespace frost::input {
             const bool natural_scroll = is_touchpad ? touchpad_config.natural_scroll : mouse_config.natural_scroll;
             libinput_device_config_scroll_set_natural_scroll_enabled(handle, natural_scroll);
         }
+
+        if (libinput_device_config_accel_is_available(handle)) {
+            const auto& accel_speed = is_touchpad ? touchpad_config.accel_speed : mouse_config.accel_speed;
+            const auto& accel_profile = is_touchpad ? touchpad_config.accel_profile : mouse_config.accel_profile;
+
+            const double speed = accel_speed.value_or(libinput_device_config_accel_get_default_speed(handle));
+            libinput_device_config_accel_set_speed(handle, speed);
+
+            const libinput_config_accel_profile profile =
+                accel_profile.value_or(libinput_device_config_accel_get_default_profile(handle));
+            if (libinput_device_config_accel_get_profiles(handle) & profile) {
+                libinput_device_config_accel_set_profile(handle, profile);
+            }
+        }
     }
 
     void Pointer::on_destroy() {

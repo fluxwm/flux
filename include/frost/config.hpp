@@ -30,11 +30,15 @@ namespace frost {
 
     struct MouseConfig {
         bool natural_scroll = false;
+        std::optional<double> accel_speed;
+        std::optional<libinput_config_accel_profile> accel_profile;
     };
 
     struct TouchpadConfig {
         bool tap_to_click = false;
         bool natural_scroll = false;
+        std::optional<double> accel_speed;
+        std::optional<libinput_config_accel_profile> accel_profile;
     };
 
     struct OutputMode {

@@ -348,11 +348,38 @@ namespace frost {
             }
         }
 
+        void parse_accel_speed(const kdl::Node& node, std::optional<double>& out) {
+            double speed = 0.0;
+            if (parse_double(node, speed, -1.0, 1.0)) {
+                out = speed;
+            }
+        }
+
+        void parse_accel_profile(const kdl::Node& node, std::optional<libinput_config_accel_profile>& out) {
+            auto str_opt = parse_string(node);
+            if (!str_opt) {
+                return;
+            }
+            if (iequals(*str_opt, "adaptive")) {
+                out = LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE;
+                return;
+            }
+            if (iequals(*str_opt, "flat")) {
+                out = LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT;
+                return;
+            }
+            log_error("invalid accel-profile '{}' (expected 'adaptive' or 'flat')", *str_opt);
+        }
+
         void parse_mouse(MouseConfig& mouse, const kdl::Node& mouse_node) {
             for (const auto& child : mouse_node.children()) {
                 std::string_view name = node_name(child);
                 if (iequals(name, "natural-scroll")) {
                     parse_bool(child, mouse.natural_scroll);
+                } else if (iequals(name, "accel-speed")) {
+                    parse_accel_speed(child, mouse.accel_speed);
+                } else if (iequals(name, "accel-profile")) {
+                    parse_accel_profile(child, mouse.accel_profile);
                 } else {
                     log_error("unknown setting '{}' in mouse config", name);
                 }
@@ -366,6 +393,10 @@ namespace frost {
                     parse_bool(child, touchpad.tap_to_click);
                 } else if (iequals(name, "natural-scroll")) {
                     parse_bool(child, touchpad.natural_scroll);
+                } else if (iequals(name, "accel-speed")) {
+                    parse_accel_speed(child, touchpad.accel_speed);
+                } else if (iequals(name, "accel-profile")) {
+                    parse_accel_profile(child, touchpad.accel_profile);
                 } else {
                     log_error("unknown setting '{}' in touchpad config", name);
                 }
