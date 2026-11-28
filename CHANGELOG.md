@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.11.0](https://github.com/frostwm/frost/compare/v0.10.1...v0.11.0) (2026-11-28)
+
+
+### Features
+
+* add color-management-v1 protocol support ([9517f3f](https://github.com/frostwm/frost/commit/9517f3f04e675f300aae1f8ce2ee7cede80c2f9c))
+* add dwindle layout mode ([fc1ff3c](https://github.com/frostwm/frost/commit/fc1ff3c204837a24c13500a9b5f7191820d61744))
+* add JSON IPC server and frostctl client ([7f511b5](https://github.com/frostwm/frost/commit/7f511b5256648a19072520026ee61e779cbdcdc2))
+* add mouse and touchpad acceleration configuration ([48f35e8](https://github.com/frostwm/frost/commit/48f35e8f8c7c717aae2d1626b3197e4ff22efb25))
+* add output configuration blocks ([1be5036](https://github.com/frostwm/frost/commit/1be5036d04554ae9860bcb0978b92909bfdffeab))
+* add outputs command to IPC ([9defdcf](https://github.com/frostwm/frost/commit/9defdcf75e0018b92fe38b18eb5797c6a917f623))
+* add wlr-output-management-v1 protocol support ([5272e25](https://github.com/frostwm/frost/commit/5272e25d3eaefa60e493d2cd01193aa1c77730e7))
+* add xdg-dialog-v1 protocol support ([75d187e](https://github.com/frostwm/frost/commit/75d187e4195386b68e025737c394a2901ae49275))
+* add xdg-system-bell-v1 protocol support ([f3762a0](https://github.com/frostwm/frost/commit/f3762a0a4ccd111d4e66dd9783c17534081435c6))
+* add xdg-toplevel-tag-v1 protocol support ([b6c48de](https://github.com/frostwm/frost/commit/b6c48dec355c1669787148d060106db1199baf9c))
+* send XDG toplevel configure bounds ([7be0c94](https://github.com/frostwm/frost/commit/7be0c943990d78186b0da38078623b37168346a8))
+* use Alt as Mod key when nested ([a9f729a](https://github.com/frostwm/frost/commit/a9f729a1c9ea12fe4eda17275c35d17913ef68e3))
+
+
+### Bug Fixes
+
+* auto-focus only exclusive top/overlay layers and cancel active grabs ([9ae31a8](https://github.com/frostwm/frost/commit/9ae31a8cd756236a390b27d59868b7f0fd046418))
+* check window membership before dereferencing in dwindle arrange ([4cfd5c9](https://github.com/frostwm/frost/commit/4cfd5c955f75921df914097d3c2184b2fbf43321))
+* compute incremental relative deltas for absolute pointer motion ([5187d00](https://github.com/frostwm/frost/commit/5187d00d7d6d1f4f485183e9cd9648bc52971f7e))
+* override is_modal for XWayland windows ([c73de1a](https://github.com/frostwm/frost/commit/c73de1a04046fe5c11db699a5584be0b2f12802c))
+* set cursor environment on spawn instead of calling setenv ([9a294d9](https://github.com/frostwm/frost/commit/9a294d9f8c54074e8ff4eb3154f6b8e944e5ba51))
+* update XWayland floating state on size hints and window type ([feb3863](https://github.com/frostwm/frost/commit/feb386379bc02e4083c0c1cdf14c6ea2f57f4e02))
+
+
+### Refactoring
+
+* deduplicate enum parsing in config ([1cfcc33](https://github.com/frostwm/frost/commit/1cfcc33ce58a5abe5f381b17a54d14eca92559d5))
+* encapsulate closing window capture and stepping ([3ca7571](https://github.com/frostwm/frost/commit/3ca7571f546e187684b36cce0c7af6170abcb03e))
+* extract layout engines from workspace ([41368bc](https://github.com/frostwm/frost/commit/41368bcc98ba93ef3c724d99c5ece72847f54e8b))
+* extract output manager from compositor ([5009fa7](https://github.com/frostwm/frost/commit/5009fa7a88d3381b0f3cd307abe45df7635be0d6))
+
 ## [0.10.1](https://github.com/frostwm/frost/compare/v0.10.0...v0.10.1) (2026-11-25)
 
 
