@@ -475,10 +475,17 @@ namespace frost {
         }
         argv.push_back(nullptr);
 
-        std::unordered_map<std::string_view, const std::optional<std::string>*> overrides;
-        overrides.reserve(m_config->environment().size());
+        const std::string cursor_size = std::to_string(m_config->cursor().size);
+        std::unordered_map<std::string_view, std::optional<std::string_view>> overrides;
+        overrides.reserve(m_config->environment().size() + 2);
+        if (const char* theme = m_input->cursor().effective_theme()) {
+            overrides["XCURSOR_THEME"] = theme;
+        } else {
+            overrides["XCURSOR_THEME"] = std::nullopt;
+        }
+        overrides["XCURSOR_SIZE"] = cursor_size;
         for (const auto& env_var : m_config->environment()) {
-            overrides[env_var.name] = &env_var.value;
+            overrides[env_var.name] = env_var.value ? std::optional<std::string_view>(*env_var.value) : std::nullopt;
         }
 
         std::vector<std::string> env_storage;
@@ -492,13 +499,13 @@ namespace frost {
                 }
             }
         }
-        for (const auto& [name, val_ptr] : overrides) {
-            if (val_ptr->has_value()) {
+        for (const auto& [name, val] : overrides) {
+            if (val) {
                 std::string entry;
-                entry.reserve(name.size() + 1 + val_ptr->value().size());
+                entry.reserve(name.size() + 1 + val->size());
                 entry.append(name);
                 entry.push_back('=');
-                entry.append(**val_ptr);
+                entry.append(*val);
                 env_storage.push_back(std::move(entry));
             }
         }

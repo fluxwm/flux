@@ -14,7 +14,6 @@
 #include <cstdlib>
 #include <limits>
 #include <span>
-#include <string>
 
 namespace frost::input {
 
@@ -129,14 +128,7 @@ namespace frost::input {
         }
         m_config = config;
 
-        const char* theme = !config.theme.empty() ? config.theme.c_str()
-                                                  : (m_env_xcursor_theme ? m_env_xcursor_theme->c_str() : nullptr);
-        if (theme) {
-            setenv("XCURSOR_THEME", theme, 1);
-        } else {
-            unsetenv("XCURSOR_THEME");
-        }
-        setenv("XCURSOR_SIZE", std::to_string(config.size).c_str(), 1);
+        const char* theme = effective_theme();
         if (m_cursor_mgr) {
             wlr_xcursor_manager_destroy(m_cursor_mgr);
         }

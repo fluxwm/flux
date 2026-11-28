@@ -28,6 +28,12 @@ namespace frost::input {
 
         [[nodiscard]] double x() const noexcept { return m_wlr_cursor ? m_wlr_cursor->x : 0.0; }
         [[nodiscard]] double y() const noexcept { return m_wlr_cursor ? m_wlr_cursor->y : 0.0; }
+        [[nodiscard]] const char* effective_theme() const noexcept {
+            if (!m_config.theme.empty()) {
+                return m_config.theme.c_str();
+            }
+            return m_env_xcursor_theme ? m_env_xcursor_theme->c_str() : nullptr;
+        }
 
         void attach_device(wlr_input_device* device) noexcept { wlr_cursor_attach_input_device(m_wlr_cursor, device); }
         void map_to_output(wlr_input_device* device, wlr_output* output) noexcept {
