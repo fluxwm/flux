@@ -1,6 +1,7 @@
 #include "frost/ipc.hpp"
 #include "frost/compositor.hpp"
 #include "frost/log.hpp"
+#include "frost/output.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -9,12 +10,14 @@
 #include <cstdlib>
 #include <cstring>
 #include <format>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <utility>
 
 namespace frost::ipc {
 
@@ -36,6 +39,75 @@ namespace frost::ipc {
 
         std::string make_error(std::string_view message) {
             return dump_json(json{{"ok", false}, {"error", message}});
+        }
+
+        std::string_view transform_to_string(wl_output_transform transform) noexcept {
+            switch (transform) {
+                case WL_OUTPUT_TRANSFORM_NORMAL:
+                    return "normal";
+                case WL_OUTPUT_TRANSFORM_90:
+                    return "90";
+                case WL_OUTPUT_TRANSFORM_180:
+                    return "180";
+                case WL_OUTPUT_TRANSFORM_270:
+                    return "270";
+                case WL_OUTPUT_TRANSFORM_FLIPPED:
+                    return "flipped";
+                case WL_OUTPUT_TRANSFORM_FLIPPED_90:
+                    return "flipped-90";
+                case WL_OUTPUT_TRANSFORM_FLIPPED_180:
+                    return "flipped-180";
+                case WL_OUTPUT_TRANSFORM_FLIPPED_270:
+                    return "flipped-270";
+            }
+            return "normal";
+        }
+
+        json output_to_json(const Output* output, const Compositor& compositor) {
+            const wlr_output* raw = output->raw();
+            const wlr_box box = output->layout_box();
+            const bool enabled = output->is_enabled();
+
+            json physical_size = nullptr;
+            if (raw->phys_width > 0 && raw->phys_height > 0) {
+                physical_size = json::array({raw->phys_width, raw->phys_height});
+            }
+
+            json logical = nullptr;
+            if (enabled && box.width > 0 && box.height > 0) {
+                logical = {
+                    {"x", box.x},           {"y", box.y},          {"width", box.width},
+                    {"height", box.height}, {"scale", raw->scale}, {"transform", transform_to_string(raw->transform)},
+                };
+            }
+
+            json modes = json::array();
+            std::optional<size_t> current_mode;
+            wlr_output_mode* mode = nullptr;
+            wl_list_for_each(mode, &raw->modes, link) {
+                if (enabled && mode == raw->current_mode) {
+                    current_mode = modes.size();
+                }
+                modes.push_back({
+                    {"width", mode->width},
+                    {"height", mode->height},
+                    {"refresh_mhz", mode->refresh},
+                    {"preferred", mode->preferred},
+                });
+            }
+
+            return {
+                {"name", raw->name ? raw->name : ""},
+                {"make", raw->make ? raw->make : ""},
+                {"model", raw->model ? raw->model : ""},
+                {"serial", (raw->serial && *raw->serial != '\0') ? json(raw->serial) : json(nullptr)},
+                {"physical_size", std::move(physical_size)},
+                {"enabled", enabled},
+                {"focused", output == compositor.focused_output()},
+                {"logical", std::move(logical)},
+                {"modes", std::move(modes)},
+                {"current_mode", current_mode ? json(*current_mode) : json(nullptr)},
+            };
         }
 
     }
@@ -312,6 +384,13 @@ namespace frost::ipc {
             }
 
             const std::string& cmd = cmd_it->get_ref<const std::string&>();
+            if (cmd == "outputs") {
+                json list = json::array();
+                for (const auto& out : m_compositor.outputs()) {
+                    list.push_back(output_to_json(out.get(), m_compositor));
+                }
+                return make_ok(list);
+            }
             if (cmd == "version") {
                 return make_ok(json{{"version", FROST_VERSION}});
             }

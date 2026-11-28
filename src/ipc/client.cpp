@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cerrno>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -162,10 +163,141 @@ namespace {
         return buf;
     }
 
+    std::string_view get_string(const json& obj, std::string_view key, std::string_view fallback = {}) {
+        auto it = obj.find(key);
+        if (it != obj.end() && it->is_string()) {
+            return it->get_ref<const std::string&>();
+        }
+        return fallback;
+    }
+
+    bool get_bool(const json& obj, std::string_view key, bool fallback = false) {
+        auto it = obj.find(key);
+        if (it != obj.end() && it->is_boolean()) {
+            return it->get<bool>();
+        }
+        return fallback;
+    }
+
+    std::optional<int64_t> get_int(const json& obj, std::string_view key) {
+        auto it = obj.find(key);
+        if (it != obj.end() && it->is_number_integer()) {
+            return it->get<int64_t>();
+        }
+        return std::nullopt;
+    }
+
+    std::optional<double> get_number(const json& obj, std::string_view key) {
+        auto it = obj.find(key);
+        if (it != obj.end() && it->is_number()) {
+            return it->get<double>();
+        }
+        return std::nullopt;
+    }
+
+    void print_output(const json& out) {
+        const std::string_view name = get_string(out, "name");
+        std::string hw;
+        for (const std::string_view part :
+             {get_string(out, "make"), get_string(out, "model"), get_string(out, "serial")}) {
+            if (!part.empty()) {
+                if (!hw.empty()) {
+                    hw.push_back(' ');
+                }
+                hw.append(part);
+            }
+        }
+
+        std::string flags;
+        if (get_bool(out, "focused")) {
+            flags.append(" [focused]");
+        }
+        if (!get_bool(out, "enabled", true)) {
+            flags.append(" [disabled]");
+        }
+
+        if (hw.empty()) {
+            std::println("Output \"{}\"{}", name, flags);
+        } else {
+            std::println("Output \"{}\" ({}){}", name, hw, flags);
+        }
+
+        const auto modes_it = out.find("modes");
+        const bool has_modes = modes_it != out.end() && modes_it->is_array() && !modes_it->empty();
+        const std::optional<int64_t> cur_idx = get_int(out, "current_mode");
+
+        if (has_modes && cur_idx && *cur_idx >= 0 && std::cmp_less(*cur_idx, modes_it->size())) {
+            const auto& m = (*modes_it)[static_cast<size_t>(*cur_idx)];
+            if (m.is_object()) {
+                const int64_t w = get_int(m, "width").value_or(0);
+                const int64_t h = get_int(m, "height").value_or(0);
+                const int64_t refresh = get_int(m, "refresh_mhz").value_or(0);
+                if (refresh > 0) {
+                    std::println("  Current mode: {}x{} @ {:.3f} Hz", w, h, static_cast<double>(refresh) / 1000.0);
+                } else {
+                    std::println("  Current mode: {}x{}", w, h);
+                }
+            }
+        }
+
+        const auto logical_it = out.find("logical");
+        const bool has_logical = logical_it != out.end() && logical_it->is_object();
+
+        if (has_logical) {
+            const auto& logical = *logical_it;
+            std::println("  Logical position: {}, {}", get_int(logical, "x").value_or(0),
+                         get_int(logical, "y").value_or(0));
+            std::println("  Logical size: {}x{}", get_int(logical, "width").value_or(0),
+                         get_int(logical, "height").value_or(0));
+        }
+
+        if (auto it = out.find("physical_size"); it != out.end() && it->is_array() && it->size() == 2 &&
+                                                 (*it)[0].is_number_integer() && (*it)[1].is_number_integer()) {
+            std::println("  Physical size: {}x{} mm", (*it)[0].get<int64_t>(), (*it)[1].get<int64_t>());
+        }
+
+        if (has_logical) {
+            const auto& logical = *logical_it;
+            std::println("  Scale: {:g}", get_number(logical, "scale").value_or(1.0));
+            std::println("  Transform: {}", get_string(logical, "transform", "normal"));
+        }
+
+        if (has_modes) {
+            std::println("  Available modes:");
+            for (size_t i = 0; i < modes_it->size(); ++i) {
+                const auto& m = (*modes_it)[i];
+                if (!m.is_object()) {
+                    continue;
+                }
+                const int64_t w = get_int(m, "width").value_or(0);
+                const int64_t h = get_int(m, "height").value_or(0);
+                const int64_t refresh = get_int(m, "refresh_mhz").value_or(0);
+                const bool is_cur = cur_idx && std::cmp_equal(i, *cur_idx);
+                const bool is_pref = get_bool(m, "preferred");
+
+                std::string_view suffix;
+                if (is_cur && is_pref) {
+                    suffix = " (current, preferred)";
+                } else if (is_cur) {
+                    suffix = " (current)";
+                } else if (is_pref) {
+                    suffix = " (preferred)";
+                }
+
+                if (refresh > 0) {
+                    std::println("    {}x{}@{:.3f}{}", w, h, static_cast<double>(refresh) / 1000.0, suffix);
+                } else {
+                    std::println("    {}x{}{}", w, h, suffix);
+                }
+            }
+        }
+    }
+
     void print_usage(std::string_view prog) {
-        std::println("Usage: {} [-j|--json] [-h|--help] version", prog);
+        std::println("Usage: {} [-j|--json] [-h|--help] <command>", prog);
         std::println("");
         std::println("Commands:");
+        std::println("  outputs  List outputs");
         std::println("  version  Show compositor version");
     }
 
@@ -202,7 +334,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    if (*cmd != "version") {
+    if (*cmd != "outputs" && *cmd != "version") {
         std::println(stderr, "frostctl: unknown command '{}'", *cmd);
         print_usage(prog);
         return 1;
@@ -244,10 +376,7 @@ int main(int argc, char* argv[]) {
     }
 
     if (!response["ok"].get<bool>()) {
-        const std::string_view err = (response.contains("error") && response["error"].is_string())
-                                         ? std::string_view(response["error"].get_ref<const std::string&>())
-                                         : std::string_view("unknown error");
-        std::println(stderr, "frostctl: {}", err);
+        std::println(stderr, "frostctl: {}", get_string(response, "error", "unknown error"));
         return 1;
     }
 
@@ -257,13 +386,34 @@ int main(int argc, char* argv[]) {
         } else {
             std::println("{}", response.dump(-1, ' ', false, json::error_handler_t::replace));
         }
-    } else {
-        if (!response.contains("data") || !response["data"].is_object() || !response["data"].contains("version") ||
-            !response["data"]["version"].is_string()) {
+    } else if (*cmd == "outputs") {
+        if (!response.contains("data") || !response["data"].is_array()) {
+            std::println(stderr, "frostctl: invalid outputs response");
+            return 1;
+        }
+        const auto& outputs = response["data"];
+        if (outputs.empty()) {
+            std::println("No outputs.");
+        } else {
+            bool first = true;
+            for (const auto& out : outputs) {
+                if (!out.is_object()) {
+                    continue;
+                }
+                if (!first) {
+                    std::println("");
+                }
+                first = false;
+                print_output(out);
+            }
+        }
+    } else if (*cmd == "version") {
+        if (!response.contains("data") || !response["data"].is_object() ||
+            get_string(response["data"], "version").empty()) {
             std::println(stderr, "frostctl: invalid version response");
             return 1;
         }
-        std::println("frost {}", response["data"]["version"].get_ref<const std::string&>());
+        std::println("frost {}", get_string(response["data"], "version"));
     }
 
     return 0;
