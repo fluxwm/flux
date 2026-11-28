@@ -32,7 +32,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(nlohmann_json)
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(DEPS REQUIRED IMPORTED_TARGET wlroots-0.20 wayland-server xkbcommon libinput xcb pixman-1)
+pkg_check_modules(DEPS REQUIRED IMPORTED_TARGET wlroots-0.20 wayland-server xkbcommon libinput xcb pixman-1 libcanberra)
 
 find_program(WAYLAND_SCANNER NAMES wayland-scanner REQUIRED)
 set(GEN_PROTO_DIR "${CMAKE_CURRENT_BINARY_DIR}/protocols")
@@ -57,6 +57,7 @@ endfunction()
 add_executable(frost
         src/main.cpp
         src/compositor.cpp
+        src/bell.cpp
         src/scene.cpp
         src/output/output.cpp
         src/output/manager.cpp

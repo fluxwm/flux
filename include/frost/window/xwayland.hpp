@@ -43,10 +43,13 @@ namespace frost::window {
         void on_set_title();
         void on_set_app_id();
         void update_floating();
+        void on_set_hints();
+        void on_request_demands_attention();
         void on_set_override_redirect();
 
         wlr_xwayland_surface* m_surface = nullptr;
         wlr_scene_tree* m_subsurface_tree = nullptr;
+        bool m_hints_urgent = false;
 
         ListenerGroup m_listeners;
         ListenerGroup m_surface_listeners;

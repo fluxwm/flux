@@ -41,6 +41,7 @@ namespace frost {
 
         void promote(Window* window);
         void remove(Window* window) noexcept;
+        void update_urgency() noexcept;
         Window* cycle();
         [[nodiscard]] Window* resolve_modal(Window* window) const noexcept;
 

@@ -6,6 +6,14 @@
 
 namespace frost::window {
 
+    namespace {
+
+        bool has_urgency_hint(const wlr_xwayland_surface* surface) noexcept {
+            return surface->hints && (surface->hints->flags & static_cast<uint32_t>(XCB_ICCCM_WM_HINT_X_URGENCY)) != 0;
+        }
+
+    }
+
     XWayland::XWayland(Compositor& compositor, wlr_xwayland_surface* surface)
         : Window(compositor, surface->title, surface->_class), m_surface(surface) {
         attach_scene_tree(wlr_scene_tree_create(initial_parent_tree()));
@@ -23,6 +31,8 @@ namespace frost::window {
         m_listeners.listen(&surface->events.set_class, this, &XWayland::on_set_app_id);
         m_listeners.listen(&surface->events.set_parent, this, &XWayland::on_set_parent);
         m_listeners.listen(&surface->events.set_size_hints, this, &XWayland::update_floating);
+        m_listeners.listen(&surface->events.set_hints, this, &XWayland::on_set_hints);
+        m_listeners.listen(&surface->events.request_demands_attention, this, &XWayland::on_request_demands_attention);
         m_listeners.listen(&surface->events.set_window_type, this, &XWayland::update_floating);
         m_listeners.listen(&surface->events.set_override_redirect, this, &XWayland::on_set_override_redirect);
 
@@ -62,8 +72,13 @@ namespace frost::window {
 
     void XWayland::apply_activated(bool activated) noexcept {
         wlr_xwayland_surface_activate(m_surface, activated);
-        if (activated && m_surface->minimized) {
-            wlr_xwayland_surface_set_minimized(m_surface, false);
+        if (activated) {
+            if (m_surface->minimized) {
+                wlr_xwayland_surface_set_minimized(m_surface, false);
+            }
+            if (m_surface->demands_attention) {
+                wlr_xwayland_surface_set_demands_attention(m_surface, false);
+            }
         }
     }
 
@@ -184,6 +199,10 @@ namespace frost::window {
         snap_animation();
 
         Window::on_map();
+        m_hints_urgent = has_urgency_hint(m_surface);
+        if (m_hints_urgent || m_surface->demands_attention) {
+            notify_urgent();
+        }
     }
 
     void XWayland::on_commit() {
@@ -246,6 +265,34 @@ namespace frost::window {
         if (!m_floating && !m_floating_override && wants_floating()) {
             set_floating(true);
         }
+    }
+
+    void XWayland::on_set_hints() {
+        const bool hints_urgent = has_urgency_hint(m_surface);
+        if (hints_urgent == m_hints_urgent) {
+            return;
+        }
+        m_hints_urgent = hints_urgent;
+        if (!is_mapped()) {
+            return;
+        }
+        if (hints_urgent) {
+            notify_urgent();
+        } else if (!m_surface->demands_attention) {
+            set_urgent(false);
+        }
+    }
+
+    void XWayland::on_request_demands_attention() {
+        if (!is_mapped()) {
+            return;
+        }
+        if (m_surface->demands_attention) {
+            notify_urgent();
+        } else if (!m_hints_urgent) {
+            set_urgent(false);
+        }
+        wlr_xwayland_surface_set_demands_attention(m_surface, m_surface->demands_attention && is_urgent());
     }
 
     void XWayland::on_set_override_redirect() {

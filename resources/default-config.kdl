@@ -66,6 +66,7 @@ layout {
         width 2
         active-color "#7fc8ff"
         inactive-color "#333333"
+        urgent-color "#ff6b6b"
     }
 }
 

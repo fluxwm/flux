@@ -664,6 +664,8 @@ namespace frost {
                     parse_color(child, border.active_color);
                 } else if (iequals(name, "inactive-color")) {
                     parse_color(child, border.inactive_color);
+                } else if (iequals(name, "urgent-color")) {
+                    parse_color(child, border.urgent_color);
                 } else {
                     log_error("unknown setting '{}' in border config", name);
                 }

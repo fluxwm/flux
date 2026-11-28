@@ -1,4 +1,5 @@
 #include "frost/compositor.hpp"
+#include "frost/bell.hpp"
 #include "frost/input.hpp"
 #include "frost/ipc.hpp"
 #include "frost/layer.hpp"
@@ -53,6 +54,24 @@ namespace frost {
             return nested;
         }
 
+        bool is_valid_activation_token(const wlr_xdg_activation_token_v1* token) noexcept {
+            if (!token || !token->seat) {
+                return false;
+            }
+            auto client_matches_serial = [token](wlr_seat_client* seat_client) {
+                if (!seat_client) {
+                    return false;
+                }
+                if (token->surface && (!token->surface->resource ||
+                                       wl_resource_get_client(token->surface->resource) != seat_client->client)) {
+                    return false;
+                }
+                return wlr_seat_client_validate_event_serial(seat_client, token->serial);
+            };
+            return client_matches_serial(token->seat->keyboard_state.focused_client) ||
+                   client_matches_serial(token->seat->pointer_state.focused_client);
+        }
+
     }
 
     Compositor::Compositor() = default;
@@ -86,6 +105,7 @@ namespace frost {
         if (m_output_manager) {
             m_output_manager->clear_outputs();
         }
+        m_bell.reset();
         m_input.reset();
         m_ipc.reset();
         m_config.reset();
@@ -259,6 +279,12 @@ namespace frost {
         m_listeners.listen(&layer_shell->events.new_surface, this, &Compositor::on_new_layer);
 
         auto* xdg_activation = wlr_xdg_activation_v1_create(m_display);
+        m_listeners.listen(&xdg_activation->events.new_token, [this](void* data) {
+            auto* token = static_cast<wlr_xdg_activation_token_v1*>(data);
+            if (!is_session_locked() && is_valid_activation_token(token)) {
+                token->data = token;
+            }
+        });
         m_listeners.listen(&xdg_activation->events.request_activate, this, &Compositor::on_request_activate);
 
         m_lock = std::make_unique<Lock>(*this);
@@ -294,6 +320,7 @@ namespace frost {
         });
 
         m_input = std::make_unique<Input>(*this);
+        m_bell = std::make_unique<Bell>(*this);
         m_config->set_on_reload([this] {
             if (!m_config->animations().enabled) {
                 cancel_animations();
@@ -975,12 +1002,19 @@ namespace frost {
     }
 
     void Compositor::on_request_activate(wlr_xdg_activation_v1_request_activate_event* event) {
-        if (!event->surface->mapped) {
+        if (!event->surface || !event->surface->mapped) {
             return;
         }
 
-        if (auto* window = Window::try_from(event->surface)) {
+        auto* window = Window::try_from(event->surface);
+        if (!window || !window->is_mapped()) {
+            return;
+        }
+
+        if (event->token && event->token->data) {
             focus_window(window);
+        } else {
+            window->set_urgent(true);
         }
     }
 

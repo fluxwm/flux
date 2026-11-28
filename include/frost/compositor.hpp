@@ -25,6 +25,7 @@ namespace frost {
     class Popup;
     class Layer;
     class Input;
+    class Bell;
 
     struct KeybindResult {
         bool handled = false;
@@ -176,6 +177,7 @@ namespace frost {
         std::unique_ptr<Scene> m_scene;
         std::unique_ptr<Input> m_input;
         std::unique_ptr<Lock> m_lock;
+        std::unique_ptr<Bell> m_bell;
         std::unique_ptr<ipc::Server> m_ipc;
 
         std::vector<std::unique_ptr<Window>> m_windows;

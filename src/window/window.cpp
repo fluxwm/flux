@@ -6,6 +6,7 @@
 #include "frost/workspace.hpp"
 
 #include <algorithm>
+#include <utility>
 
 namespace frost {
 
@@ -24,6 +25,7 @@ namespace frost {
           m_app_id(app_id ? app_id : "") {}
 
     Window::~Window() {
+        cancel_bell_timer();
         if (m_ext_toplevel_handle) {
             wlr_ext_foreign_toplevel_handle_v1_destroy(m_ext_toplevel_handle);
             m_ext_toplevel_handle = nullptr;
@@ -106,6 +108,8 @@ namespace frost {
         m_border_width = 0;
         m_border_height = 0;
         m_activated = false;
+        m_urgent = false;
+        cancel_bell_timer();
         m_border.hide();
 
         log_debug("window unmapped: '{}' [{}]", m_title, m_app_id);
@@ -384,8 +388,73 @@ namespace frost {
             return;
         }
         m_activated = activated;
+        cancel_bell_timer();
+        if (activated && std::exchange(m_urgent, false) && m_workspace) {
+            m_workspace->update_urgency();
+        }
         apply_activated(activated);
         update_borders();
+    }
+
+    void Window::set_urgent(bool urgent) noexcept {
+        if (urgent && (!is_mapped() || m_activated)) {
+            return;
+        }
+        if (m_urgent == urgent) {
+            return;
+        }
+        m_urgent = urgent;
+        update_borders();
+        if (m_workspace) {
+            m_workspace->update_urgency();
+        }
+    }
+
+    void Window::notify_urgent() noexcept {
+        if (!is_mapped()) {
+            return;
+        }
+        if (m_activated) {
+            flash_urgent();
+        } else {
+            set_urgent(true);
+        }
+    }
+
+    void Window::flash_urgent() noexcept {
+        constexpr int flash_duration_ms = 180;
+        if (!m_bell_timer) {
+            wl_event_loop* loop = wl_display_get_event_loop(m_compositor.display());
+            if (loop) {
+                m_bell_timer = wl_event_loop_add_timer(
+                    loop,
+                    [](void* data) {
+                        auto* self = static_cast<Window*>(data);
+                        self->cancel_bell_timer();
+                        self->update_borders();
+                        return 0;
+                    },
+                    this);
+            }
+        }
+        if (m_bell_timer) {
+            wl_event_source_timer_update(m_bell_timer, flash_duration_ms);
+            update_borders();
+        }
+    }
+
+    void Window::cancel_bell_timer() noexcept {
+        if (m_bell_timer) {
+            wl_event_source_remove(m_bell_timer);
+            m_bell_timer = nullptr;
+        }
+    }
+
+    const std::array<float, 4>& Window::border_color(const BorderConfig& cfg) const noexcept {
+        if (m_urgent || m_bell_timer) {
+            return cfg.urgent_color;
+        }
+        return m_activated ? cfg.active_color : cfg.inactive_color;
     }
 
     bool Window::has_visible_borders() const noexcept {
@@ -397,7 +466,7 @@ namespace frost {
         if (border_cfg.width <= 0) {
             return false;
         }
-        const auto& color = m_activated ? border_cfg.active_color : border_cfg.inactive_color;
+        const auto& color = border_color(border_cfg);
         if (color[3] <= 0.0f) {
             return false;
         }
@@ -428,7 +497,7 @@ namespace frost {
         const double p = m_animation.open_progress();
         const double scale = open_close_scale(p);
         const auto& border_cfg = m_compositor.config().layout().border;
-        const auto& color = m_activated ? border_cfg.active_color : border_cfg.inactive_color;
+        const auto& color = border_color(border_cfg);
 
         m_border.update(scaled_extent(m_border_width, scale), scaled_extent(m_border_height, scale), border_cfg.width,
                         color, static_cast<float>(p), m_slide_clip ? &*m_slide_clip : nullptr);

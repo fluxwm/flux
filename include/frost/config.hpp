@@ -95,6 +95,7 @@ namespace frost {
         int32_t width = 0;
         std::array<float, 4> active_color{0.498f, 0.784f, 1.0f, 1.0f};
         std::array<float, 4> inactive_color{0.2f, 0.2f, 0.2f, 1.0f};
+        std::array<float, 4> urgent_color{1.0f, 0.42f, 0.42f, 1.0f};
     };
 
     struct LayoutConfig {

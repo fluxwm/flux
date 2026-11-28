@@ -88,6 +88,9 @@ namespace frost {
         }
         if (!std::ranges::contains(m_windows, window)) {
             m_windows.push_back(window);
+            if (window->is_urgent()) {
+                update_urgency();
+            }
         }
         if (!window->is_floating()) {
             m_active_fullscreen = window->is_fullscreen() ? window : nullptr;
@@ -109,10 +112,19 @@ namespace frost {
         window->set_tiled_resizing(false);
         std::erase(m_focus_stack, window);
         std::erase(m_windows, window);
+        update_urgency();
         const size_t remaining_non_floating =
             static_cast<size_t>(std::ranges::count_if(m_windows, [](const Window* w) { return !w->is_floating(); }));
         m_layout->on_window_removed(window, remaining_non_floating);
         m_output.compositor().input().cursor().cancel_grab(window);
+    }
+
+    void Workspace::update_urgency() noexcept {
+        if (!m_handle) {
+            return;
+        }
+        const bool urgent = std::ranges::any_of(m_windows, [](const Window* w) { return w->is_urgent(); });
+        wlr_ext_workspace_handle_v1_set_urgent(m_handle, urgent);
     }
 
     Window* Workspace::cycle() {

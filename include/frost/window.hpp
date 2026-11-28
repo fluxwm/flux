@@ -4,6 +4,7 @@
 #include "frost/scene.hpp"
 #include "frost/wlroots.hpp"
 
+#include <array>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -14,6 +15,7 @@ namespace frost {
     class Compositor;
     class Workspace;
     class Output;
+    struct BorderConfig;
 
     class Window {
     public:
@@ -77,6 +79,7 @@ namespace frost {
         [[nodiscard]] wlr_box geometry_box() const noexcept;
         [[nodiscard]] bool is_animating() const noexcept { return m_animation.is_active(); }
         [[nodiscard]] bool is_activated() const noexcept { return m_activated; }
+        [[nodiscard]] bool is_urgent() const noexcept { return m_urgent; }
         [[nodiscard]] bool is_slide_hidden() const noexcept { return m_slide_hidden; }
         [[nodiscard]] bool has_visible_borders() const noexcept;
         virtual void set_tiled_resizing(bool /*resizing*/) noexcept {}
@@ -97,6 +100,8 @@ namespace frost {
         bool step_animation(TimePoint now) noexcept { return m_animation.step(now); }
 
         void set_activated(bool activated) noexcept;
+        void set_urgent(bool urgent) noexcept;
+        void notify_urgent() noexcept;
         void update_borders() noexcept;
         void set_slide_clip(const wlr_box& output_box, int ws_offset_x) noexcept;
         void clear_slide_clip() noexcept;
@@ -186,10 +191,15 @@ namespace frost {
         void reset_placement_state() noexcept;
         [[nodiscard]] wlr_ext_foreign_toplevel_handle_v1_state foreign_toplevel_state() const noexcept;
         void update_foreign_toplevel() noexcept;
+        void flash_urgent() noexcept;
+        void cancel_bell_timer() noexcept;
+        [[nodiscard]] const std::array<float, 4>& border_color(const BorderConfig& cfg) const noexcept;
 
         std::optional<wlr_box> m_slide_clip;
         bool m_slide_hidden = false;
         bool m_activated = false;
+        bool m_urgent = false;
+        wl_event_source* m_bell_timer = nullptr;
         wlr_box m_floating_box{};
         int m_committed_width = 0;
         int m_committed_height = 0;
