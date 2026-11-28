@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 
 namespace frost {
     class Input;
@@ -36,6 +37,7 @@ namespace frost::input {
         }
 
         void attach_device(wlr_input_device* device) noexcept { wlr_cursor_attach_input_device(m_wlr_cursor, device); }
+        void forget_device(const wlr_input_device* device) noexcept { m_last_abs_pos.erase(device); }
         void map_to_output(wlr_input_device* device, wlr_output* output) noexcept {
             wlr_cursor_map_input_to_output(m_wlr_cursor, device, output);
         }
@@ -59,10 +61,23 @@ namespace frost::input {
         void set_xwayland_cursor(wlr_xwayland* xwayland);
 
     private:
+        struct Point {
+            double x = 0.0;
+            double y = 0.0;
+        };
+
+        struct Motion {
+            double dx = 0.0;
+            double dy = 0.0;
+            double rel_dx = 0.0;
+            double rel_dy = 0.0;
+            double unaccel_dx = 0.0;
+            double unaccel_dy = 0.0;
+        };
+
         void on_motion(wlr_pointer_motion_event* event);
         void on_motion_absolute(wlr_pointer_motion_absolute_event* event);
-        void handle_motion(wlr_input_device* device, uint32_t time_msec, double dx, double dy, double unaccel_dx,
-                           double unaccel_dy);
+        void handle_motion(wlr_input_device* device, uint32_t time_msec, const Motion& motion);
         void on_button(wlr_pointer_button_event* event);
         void on_axis(wlr_pointer_axis_event* event);
         void on_frame();
@@ -88,6 +103,7 @@ namespace frost::input {
         wlr_pointer_gestures_v1* m_pointer_gestures = nullptr;
         wlr_relative_pointer_manager_v1* m_relative_pointer_mgr = nullptr;
         bool m_swiping_workspace = false;
+        std::unordered_map<const wlr_input_device*, Point> m_last_abs_pos;
         ListenerGroup m_listeners;
     };
 

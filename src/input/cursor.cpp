@@ -374,12 +374,15 @@ namespace frost::input {
         return true;
     }
 
-    void Cursor::handle_motion(wlr_input_device* device, uint32_t time_msec, double dx, double dy, double unaccel_dx,
-                               double unaccel_dy) {
+    void Cursor::handle_motion(wlr_input_device* device, uint32_t time_msec, const Motion& motion) {
         m_input.seat().notify_activity();
-        wlr_relative_pointer_manager_v1_send_relative_motion(m_relative_pointer_mgr, m_input.seat().raw(),
-                                                             static_cast<uint64_t>(time_msec) * 1000, dx, dy,
-                                                             unaccel_dx, unaccel_dy);
+        if (motion.rel_dx != 0.0 || motion.rel_dy != 0.0 || motion.unaccel_dx != 0.0 || motion.unaccel_dy != 0.0) {
+            wlr_relative_pointer_manager_v1_send_relative_motion(m_relative_pointer_mgr, m_input.seat().raw(),
+                                                                 static_cast<uint64_t>(time_msec) * 1000, motion.rel_dx,
+                                                                 motion.rel_dy, motion.unaccel_dx, motion.unaccel_dy);
+        }
+        double dx = motion.dx;
+        double dy = motion.dy;
         if (apply_constraint(dx, dy)) {
             wlr_output* prev_out =
                 wlr_output_layout_output_at(m_input.compositor().output_layout(), m_wlr_cursor->x, m_wlr_cursor->y);
@@ -395,17 +398,54 @@ namespace frost::input {
     }
 
     void Cursor::on_motion(wlr_pointer_motion_event* event) {
-        handle_motion(&event->pointer->base, event->time_msec, event->delta_x, event->delta_y, event->unaccel_dx,
-                      event->unaccel_dy);
+        if (!m_last_abs_pos.empty()) {
+            m_last_abs_pos.erase(&event->pointer->base);
+        }
+        handle_motion(&event->pointer->base, event->time_msec,
+                      {
+                          .dx = event->delta_x,
+                          .dy = event->delta_y,
+                          .rel_dx = event->delta_x,
+                          .rel_dy = event->delta_y,
+                          .unaccel_dx = event->unaccel_dx,
+                          .unaccel_dy = event->unaccel_dy,
+                      });
     }
 
     void Cursor::on_motion_absolute(wlr_pointer_motion_absolute_event* event) {
+        auto* device = &event->pointer->base;
         double lx = 0.0;
         double ly = 0.0;
-        wlr_cursor_absolute_to_layout_coords(m_wlr_cursor, &event->pointer->base, event->x, event->y, &lx, &ly);
-        const double dx = lx - m_wlr_cursor->x;
-        const double dy = ly - m_wlr_cursor->y;
-        handle_motion(&event->pointer->base, event->time_msec, dx, dy, dx, dy);
+        wlr_cursor_absolute_to_layout_coords(m_wlr_cursor, device, event->x, event->y, &lx, &ly);
+        if (!std::isfinite(lx) || !std::isfinite(ly)) {
+            m_input.seat().notify_activity();
+            return;
+        }
+
+        const double move_dx = lx - m_wlr_cursor->x;
+        const double move_dy = ly - m_wlr_cursor->y;
+        double rel_dx = move_dx;
+        double rel_dy = move_dy;
+
+        if (const auto [it, inserted] = m_last_abs_pos.try_emplace(device, Point{.x = lx, .y = ly}); !inserted) {
+            rel_dx = lx - it->second.x;
+            rel_dy = ly - it->second.y;
+            it->second = {.x = lx, .y = ly};
+        } else if (const auto* constraint = m_input.seat().active_constraint();
+                   constraint && constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED) {
+            rel_dx = 0.0;
+            rel_dy = 0.0;
+        }
+
+        handle_motion(device, event->time_msec,
+                      {
+                          .dx = move_dx,
+                          .dy = move_dy,
+                          .rel_dx = rel_dx,
+                          .rel_dy = rel_dy,
+                          .unaccel_dx = rel_dx,
+                          .unaccel_dy = rel_dy,
+                      });
     }
 
     void Cursor::on_button(wlr_pointer_button_event* event) {

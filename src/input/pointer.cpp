@@ -49,6 +49,7 @@ namespace frost::input {
     }
 
     void Pointer::on_destroy() {
+        m_input.cursor().forget_device(m_device);
         m_input.remove_pointer(this);
     }
 
