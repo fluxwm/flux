@@ -18,6 +18,19 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(ckdl)
 
+set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+set(JSON_Install OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    nlohmann_json
+    SYSTEM
+    EXCLUDE_FROM_ALL
+    URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
+    URL_HASH SHA256=42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    FIND_PACKAGE_ARGS 3.12
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(DEPS REQUIRED IMPORTED_TARGET wlroots-0.20 wayland-server xkbcommon libinput xcb pixman-1)
 
@@ -63,18 +76,23 @@ add_executable(frost
         src/config.cpp
         src/log.cpp
         src/animation.cpp
+        src/ipc/server.cpp
 )
 
 target_include_directories(frost PRIVATE include "${GEN_PROTO_DIR}")
-target_link_libraries(frost PRIVATE PkgConfig::DEPS kdlpp)
+target_link_libraries(frost PRIVATE PkgConfig::DEPS kdlpp nlohmann_json::nlohmann_json)
 target_compile_definitions(frost PRIVATE FROST_VERSION="${PROJECT_VERSION}")
 target_compile_options(frost PRIVATE -Wall -Wextra -Wno-c23-extensions)
 
 generate_protocol(wlr-layer-shell-unstable-v1)
 generate_protocol(wlr-output-power-management-unstable-v1)
 
+add_executable(frostctl src/ipc/client.cpp)
+target_link_libraries(frostctl PRIVATE nlohmann_json::nlohmann_json)
+target_compile_options(frostctl PRIVATE -Wall -Wextra)
+
 include(GNUInstallDirs)
 
-install(TARGETS frost RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS frost frostctl RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES resources/frost.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/wayland-sessions)
 install(FILES resources/frost-portals.conf DESTINATION ${CMAKE_INSTALL_DATADIR}/xdg-desktop-portal)

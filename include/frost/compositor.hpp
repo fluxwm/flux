@@ -16,6 +16,10 @@
 
 namespace frost {
 
+    namespace ipc {
+        class Server;
+    }
+
     class Output;
     class Window;
     class Popup;
@@ -172,6 +176,7 @@ namespace frost {
         std::unique_ptr<Scene> m_scene;
         std::unique_ptr<Input> m_input;
         std::unique_ptr<Lock> m_lock;
+        std::unique_ptr<ipc::Server> m_ipc;
 
         std::vector<std::unique_ptr<Window>> m_windows;
         std::vector<std::unique_ptr<Popup>> m_popups;

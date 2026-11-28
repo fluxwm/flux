@@ -1,5 +1,6 @@
 #include "frost/compositor.hpp"
 #include "frost/input.hpp"
+#include "frost/ipc.hpp"
 #include "frost/layer.hpp"
 #include "frost/log.hpp"
 #include "frost/output.hpp"
@@ -80,6 +81,7 @@ namespace frost {
             m_output_manager->clear_outputs();
         }
         m_input.reset();
+        m_ipc.reset();
         m_config.reset();
 
         m_scene.reset();
@@ -268,6 +270,15 @@ namespace frost {
         setenv("XDG_CURRENT_DESKTOP", "frost", 1);
         setenv("XDG_SESSION_DESKTOP", "frost", 1);
         log_info("ready on Wayland socket: {}", socket);
+
+        m_ipc = std::make_unique<ipc::Server>(*this, socket);
+        if (m_ipc->is_running()) {
+            setenv("FROST_SOCKET", m_ipc->socket_path().c_str(), 1);
+            log_info("ready on IPC socket: {}", m_ipc->socket_path().c_str());
+        } else {
+            unsetenv("FROST_SOCKET");
+        }
+
         return true;
     }
 
@@ -278,6 +289,9 @@ namespace frost {
             };
             if (m_xwayland) {
                 args.emplace_back("DISPLAY");
+            }
+            if (m_ipc && m_ipc->is_running()) {
+                args.emplace_back("FROST_SOCKET");
             }
             for (const auto& [name, value] : m_config->environment()) {
                 if (value && !std::ranges::contains(args, name)) {
