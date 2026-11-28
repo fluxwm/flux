@@ -80,6 +80,7 @@ namespace frost {
     };
 
     enum class Layout : uint8_t {
+        Dwindle,
         Master,
         Monocle,
     };
@@ -97,7 +98,7 @@ namespace frost {
     };
 
     struct LayoutConfig {
-        Layout mode = Layout::Master;
+        Layout mode = Layout::Dwindle;
         GapsConfig gaps{};
         BorderConfig border{};
     };

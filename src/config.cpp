@@ -671,6 +671,7 @@ namespace frost {
         }
 
         constexpr auto layout_mode_table = std::to_array<std::pair<std::string_view, Layout>>({
+            {"dwindle", Layout::Dwindle},
             {"master", Layout::Master},
             {"monocle", Layout::Monocle},
         });

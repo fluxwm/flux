@@ -54,7 +54,7 @@ cursor {
 }
 
 layout {
-    mode "master"
+    mode "dwindle"
 
     gaps {
         inner 16

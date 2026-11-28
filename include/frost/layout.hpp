@@ -114,6 +114,7 @@ namespace frost::layout {
 
     namespace detail {
         [[nodiscard]] std::unique_ptr<Base> create_master();
+        [[nodiscard]] std::unique_ptr<Base> create_dwindle();
         [[nodiscard]] std::unique_ptr<Base> create_monocle();
     }
 
