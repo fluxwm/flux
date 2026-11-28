@@ -45,7 +45,8 @@ add_executable(frost
         src/main.cpp
         src/compositor.cpp
         src/scene.cpp
-        src/output.cpp
+        src/output/output.cpp
+        src/output/manager.cpp
         src/lock.cpp
         src/input/input.cpp
         src/input/seat.cpp

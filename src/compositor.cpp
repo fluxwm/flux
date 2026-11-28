@@ -12,7 +12,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <csignal>
 #include <cstdlib>
 #include <fcntl.h>
@@ -45,22 +44,24 @@ namespace frost {
         }
 
         m_listeners.clear();
+        if (m_output_manager) {
+            m_output_manager->clear_listeners();
+        }
 
         while (!m_popups.empty()) {
             auto p = std::move(m_popups.back());
             m_popups.pop_back();
         }
-        m_orphaned_focus_order.clear();
         m_windows.clear();
-        m_outputs.clear();
+        if (m_output_manager) {
+            m_output_manager->clear_outputs();
+        }
         m_input.reset();
         m_config.reset();
 
         m_scene.reset();
+        m_output_manager.reset();
 
-        if (m_output_layout) {
-            wlr_output_layout_destroy(m_output_layout);
-        }
         if (m_backend) {
             wlr_backend_destroy(m_backend);
         }
@@ -168,31 +169,12 @@ namespace frost {
         wlr_xdg_foreign_v2_create(m_display, foreign_registry);
         m_tearing_control_mgr = wlr_tearing_control_manager_v1_create(m_display, 1);
 
-        m_output_layout = wlr_output_layout_create(m_display);
-        wlr_xdg_output_manager_v1_create(m_display, m_output_layout);
-
         m_workspace_manager = wlr_ext_workspace_manager_v1_create(m_display, 1);
         m_listeners.listen(&m_workspace_manager->events.commit, this, &Compositor::on_workspace_commit);
 
-        auto* output_power_mgr = wlr_output_power_manager_v1_create(m_display);
-        m_listeners.listen(&output_power_mgr->events.set_mode, this, &Compositor::on_output_power_set_mode);
+        m_output_manager = std::make_unique<output::Manager>(*this);
 
-        m_output_mgr = wlr_output_manager_v1_create(m_display);
-        m_listeners.listen(&m_output_mgr->events.apply, [this](void* d) {
-            on_output_manager_apply(static_cast<wlr_output_configuration_v1*>(d), false);
-        });
-        m_listeners.listen(&m_output_mgr->events.test, [this](void* d) {
-            on_output_manager_apply(static_cast<wlr_output_configuration_v1*>(d), true);
-        });
-
-        m_drm_lease_mgr = wlr_drm_lease_v1_manager_create(m_display, m_backend);
-        if (m_drm_lease_mgr) {
-            m_listeners.listen(&m_drm_lease_mgr->events.request, this, &Compositor::on_drm_lease_request);
-        }
-
-        m_listeners.listen(&m_backend->events.new_output, this, &Compositor::on_new_output);
-
-        m_scene = std::make_unique<Scene>(m_display, m_output_layout);
+        m_scene = std::make_unique<Scene>(m_display, m_output_manager->layout());
 
         if (const int drm_fd = wlr_renderer_get_drm_fd(m_renderer); drm_fd >= 0) {
             if (wlr_renderer_get_texture_formats(m_renderer, WLR_BUFFER_CAP_DMABUF) != nullptr) {
@@ -241,7 +223,7 @@ namespace frost {
                 restack_windows();
             }
             m_input->apply_config();
-            apply_output_configs();
+            m_output_manager->apply_configs();
         });
 
         const char* socket = wl_display_add_socket_auto(m_display);
@@ -480,7 +462,7 @@ namespace frost {
         dismiss_popups();
 
         if (output->is_enabled()) {
-            m_focused_output = output;
+            set_focused_output(output);
         }
         log_debug("output '{}': switching from workspace {} to {}", output->raw()->name,
                   output->active_workspace().id(), id);
@@ -539,7 +521,7 @@ namespace frost {
         m_swipe_output = nullptr;
 
         if (Workspace* target = out->animation().end_swipe(*out)) {
-            m_focused_output = out;
+            set_focused_output(out);
             focus_window(target->focused_window());
         } else if (!out->animation().is_active()) {
             refocus();
@@ -553,9 +535,17 @@ namespace frost {
         }
     }
 
+    bool Compositor::cancel_swipe_for(Output* output) {
+        if (m_swipe_output != output) {
+            return false;
+        }
+        cancel_workspace_swipe();
+        return true;
+    }
+
     void Compositor::cancel_animations() {
         cancel_workspace_swipe();
-        for (const auto& out : m_outputs) {
+        for (const auto& out : outputs()) {
             out->animation().cancel();
             out->active_workspace().snap_animations();
         }
@@ -590,7 +580,7 @@ namespace frost {
     }
 
     void Compositor::restack_windows() {
-        for (const auto& out : m_outputs) {
+        for (const auto& out : outputs()) {
             out->active_workspace().restack();
         }
         update_popup_positions();
@@ -610,7 +600,7 @@ namespace frost {
                 return;
             }
             window = ws->resolve_modal(window);
-            m_focused_output = &ws->output();
+            set_focused_output(&ws->output());
             ws->promote(window);
 
             if (ws != &ws->output().active_workspace()) {
@@ -645,7 +635,7 @@ namespace frost {
         if (Window* w = cur->active_workspace().window_in_direction(direction)) {
             focus_window(w);
         } else if (Output* adj = cur->adjacent_output(direction)) {
-            m_focused_output = adj;
+            set_focused_output(adj);
             focus_window(adj->active_workspace().focused_window());
         }
     }
@@ -687,36 +677,6 @@ namespace frost {
         }
     }
 
-    Output* Compositor::output_from_wlr(wlr_output* wlr_out) const noexcept {
-        if (!wlr_out) {
-            return nullptr;
-        }
-        auto it = std::ranges::find_if(m_outputs, [wlr_out](const auto& o) { return o->matches(wlr_out); });
-        return it != m_outputs.end() ? it->get() : nullptr;
-    }
-
-    Output* Compositor::output_at(double lx, double ly) const noexcept {
-        Output* out = output_from_wlr(wlr_output_layout_output_at(m_output_layout, lx, ly));
-        return (out && out->is_enabled()) ? out : nullptr;
-    }
-
-    Output* Compositor::focused_output() const noexcept {
-        if (m_focused_output && m_focused_output->is_enabled()) {
-            return m_focused_output;
-        }
-        wlr_output* wlr_out =
-            wlr_output_layout_output_at(m_output_layout, m_input->cursor().x(), m_input->cursor().y());
-        if (!wlr_out) {
-            wlr_out = wlr_output_layout_get_center_output(m_output_layout);
-        }
-        Output* out = output_from_wlr(wlr_out);
-        if (out && out->is_enabled()) {
-            return out;
-        }
-        auto it = std::ranges::find_if(m_outputs, [](const auto& o) { return o->is_enabled(); });
-        return it != m_outputs.end() ? it->get() : nullptr;
-    }
-
     void Compositor::map_window(Window* window) {
         Output* out = window->output();
         if (!out || !out->is_enabled()) {
@@ -736,7 +696,9 @@ namespace frost {
     }
 
     void Compositor::unmap_window(Window* window) {
-        std::erase(m_orphaned_focus_order, window);
+        if (m_output_manager) {
+            m_output_manager->forget_window(window);
+        }
         dismiss_popups(window->scene_tree());
         Workspace* ws = window->workspace();
         if (ws) {
@@ -753,7 +715,9 @@ namespace frost {
             ZWLR_LAYER_SHELL_V1_LAYER_TOP,
         };
 
-        const bool has_enabled = std::ranges::any_of(m_outputs, &Output::is_enabled);
+        const auto all_outputs = outputs();
+        Output* focused_hint = m_output_manager ? m_output_manager->focused_hint() : nullptr;
+        const bool has_enabled = std::ranges::any_of(all_outputs, &Output::is_enabled);
 
         auto find_in_output = [&](const Output* out, zwlr_layer_shell_v1_layer layer) -> Layer* {
             if (!out || (has_enabled && !out->is_enabled())) {
@@ -768,11 +732,11 @@ namespace frost {
         };
 
         for (auto layer : layers) {
-            if (auto* excl = find_in_output(m_focused_output, layer)) {
+            if (auto* excl = find_in_output(focused_hint, layer)) {
                 return excl;
             }
-            for (const auto& out : m_outputs) {
-                if (out.get() == m_focused_output) {
+            for (const auto& out : all_outputs) {
+                if (out.get() == focused_hint) {
                     continue;
                 }
                 if (auto* excl = find_in_output(out.get(), layer)) {
@@ -845,7 +809,9 @@ namespace frost {
 
     void Compositor::remove_window(Window* window) {
         if (window) {
-            std::erase(m_orphaned_focus_order, window);
+            if (m_output_manager) {
+                m_output_manager->forget_window(window);
+            }
             if (window->is_mapped()) {
                 unmap_window(window);
             } else {
@@ -915,278 +881,6 @@ namespace frost {
         }
     }
 
-    const OutputConfig* Compositor::effective_output_config(const Output* output) const noexcept {
-        if (!output) {
-            return nullptr;
-        }
-        if (const OutputConfig* ov = output->runtime_override()) {
-            return ov;
-        }
-        return m_config->output_config(output->raw());
-    }
-
-    void Compositor::arrange_output_layout() {
-        for (const auto& out : m_outputs) {
-            if (out->is_config_disabled()) {
-                wlr_output_layout_remove(m_output_layout, out->raw());
-            }
-        }
-
-        auto add_to_layout = [&](Output* out, const std::optional<OutputPosition>& pos) {
-            const bool was_in_layout = wlr_output_layout_get(m_output_layout, out->raw()) != nullptr;
-            wlr_output_layout_output* l_out = pos ? wlr_output_layout_add(m_output_layout, out->raw(), pos->x, pos->y)
-                                                  : wlr_output_layout_add_auto(m_output_layout, out->raw());
-            if (!was_in_layout && l_out) {
-                m_scene->add_to_output_layout(l_out, out->scene_output());
-            }
-        };
-
-        for (const auto& out : m_outputs) {
-            if (out->is_config_disabled()) {
-                continue;
-            }
-            if (const auto* cfg = effective_output_config(out.get()); cfg && cfg->position) {
-                add_to_layout(out.get(), cfg->position);
-            }
-        }
-
-        for (const auto& out : m_outputs) {
-            if (out->is_config_disabled()) {
-                continue;
-            }
-            const auto* cfg = effective_output_config(out.get());
-            if (!cfg || !cfg->position) {
-                add_to_layout(out.get(), std::nullopt);
-            }
-        }
-    }
-
-    void Compositor::evacuate_output(Output* output) {
-        if (!output) {
-            return;
-        }
-
-        if (m_input) {
-            if (Window* grabbed = m_input->cursor().grabbed_window(); grabbed && grabbed->output() == output) {
-                m_input->cursor().cancel_grab();
-            }
-        }
-        output->destroy_layers();
-
-        output->active_workspace().snap_animations();
-        if (m_swipe_output == output) {
-            cancel_workspace_swipe();
-        } else {
-            output->animation().cancel();
-        }
-        if (m_focused_output == output) {
-            m_focused_output = nullptr;
-        }
-
-        auto it =
-            std::ranges::find_if(m_outputs, [output](const auto& o) { return o.get() != output && o->is_enabled(); });
-        if (it == m_outputs.end()) {
-            it = std::ranges::find_if(
-                m_outputs, [output](const auto& o) { return o.get() != output && !o->is_config_disabled(); });
-        }
-        Output* target = (it != m_outputs.end()) ? it->get() : nullptr;
-        if (!target) {
-            m_saved_workspace_id = output->active_workspace().id();
-        }
-
-        std::vector<Window*> focus_order;
-        if (target) {
-            for (const auto& ws : std::views::concat(target->workspaces(), output->workspaces())) {
-                focus_order.insert(focus_order.end(), ws->focus_stack().begin(), ws->focus_stack().end());
-            }
-        } else {
-            for (const auto& ws : output->workspaces()) {
-                for (Window* w : ws->focus_stack()) {
-                    if (!std::ranges::contains(m_orphaned_focus_order, w)) {
-                        m_orphaned_focus_order.push_back(w);
-                    }
-                }
-            }
-        }
-
-        for (const auto& win : m_windows) {
-            if (win->output() != output) {
-                continue;
-            }
-            if (win->is_mapped()) {
-                win->set_activated(false);
-            }
-            win->set_workspace(target ? &target->workspace(win->workspace_id()) : nullptr);
-            win->set_placed(false);
-        }
-
-        for (Window* win : std::views::reverse(focus_order)) {
-            if (win->workspace()) {
-                win->workspace()->promote(win);
-            }
-        }
-    }
-
-    void Compositor::finish_output_changes(bool had_enabled, std::span<Output* const> newly_disabled,
-                                           std::span<Output* const> newly_enabled) {
-        arrange_output_layout();
-
-        for (Output* out : newly_disabled) {
-            evacuate_output(out);
-        }
-
-        bool restore_ws = !had_enabled;
-        for (Output* out : newly_enabled) {
-            attach_orphaned_windows(out, restore_ws);
-            restore_ws = false;
-        }
-
-        for (const auto& out : m_outputs) {
-            if (out->is_enabled()) {
-                out->arrange_layers();
-            } else {
-                for (const auto& ws : out->workspaces()) {
-                    ws->arrange();
-                }
-            }
-        }
-
-        sync_session_lock();
-        refocus();
-    }
-
-    void Compositor::apply_output_configs() {
-        const bool had_enabled = std::ranges::any_of(m_outputs, &Output::is_enabled);
-        std::vector<Output*> newly_disabled;
-        std::vector<Output*> newly_enabled;
-        for (const auto& out : m_outputs) {
-            const bool was_enabled = out->is_enabled();
-            const bool was_config_disabled = out->is_config_disabled();
-            out->sync_file_config(m_config->output_config(out->raw()));
-            out->apply_config(effective_output_config(out.get()), false);
-            if (!was_config_disabled && out->is_config_disabled()) {
-                newly_disabled.push_back(out.get());
-            } else if (!was_enabled && out->is_enabled()) {
-                newly_enabled.push_back(out.get());
-            }
-        }
-
-        finish_output_changes(had_enabled, newly_disabled, newly_enabled);
-        update_output_manager_config();
-    }
-
-    void Compositor::remove_output(Output* output) {
-        if (!output) {
-            return;
-        }
-
-        const bool is_nested = output->is_nested();
-        evacuate_output(output);
-        erase_unique_ptr(m_outputs, output);
-
-        if (is_nested && m_outputs.empty()) {
-            quit();
-            return;
-        }
-
-        arrange_output_layout();
-
-        for (const auto& remaining : m_outputs) {
-            if (remaining->is_enabled()) {
-                remaining->arrange_layers();
-            }
-        }
-
-        sync_session_lock();
-        refocus();
-        update_output_manager_config();
-    }
-
-    void Compositor::on_new_output(wlr_output* output) {
-        if (output->non_desktop) {
-            if (m_drm_lease_mgr) {
-                log_debug("offering non-desktop output '{}' for DRM lease", output->name);
-                if (!wlr_drm_lease_v1_manager_offer_output(m_drm_lease_mgr, output)) {
-                    log_error("failed to offer non-desktop output '{}' for DRM lease", output->name);
-                }
-            } else {
-                log_debug("ignoring non-desktop output '{}'", output->name);
-            }
-            return;
-        }
-
-        m_outputs.push_back(std::make_unique<Output>(*this, output));
-        Output* new_out = m_outputs.back().get();
-        arrange_output_layout();
-
-        if (new_out->is_enabled()) {
-            const auto enabled_count =
-                static_cast<size_t>(std::ranges::count_if(m_outputs, [](const auto& o) { return o->is_enabled(); }));
-            attach_orphaned_windows(new_out, enabled_count == 1);
-        }
-
-        for (const auto& out : m_outputs) {
-            if (out->is_enabled()) {
-                out->arrange_layers();
-            }
-        }
-        sync_session_lock();
-        refocus();
-        update_output_manager_config();
-    }
-
-    void Compositor::attach_orphaned_windows(Output* output, bool restore_workspace) {
-        if (!output) {
-            return;
-        }
-        if (restore_workspace && m_saved_workspace_id != 1) {
-            output->active_workspace().deactivate();
-            output->set_active_workspace(&output->workspace(m_saved_workspace_id));
-            output->active_workspace().activate();
-            m_saved_workspace_id = 1;
-        }
-        for (const auto& win : m_windows) {
-            if (!win->workspace()) {
-                win->set_workspace(&output->workspace(win->workspace_id()));
-            }
-        }
-        for (Window* win : std::views::reverse(m_orphaned_focus_order)) {
-            if (win->is_mapped() && win->workspace()) {
-                win->workspace()->promote(win);
-            }
-        }
-        m_orphaned_focus_order.clear();
-    }
-
-    void Compositor::on_output_enabled_changed(Output* output) {
-        if (!output) {
-            return;
-        }
-
-        if (!output->is_enabled()) {
-            output->active_workspace().snap_animations();
-            if (m_swipe_output == output) {
-                cancel_workspace_swipe();
-            } else {
-                output->animation().cancel();
-            }
-            if (m_focused_output == output) {
-                m_focused_output = nullptr;
-            }
-        } else {
-            attach_orphaned_windows(output);
-        }
-
-        for (const auto& out : m_outputs) {
-            if (out->is_enabled()) {
-                out->arrange_layers();
-            }
-        }
-        sync_session_lock();
-        refocus();
-        update_output_manager_config();
-    }
-
     void Compositor::on_new_window(wlr_xdg_toplevel* toplevel) {
         m_windows.push_back(std::make_unique<window::Xdg>(*this, toplevel));
     }
@@ -1212,196 +906,6 @@ namespace frost {
 
         if (to_activate) {
             focus_workspace(&to_activate->output(), to_activate->id());
-        }
-    }
-
-    void Compositor::on_output_power_set_mode(wlr_output_power_v1_set_mode_event* event) {
-        Output* output = output_from_wlr(event->output);
-        if (!output || output->is_config_disabled()) {
-            return;
-        }
-
-        const bool enable = (event->mode == ZWLR_OUTPUT_POWER_V1_MODE_ON);
-        const bool was_enabled = output->is_enabled();
-        const bool prev_dpms_off = output->is_dpms_off();
-        if (prev_dpms_off == !enable && was_enabled == enable) {
-            return;
-        }
-
-        output->set_dpms_off(!enable);
-        if (!output->apply_config(effective_output_config(output), false)) {
-            output->set_dpms_off(prev_dpms_off);
-            return;
-        }
-        if (output->is_enabled() != was_enabled) {
-            on_output_enabled_changed(output);
-        }
-    }
-
-    void Compositor::update_output_manager_config() {
-        if (!m_output_mgr) {
-            return;
-        }
-        wlr_output_configuration_v1* config = wlr_output_configuration_v1_create();
-        if (!config) {
-            return;
-        }
-        for (const auto& out : m_outputs) {
-            wlr_output_configuration_head_v1* head = wlr_output_configuration_head_v1_create(config, out->raw());
-            if (!head) {
-                continue;
-            }
-            head->state.enabled = !out->is_config_disabled();
-            if (head->state.enabled) {
-                const wlr_box box = out->layout_box();
-                head->state.x = box.x;
-                head->state.y = box.y;
-            }
-        }
-        wlr_output_manager_v1_set_configuration(m_output_mgr, config);
-    }
-
-    void Compositor::on_output_manager_apply(wlr_output_configuration_v1* config, bool test_only) {
-        if (!config) {
-            return;
-        }
-
-        auto finish_config = [config](bool succeeded) {
-            if (succeeded) {
-                wlr_output_configuration_v1_send_succeeded(config);
-            } else {
-                wlr_output_configuration_v1_send_failed(config);
-            }
-            wlr_output_configuration_v1_destroy(config);
-        };
-
-        struct HeadState {
-            Output* output = nullptr;
-            bool was_enabled = false;
-            bool was_config_disabled = false;
-        };
-        std::vector<HeadState> head_states;
-        wlr_output_configuration_head_v1* head = nullptr;
-        wl_list_for_each(head, &config->heads, link) {
-            Output* out = output_from_wlr(head->state.output);
-            if (!out) {
-                finish_config(false);
-                return;
-            }
-            if (head->state.enabled) {
-                if (!std::isfinite(head->state.scale) || head->state.scale < 0.1f || head->state.scale > 10.0f) {
-                    finish_config(false);
-                    return;
-                }
-                if (!head->state.mode && head->state.custom_mode.width == 0 &&
-                    !wl_list_empty(&head->state.output->modes)) {
-                    head->state.mode = head->state.output->current_mode ? head->state.output->current_mode
-                                                                        : wlr_output_preferred_mode(head->state.output);
-                }
-            }
-            head_states.push_back({
-                .output = out,
-                .was_enabled = out->is_enabled(),
-                .was_config_disabled = out->is_config_disabled(),
-            });
-        }
-
-        std::vector<wlr_backend_output_state> states(head_states.size());
-        size_t idx = 0;
-        wl_list_for_each(head, &config->heads, link) {
-            states[idx].output = head->state.output;
-            wlr_output_state_init(&states[idx].base);
-            wlr_output_head_v1_state_apply(&head->state, &states[idx].base);
-            ++idx;
-        }
-        auto finish_states = [&] {
-            for (auto& s : states) {
-                wlr_output_state_finish(&s.base);
-            }
-        };
-
-        const bool test_ok = states.empty() || wlr_backend_test(m_backend, states.data(), states.size());
-        if (!test_ok) {
-            finish_states();
-            finish_config(false);
-            return;
-        }
-
-        if (test_only) {
-            finish_states();
-            finish_config(true);
-            return;
-        }
-
-        const bool had_enabled = std::ranges::any_of(m_outputs, &Output::is_enabled);
-        const bool commit_ok = states.empty() || wlr_backend_commit(m_backend, states.data(), states.size());
-        finish_states();
-        if (!commit_ok) {
-            finish_config(false);
-            update_output_manager_config();
-            return;
-        }
-
-        wl_list_for_each(head, &config->heads, link) {
-            Output* out = output_from_wlr(head->state.output);
-            OutputConfig override_cfg;
-            override_cfg.name = out->raw()->name ? out->raw()->name : "";
-            override_cfg.enabled = head->state.enabled;
-            override_cfg.scale = head->state.scale;
-            override_cfg.transform = head->state.transform;
-            if (head->state.enabled) {
-                override_cfg.position = OutputPosition{.x = head->state.x, .y = head->state.y};
-                if (head->state.mode) {
-                    override_cfg.mode = OutputMode{
-                        .width = head->state.mode->width,
-                        .height = head->state.mode->height,
-                        .refresh_mhz =
-                            head->state.mode->refresh > 0 ? std::optional{head->state.mode->refresh} : std::nullopt,
-                        .custom = false,
-                    };
-                } else if (head->state.custom_mode.width > 0 && head->state.custom_mode.height > 0) {
-                    override_cfg.mode = OutputMode{
-                        .width = head->state.custom_mode.width,
-                        .height = head->state.custom_mode.height,
-                        .refresh_mhz = head->state.custom_mode.refresh > 0
-                                           ? std::optional{head->state.custom_mode.refresh}
-                                           : std::nullopt,
-                        .custom = true,
-                    };
-                } else if (const auto* prev = effective_output_config(out); prev && prev->mode) {
-                    override_cfg.mode = prev->mode;
-                }
-            }
-            out->apply_runtime_override(std::move(override_cfg));
-        }
-
-        std::vector<Output*> newly_disabled;
-        std::vector<Output*> newly_enabled;
-        for (const auto& entry : head_states) {
-            if (!entry.was_config_disabled && entry.output->is_config_disabled()) {
-                newly_disabled.push_back(entry.output);
-            } else if (!entry.was_enabled && entry.output->is_enabled()) {
-                newly_enabled.push_back(entry.output);
-            }
-        }
-
-        finish_output_changes(had_enabled, newly_disabled, newly_enabled);
-        finish_config(true);
-        update_output_manager_config();
-    }
-
-    void Compositor::on_drm_lease_request(wlr_drm_lease_request_v1* request) {
-        if (is_session_locked()) {
-            log_error("session lock active, rejecting DRM lease request");
-            wlr_drm_lease_request_v1_reject(request);
-            return;
-        }
-
-        if (wlr_drm_lease_request_v1_grant(request)) {
-            log_debug("granted DRM lease request");
-        } else {
-            log_error("failed to grant DRM lease request, rejecting");
-            wlr_drm_lease_request_v1_reject(request);
         }
     }
 
@@ -1444,7 +948,7 @@ namespace frost {
             return;
         }
         if (layer->output()) {
-            m_focused_output = layer->output();
+            set_focused_output(layer->output());
         }
         if (layer->is_exclusive()) {
             cancel_animations();

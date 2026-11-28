@@ -3,6 +3,7 @@
 #include "frost/config.hpp"
 #include "frost/listener.hpp"
 #include "frost/lock.hpp"
+#include "frost/output/manager.hpp"
 #include "frost/scene.hpp"
 #include "frost/wlroots.hpp"
 
@@ -44,17 +45,32 @@ namespace frost {
         [[nodiscard]] wlr_renderer* renderer() const noexcept { return m_renderer; }
         [[nodiscard]] wlr_allocator* allocator() const noexcept { return m_allocator; }
         [[nodiscard]] const Config& config() const noexcept { return *m_config; }
+        [[nodiscard]] bool has_input() const noexcept { return m_input != nullptr; }
         [[nodiscard]] Input& input() noexcept { return *m_input; }
         [[nodiscard]] const Input& input() const noexcept { return *m_input; }
         [[nodiscard]] wlr_xwayland* xwayland() const noexcept { return m_xwayland; }
         [[nodiscard]] Scene& scene() noexcept { return *m_scene; }
         [[nodiscard]] const Scene& scene() const noexcept { return *m_scene; }
-        [[nodiscard]] wlr_output_layout* output_layout() const noexcept { return m_output_layout; }
-        [[nodiscard]] Output* output_from_wlr(wlr_output* wlr_out) const noexcept;
-        [[nodiscard]] Output* output_at(double lx, double ly) const noexcept;
-        [[nodiscard]] Output* focused_output() const noexcept;
-        void set_focused_output(Output* output) noexcept { m_focused_output = output; }
-        [[nodiscard]] std::span<const std::unique_ptr<Output>> outputs() const noexcept { return m_outputs; }
+        [[nodiscard]] wlr_output_layout* output_layout() const noexcept {
+            return m_output_manager ? m_output_manager->layout() : nullptr;
+        }
+        [[nodiscard]] Output* output_from_wlr(wlr_output* wlr_out) const noexcept {
+            return m_output_manager ? m_output_manager->from_wlr(wlr_out) : nullptr;
+        }
+        [[nodiscard]] Output* output_at(double lx, double ly) const noexcept {
+            return m_output_manager ? m_output_manager->at(lx, ly) : nullptr;
+        }
+        [[nodiscard]] Output* focused_output() const noexcept {
+            return m_output_manager ? m_output_manager->focused() : nullptr;
+        }
+        void set_focused_output(Output* output) noexcept {
+            if (m_output_manager) {
+                m_output_manager->set_focused(output);
+            }
+        }
+        [[nodiscard]] std::span<const std::unique_ptr<Output>> outputs() const noexcept {
+            return m_output_manager ? m_output_manager->outputs() : std::span<const std::unique_ptr<Output>>{};
+        }
         [[nodiscard]] Layer* exclusive_layer() const noexcept;
         [[nodiscard]] bool is_session_locked() const noexcept { return m_lock && m_lock->is_locked(); }
         [[nodiscard]] bool is_locked() const noexcept { return is_session_locked() || exclusive_layer() != nullptr; }
@@ -77,6 +93,7 @@ namespace frost {
         }
         [[nodiscard]] wlr_ext_workspace_manager_v1* workspace_manager() const noexcept { return m_workspace_manager; }
         [[nodiscard]] Window* focused_window() const noexcept;
+        [[nodiscard]] std::span<const std::unique_ptr<Window>> windows() const noexcept { return m_windows; }
         [[nodiscard]] std::span<const std::unique_ptr<Popup>> popups() const noexcept { return m_popups; }
         [[nodiscard]] bool is_workspace_swiping() const noexcept { return m_swipe_output != nullptr; }
 
@@ -92,6 +109,7 @@ namespace frost {
         void update_workspace_swipe(double dx);
         void end_workspace_swipe();
         void cancel_workspace_swipe();
+        bool cancel_swipe_for(Output* output);
         void cancel_animations();
         void focus_surface(wlr_surface* surface);
         void refocus();
@@ -110,29 +128,30 @@ namespace frost {
         void remove_popup(Popup* popup);
         void recreate_as_popup(Window* window);
         void recreate_as_window(Popup* popup);
-        void remove_output(Output* output);
-        void on_output_enabled_changed(Output* output);
-        void update_output_manager_config();
+        void remove_output(Output* output) {
+            if (m_output_manager) {
+                m_output_manager->remove(output);
+            }
+        }
+        void on_output_enabled_changed(Output* output) {
+            if (m_output_manager) {
+                m_output_manager->on_enabled_changed(output);
+            }
+        }
+        void update_output_manager_config() {
+            if (m_output_manager) {
+                m_output_manager->update_protocol_config();
+            }
+        }
         void on_animation_finished();
 
     private:
-        [[nodiscard]] const OutputConfig* effective_output_config(const Output* output) const noexcept;
         void restack_windows();
-        void arrange_output_layout();
-        void evacuate_output(Output* output);
-        void apply_output_configs();
-        void finish_output_changes(bool had_enabled, std::span<Output* const> newly_disabled,
-                                   std::span<Output* const> newly_enabled);
-        void attach_orphaned_windows(Output* output, bool restore_workspace = false);
 
-        void on_new_output(wlr_output* output);
         void on_new_window(wlr_xdg_toplevel* toplevel);
         void on_new_layer(wlr_layer_surface_v1* layer_surface);
         void on_request_activate(wlr_xdg_activation_v1_request_activate_event* event);
         void on_workspace_commit(wlr_ext_workspace_v1_commit_event* event);
-        void on_output_power_set_mode(wlr_output_power_v1_set_mode_event* event);
-        void on_output_manager_apply(wlr_output_configuration_v1* config, bool test_only);
-        void on_drm_lease_request(wlr_drm_lease_request_v1* request);
         void execute_action(const Action& action);
         void spawn(const action::Spawn& action);
 
@@ -141,28 +160,22 @@ namespace frost {
         wlr_session* m_session = nullptr;
         wlr_renderer* m_renderer = nullptr;
         wlr_allocator* m_allocator = nullptr;
-        wlr_output_layout* m_output_layout = nullptr;
         wlr_ext_foreign_toplevel_list_v1* m_foreign_toplevel_list = nullptr;
         wlr_ext_workspace_manager_v1* m_workspace_manager = nullptr;
-        wlr_output_manager_v1* m_output_mgr = nullptr;
         wlr_tearing_control_manager_v1* m_tearing_control_mgr = nullptr;
-        wlr_drm_lease_v1_manager* m_drm_lease_mgr = nullptr;
         wlr_xwayland* m_xwayland = nullptr;
 
         std::unique_ptr<Config> m_config;
+        std::unique_ptr<output::Manager> m_output_manager;
         std::unique_ptr<Scene> m_scene;
         std::unique_ptr<Input> m_input;
         std::unique_ptr<Lock> m_lock;
 
-        std::vector<std::unique_ptr<Output>> m_outputs;
-        Output* m_focused_output = nullptr;
         std::vector<std::unique_ptr<Window>> m_windows;
         std::vector<std::unique_ptr<Popup>> m_popups;
-        std::vector<Window*> m_orphaned_focus_order;
         std::vector<pid_t> m_spawned_pids;
         std::vector<wl_event_source*> m_signal_sources;
         Output* m_swipe_output = nullptr;
-        uint32_t m_saved_workspace_id = 1;
 
         ListenerGroup m_listeners;
         ListenerGroup m_xwayland_listeners;
