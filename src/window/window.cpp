@@ -99,7 +99,6 @@ namespace frost {
         m_maximized = false;
         m_floating = false;
         m_floating_override = false;
-        m_tile_weight = 1.0f;
         reset_placement_state();
         m_floating_box = {};
         m_committed_width = 0;

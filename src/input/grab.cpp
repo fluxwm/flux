@@ -1,6 +1,5 @@
 #include "frost/input/grab.hpp"
 #include "frost/compositor.hpp"
-#include "frost/config.hpp"
 #include "frost/output.hpp"
 #include "frost/window.hpp"
 #include "frost/workspace.hpp"
@@ -112,9 +111,8 @@ namespace frost::input {
     }
 
     TiledResizeGrab::TiledResizeGrab(Window* window, uint32_t button, double cursor_x, double cursor_y,
-                                     uint32_t edges) noexcept
-        : Grab(window, button, cursor_x, cursor_y), m_workspace(*window->workspace()), m_edges(edges),
-          m_initial_master_factor(m_workspace.master_factor()) {}
+                                     std::unique_ptr<layout::ResizeSession> session) noexcept
+        : Grab(window, button, cursor_x, cursor_y), m_workspace(*window->workspace()), m_session(std::move(session)) {}
 
     void TiledResizeGrab::start() {
         m_workspace.snap_animations();
@@ -125,93 +123,35 @@ namespace frost::input {
                 w->set_tiled_resizing(true);
             }
         }
-
-        const TiledNeighbors n = m_workspace.tiled_neighbors(m_window);
-        if (n.count <= 2 || !n.found || n.index == 0) {
-            return;
-        }
-
-        if ((m_edges & WLR_EDGE_BOTTOM) && n.next) {
-            m_top_win = m_window;
-            m_bot_win = n.next;
-        } else if ((m_edges & WLR_EDGE_TOP) && n.index > 1) {
-            m_top_win = n.prev;
-            m_bot_win = m_window;
-        }
-
-        if (m_top_win && m_bot_win) {
-            m_top_weight = m_top_win->tile_weight();
-            m_bot_weight = m_bot_win->tile_weight();
-        }
     }
 
     void TiledResizeGrab::update(int dx, int dy) {
-        const LayoutMetrics m = m_workspace.layout_metrics();
-        if (m.tiled_count < 2) {
-            return;
-        }
-
-        bool changed = false;
-        if (m_edges & (WLR_EDGE_LEFT | WLR_EDGE_RIGHT)) {
-            const float delta_factor = static_cast<float>(dx) / static_cast<float>(m.avail_w);
-            const float next_factor = std::clamp(m_initial_master_factor + delta_factor, 0.10f, 0.90f);
-            if (next_factor != m_workspace.master_factor()) {
-                m_workspace.set_master_factor(next_factor);
-                changed = true;
-            }
-        }
-
-        if ((m_edges & (WLR_EDGE_TOP | WLR_EDGE_BOTTOM)) && m.tiled_count > 2 && m_top_win && m_bot_win &&
-            m_top_win != m.master && m_bot_win != m.master && m_top_win->is_tiled() && m_bot_win->is_tiled()) {
-            if (m.total_stack_weight > 0.0f) {
-                const float sum_pair_weight = m_top_weight + m_bot_weight;
-                const float pair_h = static_cast<float>(m.avail_h) * (sum_pair_weight / m.total_stack_weight);
-                if (pair_h > 80.0f) {
-                    const float initial_top_h = pair_h * (m_top_weight / sum_pair_weight);
-                    const float new_top_h = std::clamp(initial_top_h + static_cast<float>(dy), 40.0f, pair_h - 40.0f);
-                    const float next_top = sum_pair_weight * (new_top_h / pair_h);
-                    const float next_bot = sum_pair_weight * (1.0f - (new_top_h / pair_h));
-                    if (next_top != m_top_win->tile_weight() || next_bot != m_bot_win->tile_weight()) {
-                        m_top_win->set_tile_weight(next_top);
-                        m_bot_win->set_tile_weight(next_bot);
-                        changed = true;
-                    }
-                }
-            }
-        }
-
-        if (changed) {
+        if (m_session && m_session->update(m_workspace.layout_context(), dx, dy)) {
             m_workspace.arrange();
         }
     }
 
     void TiledResizeGrab::end(bool /*commit*/) {
+        m_session.reset();
         for (Window* w : m_workspace.windows()) {
             w->set_tiled_resizing(false);
         }
     }
 
     bool TiledResizeGrab::is_valid() const {
-        if (!Grab::is_valid() || !m_window->is_tiled() || m_window->workspace() != &m_workspace ||
-            m_window->compositor().config().layout().mode == Layout::Monocle) {
-            return false;
-        }
-        const TiledNeighbors n = m_workspace.tiled_neighbors(m_window);
-        if (n.count <= 1) {
-            return false;
-        }
-        auto valid_stack_member = [&](const Window* w) {
-            return !w || (w != n.master && std::ranges::contains(m_workspace.windows(), w) && w->is_tiled());
-        };
-        return valid_stack_member(m_top_win) && valid_stack_member(m_bot_win);
+        return Grab::is_valid() && m_window->is_tiled() && m_window->workspace() == &m_workspace && m_session &&
+               m_session->is_valid(m_workspace.layout_context());
     }
 
     const char* TiledResizeGrab::cursor_name() const noexcept {
-        return wlr_xcursor_get_resize_name(static_cast<wlr_edges>(m_edges));
+        if (!m_session) {
+            return wlr_xcursor_get_resize_name(WLR_EDGE_NONE);
+        }
+        return wlr_xcursor_get_resize_name(static_cast<wlr_edges>(m_session->edges()));
     }
 
     bool TiledResizeGrab::involves_window(const Window* window) const noexcept {
-        return m_window == window || m_top_win == window || m_bot_win == window;
+        return m_window == window || (m_session && m_session->involves_window(window));
     }
 
 }

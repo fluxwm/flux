@@ -230,12 +230,12 @@ namespace frost::input {
 
         if (button == btn_right) {
             if (window->is_tiled() && window->workspace()) {
-                const uint32_t edges =
-                    window->workspace()->tiled_resize_edges(window, m_wlr_cursor->x, m_wlr_cursor->y);
-                if (edges == WLR_EDGE_NONE) {
+                auto session = window->workspace()->begin_tiled_resize(window, m_wlr_cursor->x, m_wlr_cursor->y);
+                if (!session) {
                     return;
                 }
-                m_grab = std::make_unique<TiledResizeGrab>(window, button, m_wlr_cursor->x, m_wlr_cursor->y, edges);
+                m_grab = std::make_unique<TiledResizeGrab>(window, button, m_wlr_cursor->x, m_wlr_cursor->y,
+                                                           std::move(session));
             } else if (window->is_floating()) {
                 const wlr_box box = window->geometry_box();
                 const double rel_x = m_wlr_cursor->x - box.x;
@@ -492,8 +492,7 @@ namespace frost::input {
                 wlr_keyboard* keyboard = m_input.seat().keyboard();
                 const uint32_t mods = keyboard ? (wlr_keyboard_get_modifiers(keyboard) & key_modifier_mask) : 0;
                 const bool can_tiled_resize = event->button == btn_right && window->is_tiled() && window->workspace() &&
-                                              window->workspace()->tiled_count() > 1 &&
-                                              m_input.compositor().config().layout().mode != Layout::Monocle;
+                                              window->workspace()->can_tiled_resize();
                 const bool can_tiled_move = event->button == btn_left && window->is_tiled() && window->workspace();
                 if (mods == m_input.compositor().mod_key() && window == m_input.compositor().focused_window() &&
                     (event->button == btn_left || event->button == btn_right) &&

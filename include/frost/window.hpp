@@ -77,8 +77,6 @@ namespace frost {
         [[nodiscard]] bool is_activated() const noexcept { return m_activated; }
         [[nodiscard]] bool is_slide_hidden() const noexcept { return m_slide_hidden; }
         [[nodiscard]] bool has_visible_borders() const noexcept;
-        [[nodiscard]] float tile_weight() const noexcept { return m_tile_weight; }
-        void set_tile_weight(float weight) noexcept { m_tile_weight = weight; }
         virtual void set_tiled_resizing(bool /*resizing*/) noexcept {}
         virtual void set_bounds(int /*width*/, int /*height*/) noexcept {}
         [[nodiscard]] Workspace* workspace() const noexcept { return m_workspace; }
@@ -188,7 +186,6 @@ namespace frost {
         std::optional<wlr_box> m_slide_clip;
         bool m_slide_hidden = false;
         bool m_activated = false;
-        float m_tile_weight = 1.0f;
         wlr_box m_floating_box{};
         int m_committed_width = 0;
         int m_committed_height = 0;

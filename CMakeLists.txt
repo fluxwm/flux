@@ -70,6 +70,9 @@ add_executable(frost
         src/window/window.cpp
         src/window/xdg.cpp
         src/window/xwayland.cpp
+        src/layout/layout.cpp
+        src/layout/master.cpp
+        src/layout/monocle.cpp
         src/workspace.cpp
         src/popup.cpp
         src/layer.cpp

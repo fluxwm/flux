@@ -1,6 +1,7 @@
 #pragma once
 
 #include "frost/animation.hpp"
+#include "frost/layout.hpp"
 #include "frost/wlroots.hpp"
 
 #include <cstdint>
@@ -13,40 +14,6 @@ namespace frost {
     class Scene;
     class Window;
     class Output;
-    enum class Direction : uint8_t;
-
-    struct LayoutMetrics {
-        Window* master = nullptr;
-        size_t tiled_count = 0;
-        int area_x = 0;
-        int area_y = 0;
-        int area_w = 1;
-        int area_h = 1;
-        int avail_w = 1;
-        int avail_h = 1;
-        int master_w = 1;
-        int stack_x = 0;
-        int stack_w = 1;
-        int inner_gap = 0;
-        int border_width = 0;
-        float total_stack_weight = 0.0f;
-
-        [[nodiscard]] constexpr float effective_stack_weight() const noexcept {
-            return (total_stack_weight > 0.0f) ? total_stack_weight
-                                               : static_cast<float>(tiled_count > 1 ? tiled_count - 1 : 0);
-        }
-    };
-
-    struct TiledNeighbors {
-        Window* master = nullptr;
-        Window* first_stack = nullptr;
-        Window* last = nullptr;
-        Window* prev = nullptr;
-        Window* next = nullptr;
-        size_t count = 0;
-        size_t index = 0;
-        bool found = false;
-    };
 
     class Workspace {
     public:
@@ -93,15 +60,13 @@ namespace frost {
         void snap_closing_animations() noexcept;
 
         [[nodiscard]] bool is_resizing() const noexcept;
-        [[nodiscard]] uint32_t tiled_resize_edges(const Window* window, double cursor_x,
-                                                  double cursor_y) const noexcept;
-        [[nodiscard]] LayoutMetrics layout_metrics() const noexcept;
-        [[nodiscard]] TiledNeighbors tiled_neighbors(const Window* target) const noexcept;
-        [[nodiscard]] float master_factor() const noexcept { return m_master_factor; }
-        void set_master_factor(float factor) noexcept { m_master_factor = factor; }
+        [[nodiscard]] bool can_tiled_resize() const noexcept;
+        [[nodiscard]] std::unique_ptr<layout::ResizeSession> begin_tiled_resize(Window* window, double cursor_x,
+                                                                                double cursor_y);
+        [[nodiscard]] layout::Context layout_context() const noexcept;
 
     private:
-        [[nodiscard]] Window* top_stack_window(const Window* master, Window* fallback) const noexcept;
+        void sync_layout();
 
         uint32_t m_id = 1;
         Output& m_output;
@@ -111,7 +76,7 @@ namespace frost {
         std::vector<Window*> m_focus_stack;
         std::vector<Window*> m_windows;
         std::vector<std::unique_ptr<ClosingWindow>> m_closing_windows;
-        float m_master_factor = 0.5f;
+        std::unique_ptr<layout::Base> m_layout;
     };
 
 }

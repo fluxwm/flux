@@ -1,9 +1,11 @@
 #pragma once
 
+#include "frost/layout.hpp"
 #include "frost/wlroots.hpp"
 
 #include <cmath>
 #include <cstdint>
+#include <memory>
 
 namespace frost {
     class Window;
@@ -101,7 +103,8 @@ namespace frost::input {
 
     class TiledResizeGrab final : public Grab {
     public:
-        TiledResizeGrab(Window* window, uint32_t button, double cursor_x, double cursor_y, uint32_t edges) noexcept;
+        TiledResizeGrab(Window* window, uint32_t button, double cursor_x, double cursor_y,
+                        std::unique_ptr<layout::ResizeSession> session) noexcept;
 
         void start() override;
         void update(int dx, int dy) override;
@@ -113,12 +116,7 @@ namespace frost::input {
 
     private:
         Workspace& m_workspace;
-        uint32_t m_edges = WLR_EDGE_NONE;
-        float m_initial_master_factor = 0.5f;
-        Window* m_top_win = nullptr;
-        Window* m_bot_win = nullptr;
-        float m_top_weight = 1.0f;
-        float m_bot_weight = 1.0f;
+        std::unique_ptr<layout::ResizeSession> m_session;
     };
 
 }
