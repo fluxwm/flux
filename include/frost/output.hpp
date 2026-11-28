@@ -1,10 +1,12 @@
 #pragma once
 
 #include "frost/animation.hpp"
+#include "frost/config.hpp"
 #include "frost/listener.hpp"
 #include "frost/wlroots.hpp"
 
 #include <memory>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -13,7 +15,6 @@ namespace frost {
     class Compositor;
     class Workspace;
     class Layer;
-    struct OutputConfig;
     enum class Direction : uint8_t;
 
     class Output {
@@ -34,6 +35,11 @@ namespace frost {
         [[nodiscard]] bool is_config_disabled() const noexcept { return m_config_disabled; }
         [[nodiscard]] bool is_dpms_off() const noexcept { return m_dpms_off; }
         void set_dpms_off(bool off) noexcept { m_dpms_off = off; }
+        [[nodiscard]] const OutputConfig* runtime_override() const noexcept {
+            return m_runtime_override ? &*m_runtime_override : nullptr;
+        }
+        void apply_runtime_override(OutputConfig cfg) noexcept;
+        void sync_file_config(const OutputConfig* cfg);
         [[nodiscard]] wlr_scene_output* scene_output() const noexcept { return m_scene_output; }
         bool apply_config(const OutputConfig* cfg, bool initial = false);
         [[nodiscard]] bool is_nested() const noexcept;
@@ -84,6 +90,8 @@ namespace frost {
         uint32_t m_lock_configured_height = 0;
         bool m_config_disabled = false;
         bool m_dpms_off = false;
+        std::optional<OutputConfig> m_file_config;
+        std::optional<OutputConfig> m_runtime_override;
 
         ListenerGroup m_listeners;
         ListenerGroup m_lock_surface_listeners;

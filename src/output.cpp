@@ -46,7 +46,11 @@ namespace frost {
         : m_compositor(compositor), m_wlr_output(wlr_output) {
         wlr_output_init_render(m_wlr_output, m_compositor.allocator(), m_compositor.renderer());
 
-        apply_config(m_compositor.config().output_config(m_wlr_output), true);
+        const OutputConfig* cfg = m_compositor.config().output_config(m_wlr_output);
+        if (cfg) {
+            m_file_config = *cfg;
+        }
+        apply_config(cfg, true);
 
         m_listeners.listen(&m_wlr_output->events.frame, this, &Output::on_frame);
         m_listeners.listen(&m_wlr_output->events.request_state, this, &Output::on_request_state);
@@ -158,6 +162,24 @@ namespace frost {
         wlr_scene_output_send_frame_done(m_scene_output, &frame_time);
     }
 
+    void Output::apply_runtime_override(OutputConfig cfg) noexcept {
+        m_config_disabled = !cfg.enabled;
+        m_dpms_off = false;
+        if (m_config_disabled) {
+            m_layout_box = {};
+        }
+        m_runtime_override = std::move(cfg);
+    }
+
+    void Output::sync_file_config(const OutputConfig* cfg) {
+        std::optional<OutputConfig> next = cfg ? std::optional<OutputConfig>(*cfg) : std::nullopt;
+        if (next == m_file_config) {
+            return;
+        }
+        m_file_config = std::move(next);
+        m_runtime_override.reset();
+    }
+
     bool Output::apply_config(const OutputConfig* cfg, bool initial) {
         const bool prev_config_disabled = m_config_disabled;
         const bool prev_dpms_off = m_dpms_off;
@@ -177,7 +199,7 @@ namespace frost {
 
         if (want_enabled) {
             if (cfg && cfg->mode) {
-                if (!wl_list_empty(&m_wlr_output->modes)) {
+                if (!cfg->mode->custom && !wl_list_empty(&m_wlr_output->modes)) {
                     target_mode = find_matching_mode(m_wlr_output, *cfg->mode);
                     if (!target_mode) {
                         if (cfg->mode->refresh_mhz) {
@@ -285,6 +307,7 @@ namespace frost {
                 arrange_layers();
             }
             m_compositor.sync_session_lock();
+            m_compositor.update_output_manager_config();
         }
     }
 

@@ -41,11 +41,16 @@ namespace frost {
         int32_t width = 0;
         int32_t height = 0;
         std::optional<int32_t> refresh_mhz;
+        bool custom = false;
+
+        bool operator==(const OutputMode&) const = default;
     };
 
     struct OutputPosition {
         int32_t x = 0;
         int32_t y = 0;
+
+        bool operator==(const OutputPosition&) const = default;
     };
 
     struct OutputConfig {
@@ -55,6 +60,8 @@ namespace frost {
         float scale = 1.0f;
         wl_output_transform transform = WL_OUTPUT_TRANSFORM_NORMAL;
         std::optional<OutputPosition> position;
+
+        bool operator==(const OutputConfig&) const = default;
     };
 
     struct GesturesConfig {

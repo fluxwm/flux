@@ -112,13 +112,17 @@ namespace frost {
         void recreate_as_window(Popup* popup);
         void remove_output(Output* output);
         void on_output_enabled_changed(Output* output);
+        void update_output_manager_config();
         void on_animation_finished();
 
     private:
+        [[nodiscard]] const OutputConfig* effective_output_config(const Output* output) const noexcept;
         void restack_windows();
         void arrange_output_layout();
         void evacuate_output(Output* output);
         void apply_output_configs();
+        void finish_output_changes(bool had_enabled, std::span<Output* const> newly_disabled,
+                                   std::span<Output* const> newly_enabled);
         void attach_orphaned_windows(Output* output, bool restore_workspace = false);
 
         void on_new_output(wlr_output* output);
@@ -127,6 +131,7 @@ namespace frost {
         void on_request_activate(wlr_xdg_activation_v1_request_activate_event* event);
         void on_workspace_commit(wlr_ext_workspace_v1_commit_event* event);
         void on_output_power_set_mode(wlr_output_power_v1_set_mode_event* event);
+        void on_output_manager_apply(wlr_output_configuration_v1* config, bool test_only);
         void on_drm_lease_request(wlr_drm_lease_request_v1* request);
         void execute_action(const Action& action);
         void spawn(const action::Spawn& action);
@@ -139,6 +144,7 @@ namespace frost {
         wlr_output_layout* m_output_layout = nullptr;
         wlr_ext_foreign_toplevel_list_v1* m_foreign_toplevel_list = nullptr;
         wlr_ext_workspace_manager_v1* m_workspace_manager = nullptr;
+        wlr_output_manager_v1* m_output_mgr = nullptr;
         wlr_tearing_control_manager_v1* m_tearing_control_mgr = nullptr;
         wlr_drm_lease_v1_manager* m_drm_lease_mgr = nullptr;
         wlr_xwayland* m_xwayland = nullptr;

@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <csignal>
 #include <cstdlib>
 #include <fcntl.h>
@@ -175,6 +176,14 @@ namespace frost {
 
         auto* output_power_mgr = wlr_output_power_manager_v1_create(m_display);
         m_listeners.listen(&output_power_mgr->events.set_mode, this, &Compositor::on_output_power_set_mode);
+
+        m_output_mgr = wlr_output_manager_v1_create(m_display);
+        m_listeners.listen(&m_output_mgr->events.apply, [this](void* d) {
+            on_output_manager_apply(static_cast<wlr_output_configuration_v1*>(d), false);
+        });
+        m_listeners.listen(&m_output_mgr->events.test, [this](void* d) {
+            on_output_manager_apply(static_cast<wlr_output_configuration_v1*>(d), true);
+        });
 
         m_drm_lease_mgr = wlr_drm_lease_v1_manager_create(m_display, m_backend);
         if (m_drm_lease_mgr) {
@@ -906,6 +915,16 @@ namespace frost {
         }
     }
 
+    const OutputConfig* Compositor::effective_output_config(const Output* output) const noexcept {
+        if (!output) {
+            return nullptr;
+        }
+        if (const OutputConfig* ov = output->runtime_override()) {
+            return ov;
+        }
+        return m_config->output_config(output->raw());
+    }
+
     void Compositor::arrange_output_layout() {
         for (const auto& out : m_outputs) {
             if (out->is_config_disabled()) {
@@ -926,7 +945,7 @@ namespace frost {
             if (out->is_config_disabled()) {
                 continue;
             }
-            if (const auto* cfg = m_config->output_config(out->raw()); cfg && cfg->position) {
+            if (const auto* cfg = effective_output_config(out.get()); cfg && cfg->position) {
                 add_to_layout(out.get(), cfg->position);
             }
         }
@@ -935,7 +954,7 @@ namespace frost {
             if (out->is_config_disabled()) {
                 continue;
             }
-            const auto* cfg = m_config->output_config(out->raw());
+            const auto* cfg = effective_output_config(out.get());
             if (!cfg || !cfg->position) {
                 add_to_layout(out.get(), std::nullopt);
             }
@@ -1008,21 +1027,8 @@ namespace frost {
         }
     }
 
-    void Compositor::apply_output_configs() {
-        const bool had_enabled = std::ranges::any_of(m_outputs, &Output::is_enabled);
-        std::vector<Output*> newly_disabled;
-        std::vector<Output*> newly_enabled;
-        for (const auto& out : m_outputs) {
-            const bool was_enabled = out->is_enabled();
-            const bool was_config_disabled = out->is_config_disabled();
-            out->apply_config(m_config->output_config(out->raw()), false);
-            if (!was_config_disabled && out->is_config_disabled()) {
-                newly_disabled.push_back(out.get());
-            } else if (!was_enabled && out->is_enabled()) {
-                newly_enabled.push_back(out.get());
-            }
-        }
-
+    void Compositor::finish_output_changes(bool had_enabled, std::span<Output* const> newly_disabled,
+                                           std::span<Output* const> newly_enabled) {
         arrange_output_layout();
 
         for (Output* out : newly_disabled) {
@@ -1049,6 +1055,26 @@ namespace frost {
         refocus();
     }
 
+    void Compositor::apply_output_configs() {
+        const bool had_enabled = std::ranges::any_of(m_outputs, &Output::is_enabled);
+        std::vector<Output*> newly_disabled;
+        std::vector<Output*> newly_enabled;
+        for (const auto& out : m_outputs) {
+            const bool was_enabled = out->is_enabled();
+            const bool was_config_disabled = out->is_config_disabled();
+            out->sync_file_config(m_config->output_config(out->raw()));
+            out->apply_config(effective_output_config(out.get()), false);
+            if (!was_config_disabled && out->is_config_disabled()) {
+                newly_disabled.push_back(out.get());
+            } else if (!was_enabled && out->is_enabled()) {
+                newly_enabled.push_back(out.get());
+            }
+        }
+
+        finish_output_changes(had_enabled, newly_disabled, newly_enabled);
+        update_output_manager_config();
+    }
+
     void Compositor::remove_output(Output* output) {
         if (!output) {
             return;
@@ -1073,6 +1099,7 @@ namespace frost {
 
         sync_session_lock();
         refocus();
+        update_output_manager_config();
     }
 
     void Compositor::on_new_output(wlr_output* output) {
@@ -1105,6 +1132,7 @@ namespace frost {
         }
         sync_session_lock();
         refocus();
+        update_output_manager_config();
     }
 
     void Compositor::attach_orphaned_windows(Output* output, bool restore_workspace) {
@@ -1156,6 +1184,7 @@ namespace frost {
         }
         sync_session_lock();
         refocus();
+        update_output_manager_config();
     }
 
     void Compositor::on_new_window(wlr_xdg_toplevel* toplevel) {
@@ -1200,13 +1229,165 @@ namespace frost {
         }
 
         output->set_dpms_off(!enable);
-        if (!output->apply_config(m_config->output_config(output->raw()), false)) {
+        if (!output->apply_config(effective_output_config(output), false)) {
             output->set_dpms_off(prev_dpms_off);
             return;
         }
         if (output->is_enabled() != was_enabled) {
             on_output_enabled_changed(output);
         }
+    }
+
+    void Compositor::update_output_manager_config() {
+        if (!m_output_mgr) {
+            return;
+        }
+        wlr_output_configuration_v1* config = wlr_output_configuration_v1_create();
+        if (!config) {
+            return;
+        }
+        for (const auto& out : m_outputs) {
+            wlr_output_configuration_head_v1* head = wlr_output_configuration_head_v1_create(config, out->raw());
+            if (!head) {
+                continue;
+            }
+            head->state.enabled = !out->is_config_disabled();
+            if (head->state.enabled) {
+                const wlr_box box = out->layout_box();
+                head->state.x = box.x;
+                head->state.y = box.y;
+            }
+        }
+        wlr_output_manager_v1_set_configuration(m_output_mgr, config);
+    }
+
+    void Compositor::on_output_manager_apply(wlr_output_configuration_v1* config, bool test_only) {
+        if (!config) {
+            return;
+        }
+
+        auto finish_config = [config](bool succeeded) {
+            if (succeeded) {
+                wlr_output_configuration_v1_send_succeeded(config);
+            } else {
+                wlr_output_configuration_v1_send_failed(config);
+            }
+            wlr_output_configuration_v1_destroy(config);
+        };
+
+        struct HeadState {
+            Output* output = nullptr;
+            bool was_enabled = false;
+            bool was_config_disabled = false;
+        };
+        std::vector<HeadState> head_states;
+        wlr_output_configuration_head_v1* head = nullptr;
+        wl_list_for_each(head, &config->heads, link) {
+            Output* out = output_from_wlr(head->state.output);
+            if (!out) {
+                finish_config(false);
+                return;
+            }
+            if (head->state.enabled) {
+                if (!std::isfinite(head->state.scale) || head->state.scale < 0.1f || head->state.scale > 10.0f) {
+                    finish_config(false);
+                    return;
+                }
+                if (!head->state.mode && head->state.custom_mode.width == 0 &&
+                    !wl_list_empty(&head->state.output->modes)) {
+                    head->state.mode = head->state.output->current_mode ? head->state.output->current_mode
+                                                                        : wlr_output_preferred_mode(head->state.output);
+                }
+            }
+            head_states.push_back({
+                .output = out,
+                .was_enabled = out->is_enabled(),
+                .was_config_disabled = out->is_config_disabled(),
+            });
+        }
+
+        std::vector<wlr_backend_output_state> states(head_states.size());
+        size_t idx = 0;
+        wl_list_for_each(head, &config->heads, link) {
+            states[idx].output = head->state.output;
+            wlr_output_state_init(&states[idx].base);
+            wlr_output_head_v1_state_apply(&head->state, &states[idx].base);
+            ++idx;
+        }
+        auto finish_states = [&] {
+            for (auto& s : states) {
+                wlr_output_state_finish(&s.base);
+            }
+        };
+
+        const bool test_ok = states.empty() || wlr_backend_test(m_backend, states.data(), states.size());
+        if (!test_ok) {
+            finish_states();
+            finish_config(false);
+            return;
+        }
+
+        if (test_only) {
+            finish_states();
+            finish_config(true);
+            return;
+        }
+
+        const bool had_enabled = std::ranges::any_of(m_outputs, &Output::is_enabled);
+        const bool commit_ok = states.empty() || wlr_backend_commit(m_backend, states.data(), states.size());
+        finish_states();
+        if (!commit_ok) {
+            finish_config(false);
+            update_output_manager_config();
+            return;
+        }
+
+        wl_list_for_each(head, &config->heads, link) {
+            Output* out = output_from_wlr(head->state.output);
+            OutputConfig override_cfg;
+            override_cfg.name = out->raw()->name ? out->raw()->name : "";
+            override_cfg.enabled = head->state.enabled;
+            override_cfg.scale = head->state.scale;
+            override_cfg.transform = head->state.transform;
+            if (head->state.enabled) {
+                override_cfg.position = OutputPosition{.x = head->state.x, .y = head->state.y};
+                if (head->state.mode) {
+                    override_cfg.mode = OutputMode{
+                        .width = head->state.mode->width,
+                        .height = head->state.mode->height,
+                        .refresh_mhz =
+                            head->state.mode->refresh > 0 ? std::optional{head->state.mode->refresh} : std::nullopt,
+                        .custom = false,
+                    };
+                } else if (head->state.custom_mode.width > 0 && head->state.custom_mode.height > 0) {
+                    override_cfg.mode = OutputMode{
+                        .width = head->state.custom_mode.width,
+                        .height = head->state.custom_mode.height,
+                        .refresh_mhz = head->state.custom_mode.refresh > 0
+                                           ? std::optional{head->state.custom_mode.refresh}
+                                           : std::nullopt,
+                        .custom = true,
+                    };
+                } else if (const auto* prev = effective_output_config(out); prev && prev->mode) {
+                    override_cfg.mode = prev->mode;
+                }
+            }
+            out->apply_runtime_override(std::move(override_cfg));
+        }
+
+        std::vector<Output*> newly_disabled;
+        std::vector<Output*> newly_enabled;
+        for (const auto& entry : head_states) {
+            if (!entry.was_config_disabled && entry.output->is_config_disabled()) {
+                newly_disabled.push_back(entry.output);
+            } else if (!entry.was_enabled && entry.output->is_enabled()) {
+                newly_enabled.push_back(entry.output);
+            }
+        }
+
+        finish_output_changes(had_enabled, newly_disabled, newly_enabled);
+        finish_config(true);
+        update_output_manager_config();
     }
 
     void Compositor::on_drm_lease_request(wlr_drm_lease_request_v1* request) {
