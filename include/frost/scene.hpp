@@ -40,6 +40,12 @@ namespace frost {
             }
         }
 
+        void set_color_manager_v1(wlr_color_manager_v1* color_manager) noexcept {
+            if (m_scene && color_manager) {
+                wlr_scene_set_color_manager_v1(m_scene, color_manager);
+            }
+        }
+
         [[nodiscard]] wlr_scene_tree* windows() const noexcept { return m_scene_windows; }
         [[nodiscard]] wlr_scene_tree* fullscreen() const noexcept { return m_scene_fullscreen; }
         [[nodiscard]] wlr_scene_tree* popups() const noexcept { return m_scene_popups; }

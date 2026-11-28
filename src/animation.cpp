@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace frost {
 
@@ -346,6 +347,18 @@ namespace frost {
                 wlr_scene_buffer_set_source_box(clone, &src->src_box);
                 wlr_scene_buffer_set_transform(clone, src->transform);
                 wlr_scene_buffer_set_filter_mode(clone, src->filter_mode);
+                if (std::to_underlying(src->transfer_function) != 0) {
+                    wlr_scene_buffer_set_transfer_function(clone, src->transfer_function);
+                }
+                if (std::to_underlying(src->primaries) != 0) {
+                    wlr_scene_buffer_set_primaries(clone, src->primaries);
+                }
+                if (src->color_encoding != WLR_COLOR_ENCODING_NONE) {
+                    wlr_scene_buffer_set_color_encoding(clone, src->color_encoding);
+                }
+                if (src->color_range != WLR_COLOR_RANGE_NONE) {
+                    wlr_scene_buffer_set_color_range(clone, src->color_range);
+                }
                 clone->point_accepts_input = [](wlr_scene_buffer*, double*, double*) { return false; };
 
                 c->buffers->push_back(Buffer{

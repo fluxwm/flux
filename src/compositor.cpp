@@ -28,6 +28,12 @@ namespace frost {
 
     namespace {
 
+        struct CFree {
+            void operator()(void* ptr) const noexcept {
+                std::free(ptr); // NOLINT(cppcoreguidelines-no-malloc)
+            }
+        };
+
         bool is_nested_backend(wlr_backend* backend) noexcept {
             if (!backend) {
                 return false;
@@ -205,6 +211,33 @@ namespace frost {
         m_output_manager = std::make_unique<output::Manager>(*this);
 
         m_scene = std::make_unique<Scene>(m_display, m_output_manager->layout());
+
+        if (m_renderer->features.input_color_transform) {
+            static constexpr auto render_intents = std::to_array({
+                WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL,
+            });
+            size_t tf_len = 0;
+            const std::unique_ptr<wp_color_manager_v1_transfer_function, CFree> transfer_functions(
+                wlr_color_manager_v1_transfer_function_list_from_renderer(m_renderer, &tf_len));
+            size_t primaries_len = 0;
+            const std::unique_ptr<wp_color_manager_v1_primaries, CFree> primaries(
+                wlr_color_manager_v1_primaries_list_from_renderer(m_renderer, &primaries_len));
+
+            if (transfer_functions && primaries && tf_len > 0 && primaries_len > 0) {
+                wlr_color_manager_v1_options options{};
+                options.features.parametric = true;
+                options.features.set_mastering_display_primaries = true;
+                options.render_intents = render_intents.data();
+                options.render_intents_len = render_intents.size();
+                options.transfer_functions = transfer_functions.get();
+                options.transfer_functions_len = tf_len;
+                options.primaries = primaries.get();
+                options.primaries_len = primaries_len;
+                if (auto* color_mgr = wlr_color_manager_v1_create(m_display, 2, &options)) {
+                    m_scene->set_color_manager_v1(color_mgr);
+                }
+            }
+        }
 
         if (const int drm_fd = wlr_renderer_get_drm_fd(m_renderer); drm_fd >= 0) {
             if (wlr_renderer_get_texture_formats(m_renderer, WLR_BUFFER_CAP_DMABUF) != nullptr) {
