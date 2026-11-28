@@ -45,7 +45,7 @@ namespace frost {
             });
         }
 
-        bool parse_combo(std::string_view combo, uint32_t& modifiers, xkb_keysym_t& keysym) {
+        bool parse_combo(std::string_view combo, uint32_t& modifiers, xkb_keysym_t& keysym, uint32_t mod_key) {
             modifiers = 0;
             keysym = XKB_KEY_NoSymbol;
             std::string key_name;
@@ -67,9 +67,10 @@ namespace frost {
                     modifiers |= WLR_MODIFIER_CTRL;
                 } else if (iequals(token, "alt") || iequals(token, "mod1")) {
                     modifiers |= WLR_MODIFIER_ALT;
-                } else if (iequals(token, "super") || iequals(token, "mod") || iequals(token, "mod4") ||
-                           iequals(token, "logo")) {
+                } else if (iequals(token, "super") || iequals(token, "mod4") || iequals(token, "logo")) {
                     modifiers |= WLR_MODIFIER_LOGO;
+                } else if (iequals(token, "mod")) {
+                    modifiers |= mod_key;
                 } else if (iequals(token, "shift")) {
                     modifiers |= WLR_MODIFIER_SHIFT;
                 } else {
@@ -286,13 +287,13 @@ namespace frost {
             return std::nullopt;
         }
 
-        void parse_binds(std::vector<Keybind>& keybinds, const kdl::Node& binds_node) {
+        void parse_binds(std::vector<Keybind>& keybinds, const kdl::Node& binds_node, uint32_t mod_key) {
             for (const auto& bind_node : binds_node.children()) {
                 const std::string_view combo = node_name(bind_node);
                 uint32_t modifiers = 0;
                 xkb_keysym_t keysym = XKB_KEY_NoSymbol;
 
-                if (!parse_combo(combo, modifiers, keysym)) {
+                if (!parse_combo(combo, modifiers, keysym, mod_key)) {
                     log_error("invalid key combo in config: '{}'", combo);
                     continue;
                 }
@@ -746,8 +747,8 @@ namespace frost {
 
     }
 
-    Config::Config(wl_event_loop* event_loop, std::optional<std::filesystem::path> custom_path)
-        : m_path(resolve_path(custom_path)) {
+    Config::Config(wl_event_loop* event_loop, std::optional<std::filesystem::path> custom_path, uint32_t mod_key)
+        : m_path(resolve_path(custom_path)), m_mod_key(mod_key) {
         std::error_code ec;
         const bool has_file =
             custom_path.has_value() || std::filesystem::exists(m_path, ec) || generate_default_config();
@@ -953,7 +954,7 @@ namespace frost {
             } else if (iequals(name, "environment")) {
                 parse_environment(environment, node);
             } else if (iequals(name, "binds")) {
-                parse_binds(keybinds, node);
+                parse_binds(keybinds, node, m_mod_key);
             } else {
                 log_error("unknown section '{}' in config", name);
             }

@@ -25,6 +25,29 @@
 
 namespace frost {
 
+    namespace {
+
+        bool is_nested_backend(wlr_backend* backend) noexcept {
+            if (!backend) {
+                return false;
+            }
+            if (!wlr_backend_is_multi(backend)) {
+                return wlr_backend_is_wl(backend) || wlr_backend_is_x11(backend);
+            }
+            bool nested = false;
+            wlr_multi_for_each_backend(
+                backend,
+                [](wlr_backend* sub, void* data) {
+                    if (wlr_backend_is_wl(sub) || wlr_backend_is_x11(sub)) {
+                        *static_cast<bool*>(data) = true;
+                    }
+                },
+                &nested);
+            return nested;
+        }
+
+    }
+
     Compositor::Compositor() = default;
 
     Compositor::~Compositor() {
@@ -106,13 +129,18 @@ namespace frost {
             m_signal_sources.push_back(src);
         }
 
-        m_config = std::make_unique<Config>(event_loop, config_path);
-
         m_backend = wlr_backend_autocreate(event_loop, &m_session);
         if (!m_backend) {
             log_error("failed to create wlr_backend");
             return false;
         }
+
+        if (is_nested_backend(m_backend)) {
+            m_mod_key = WLR_MODIFIER_ALT;
+            log_info("running nested, using Alt as Mod key");
+        }
+
+        m_config = std::make_unique<Config>(event_loop, config_path, m_mod_key);
 
         m_renderer = wlr_renderer_autocreate(m_backend);
         if (!m_renderer) {

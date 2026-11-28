@@ -96,6 +96,7 @@ namespace frost {
         [[nodiscard]] std::span<const std::unique_ptr<Window>> windows() const noexcept { return m_windows; }
         [[nodiscard]] std::span<const std::unique_ptr<Popup>> popups() const noexcept { return m_popups; }
         [[nodiscard]] bool is_workspace_swiping() const noexcept { return m_swipe_output != nullptr; }
+        [[nodiscard]] uint32_t mod_key() const noexcept { return m_mod_key; }
 
         // Window management & interactions
         KeybindResult handle_keybinding(uint32_t modifiers, xkb_keysym_t sym, bool is_repeat = false);
@@ -164,6 +165,7 @@ namespace frost {
         wlr_ext_workspace_manager_v1* m_workspace_manager = nullptr;
         wlr_tearing_control_manager_v1* m_tearing_control_mgr = nullptr;
         wlr_xwayland* m_xwayland = nullptr;
+        uint32_t m_mod_key = WLR_MODIFIER_LOGO;
 
         std::unique_ptr<Config> m_config;
         std::unique_ptr<output::Manager> m_output_manager;

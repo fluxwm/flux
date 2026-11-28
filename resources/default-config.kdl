@@ -75,53 +75,53 @@ animations {
 }
 
 binds {
-    Super+Shift+Return  { spawn "kitty"; }
-    Super+D             { spawn "fuzzel"; }
+    Mod+Shift+Return  { spawn "kitty"; }
+    Mod+D             { spawn "fuzzel"; }
 
-    Super+Shift+Q       { close-window; }
-    Alt+F4              { close-window; }
-    Alt+Tab             { cycle-window; }
-    Super+V             { toggle-floating; }
-    Super+M             { maximize-window; }
-    F11                 { fullscreen-window; }
+    Mod+Shift+Q       { close-window; }
+    Alt+F4            { close-window; }
+    Alt+Tab           { cycle-window; }
+    Mod+V             { toggle-floating; }
+    Mod+M             { maximize-window; }
+    F11               { fullscreen-window; }
 
-    Super+Left          { focus-window "left"; }
-    Super+Down          { focus-window "down"; }
-    Super+Up            { focus-window "up"; }
-    Super+Right         { focus-window "right"; }
-    Super+H             { focus-window "left"; }
-    Super+J             { focus-window "down"; }
-    Super+K             { focus-window "up"; }
-    Super+L             { focus-window "right"; }
+    Mod+Left          { focus-window "left"; }
+    Mod+Down          { focus-window "down"; }
+    Mod+Up            { focus-window "up"; }
+    Mod+Right         { focus-window "right"; }
+    Mod+H             { focus-window "left"; }
+    Mod+J             { focus-window "down"; }
+    Mod+K             { focus-window "up"; }
+    Mod+L             { focus-window "right"; }
 
-    Super+Shift+Left    { swap-window "left"; }
-    Super+Shift+Down    { swap-window "down"; }
-    Super+Shift+Up      { swap-window "up"; }
-    Super+Shift+Right   { swap-window "right"; }
-    Super+Shift+H       { swap-window "left"; }
-    Super+Shift+J       { swap-window "down"; }
-    Super+Shift+K       { swap-window "up"; }
-    Super+Shift+L       { swap-window "right"; }
+    Mod+Shift+Left    { swap-window "left"; }
+    Mod+Shift+Down    { swap-window "down"; }
+    Mod+Shift+Up      { swap-window "up"; }
+    Mod+Shift+Right   { swap-window "right"; }
+    Mod+Shift+H       { swap-window "left"; }
+    Mod+Shift+J       { swap-window "down"; }
+    Mod+Shift+K       { swap-window "up"; }
+    Mod+Shift+L       { swap-window "right"; }
 
-    Super+1             { focus-workspace 1; }
-    Super+2             { focus-workspace 2; }
-    Super+3             { focus-workspace 3; }
-    Super+4             { focus-workspace 4; }
-    Super+5             { focus-workspace 5; }
-    Super+6             { focus-workspace 6; }
-    Super+7             { focus-workspace 7; }
-    Super+8             { focus-workspace 8; }
-    Super+9             { focus-workspace 9; }
+    Mod+1             { focus-workspace 1; }
+    Mod+2             { focus-workspace 2; }
+    Mod+3             { focus-workspace 3; }
+    Mod+4             { focus-workspace 4; }
+    Mod+5             { focus-workspace 5; }
+    Mod+6             { focus-workspace 6; }
+    Mod+7             { focus-workspace 7; }
+    Mod+8             { focus-workspace 8; }
+    Mod+9             { focus-workspace 9; }
 
-    Super+Shift+1       { move-window-to-workspace 1; }
-    Super+Shift+2       { move-window-to-workspace 2; }
-    Super+Shift+3       { move-window-to-workspace 3; }
-    Super+Shift+4       { move-window-to-workspace 4; }
-    Super+Shift+5       { move-window-to-workspace 5; }
-    Super+Shift+6       { move-window-to-workspace 6; }
-    Super+Shift+7       { move-window-to-workspace 7; }
-    Super+Shift+8       { move-window-to-workspace 8; }
-    Super+Shift+9       { move-window-to-workspace 9; }
+    Mod+Shift+1       { move-window-to-workspace 1; }
+    Mod+Shift+2       { move-window-to-workspace 2; }
+    Mod+Shift+3       { move-window-to-workspace 3; }
+    Mod+Shift+4       { move-window-to-workspace 4; }
+    Mod+Shift+5       { move-window-to-workspace 5; }
+    Mod+Shift+6       { move-window-to-workspace 6; }
+    Mod+Shift+7       { move-window-to-workspace 7; }
+    Mod+Shift+8       { move-window-to-workspace 8; }
+    Mod+Shift+9       { move-window-to-workspace 9; }
 
     // Volume controls (PipeWire / WirePlumber)
     XF86AudioRaiseVolume repeat locked { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+" "-l" "1.0"; }
@@ -140,5 +140,5 @@ binds {
     XF86MonBrightnessUp   repeat locked { spawn "brightnessctl" "-n1" "-e4" "set" "+5%"; }
     XF86MonBrightnessDown repeat locked { spawn "brightnessctl" "-n1" "-e4" "set" "5%-"; }
 
-    Ctrl+Alt+Delete     { quit; }
+    Ctrl+Alt+Delete   { quit; }
 }

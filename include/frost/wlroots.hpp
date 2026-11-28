@@ -18,6 +18,7 @@ extern "C" {
 
 #include <wlr/backend.h>
 #include <wlr/backend/libinput.h>
+#include <wlr/backend/multi.h>
 #include <wlr/backend/session.h>
 #include <wlr/backend/wayland.h>
 #include <wlr/backend/x11.h>

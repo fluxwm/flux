@@ -164,7 +164,8 @@ namespace frost {
 
     class Config {
     public:
-        explicit Config(wl_event_loop* event_loop, std::optional<std::filesystem::path> custom_path = std::nullopt);
+        explicit Config(wl_event_loop* event_loop, std::optional<std::filesystem::path> custom_path = std::nullopt,
+                        uint32_t mod_key = WLR_MODIFIER_LOGO);
         ~Config();
 
         Config(const Config&) = delete;
@@ -196,6 +197,7 @@ namespace frost {
 
         std::filesystem::path m_path;
         std::filesystem::path m_real_filename;
+        uint32_t m_mod_key = WLR_MODIFIER_LOGO;
         int m_inotify_fd = -1;
         wl_event_source* m_inotify_source = nullptr;
         std::vector<int> m_watch_descriptors;
