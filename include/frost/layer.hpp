@@ -23,8 +23,10 @@ namespace frost {
         [[nodiscard]] bool is_mapped() const noexcept { return surface()->mapped; }
         [[nodiscard]] bool is_initialized() const noexcept { return m_layer_surface->initialized; }
         [[nodiscard]] bool is_exclusive() const noexcept {
-            return m_layer_surface->current.keyboard_interactive ==
-                   ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE;
+            const auto cur_layer = m_layer_surface->current.layer;
+            return (cur_layer == ZWLR_LAYER_SHELL_V1_LAYER_TOP || cur_layer == ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY) &&
+                   m_layer_surface->current.keyboard_interactive ==
+                       ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE;
         }
         [[nodiscard]] bool is_focusable() const noexcept {
             return m_layer_surface->current.keyboard_interactive != ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE;

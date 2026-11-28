@@ -1080,6 +1080,7 @@ namespace frost {
         if (layer->output()) {
             set_focused_output(layer->output());
         }
+        m_input->cursor().cancel_grab();
         if (layer->is_exclusive()) {
             cancel_animations();
             m_input->seat().cancel_drag();
