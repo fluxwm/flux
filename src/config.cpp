@@ -17,6 +17,7 @@
 #include <string>
 #include <string_view>
 #include <sys/inotify.h>
+#include <type_traits>
 #include <unistd.h>
 #include <utility>
 #include <vector>
@@ -151,27 +152,56 @@ namespace frost {
             }
         }
 
-        std::optional<Direction> parse_direction(const kdl::Node& node) {
-            auto dir = parse_string(node);
-            if (!dir) {
+        template <typename T, size_t N>
+            requires std::is_enum_v<T>
+        std::optional<T> parse_enum(const kdl::Node& node, const std::array<std::pair<std::string_view, T>, N>& table,
+                                    std::string_view label = {}) {
+            auto str_opt = parse_string(node);
+            if (!str_opt) {
                 return std::nullopt;
             }
-            if (iequals(*dir, "left")) {
-                return Direction::Left;
+            for (const auto& [name, val] : table) {
+                if (iequals(*str_opt, name)) {
+                    return val;
+                }
             }
-            if (iequals(*dir, "right")) {
-                return Direction::Right;
+            std::string expected;
+            for (const auto& entry : table) {
+                if (!expected.empty()) {
+                    expected.append(", ");
+                }
+                expected.push_back('\'');
+                expected.append(entry.first);
+                expected.push_back('\'');
             }
-            if (iequals(*dir, "up")) {
-                return Direction::Up;
-            }
-            if (iequals(*dir, "down")) {
-                return Direction::Down;
-            }
-            std::string_view name = node_name(node);
-            log_error("invalid direction '{}' for {}", *dir, name);
+            log_error("invalid {} '{}' (expected {})", label.empty() ? node_name(node) : label, *str_opt, expected);
             return std::nullopt;
         }
+
+        template <typename T, size_t N>
+            requires std::is_enum_v<T>
+        void parse_enum(const kdl::Node& node, const std::array<std::pair<std::string_view, T>, N>& table, T& out,
+                        std::string_view label = {}) {
+            if (auto val = parse_enum(node, table, label)) {
+                out = *val;
+            }
+        }
+
+        template <typename T, size_t N>
+            requires std::is_enum_v<T>
+        void parse_enum(const kdl::Node& node, const std::array<std::pair<std::string_view, T>, N>& table,
+                        std::optional<T>& out, std::string_view label = {}) {
+            if (auto val = parse_enum(node, table, label)) {
+                out = val;
+            }
+        }
+
+        constexpr auto direction_table = std::to_array<std::pair<std::string_view, Direction>>({
+            {"left", Direction::Left},
+            {"right", Direction::Right},
+            {"up", Direction::Up},
+            {"down", Direction::Down},
+        });
 
         std::optional<Action> parse_action(const kdl::Node& action_node) {
             std::string_view action_name = node_name(action_node);
@@ -195,13 +225,13 @@ namespace frost {
                 return action::ToggleFloating{};
             }
             if (iequals(action_name, "focus-window")) {
-                if (auto dir = parse_direction(action_node)) {
+                if (auto dir = parse_enum(action_node, direction_table, "direction")) {
                     return action::FocusWindow{*dir};
                 }
                 return std::nullopt;
             }
             if (iequals(action_name, "swap-window")) {
-                if (auto dir = parse_direction(action_node)) {
+                if (auto dir = parse_enum(action_node, direction_table, "direction")) {
                     return action::SwapWindow{*dir};
                 }
                 return std::nullopt;
@@ -355,21 +385,10 @@ namespace frost {
             }
         }
 
-        void parse_accel_profile(const kdl::Node& node, std::optional<libinput_config_accel_profile>& out) {
-            auto str_opt = parse_string(node);
-            if (!str_opt) {
-                return;
-            }
-            if (iequals(*str_opt, "adaptive")) {
-                out = LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE;
-                return;
-            }
-            if (iequals(*str_opt, "flat")) {
-                out = LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT;
-                return;
-            }
-            log_error("invalid accel-profile '{}' (expected 'adaptive' or 'flat')", *str_opt);
-        }
+        constexpr auto accel_profile_table = std::to_array<std::pair<std::string_view, libinput_config_accel_profile>>({
+            {"adaptive", LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE},
+            {"flat", LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT},
+        });
 
         void parse_mouse(MouseConfig& mouse, const kdl::Node& mouse_node) {
             for (const auto& child : mouse_node.children()) {
@@ -379,7 +398,7 @@ namespace frost {
                 } else if (iequals(name, "accel-speed")) {
                     parse_accel_speed(child, mouse.accel_speed);
                 } else if (iequals(name, "accel-profile")) {
-                    parse_accel_profile(child, mouse.accel_profile);
+                    parse_enum(child, accel_profile_table, mouse.accel_profile);
                 } else {
                     log_error("unknown setting '{}' in mouse config", name);
                 }
@@ -396,7 +415,7 @@ namespace frost {
                 } else if (iequals(name, "accel-speed")) {
                     parse_accel_speed(child, touchpad.accel_speed);
                 } else if (iequals(name, "accel-profile")) {
-                    parse_accel_profile(child, touchpad.accel_profile);
+                    parse_enum(child, accel_profile_table, touchpad.accel_profile);
                 } else {
                     log_error("unknown setting '{}' in touchpad config", name);
                 }
@@ -468,31 +487,16 @@ namespace frost {
             out = OutputMode{.width = width, .height = height, .refresh_mhz = refresh_mhz};
         }
 
-        void parse_output_transform(const kdl::Node& node, wl_output_transform& out) {
-            auto str_opt = parse_string(node);
-            if (!str_opt) {
-                return;
-            }
-            constexpr std::array<std::pair<std::string_view, wl_output_transform>, 8> table{
-                {
-                    {"normal", WL_OUTPUT_TRANSFORM_NORMAL},
-                    {"90", WL_OUTPUT_TRANSFORM_90},
-                    {"180", WL_OUTPUT_TRANSFORM_180},
-                    {"270", WL_OUTPUT_TRANSFORM_270},
-                    {"flipped", WL_OUTPUT_TRANSFORM_FLIPPED},
-                    {"flipped-90", WL_OUTPUT_TRANSFORM_FLIPPED_90},
-                    {"flipped-180", WL_OUTPUT_TRANSFORM_FLIPPED_180},
-                    {"flipped-270", WL_OUTPUT_TRANSFORM_FLIPPED_270},
-                },
-            };
-            for (const auto& [name, transform] : table) {
-                if (iequals(*str_opt, name)) {
-                    out = transform;
-                    return;
-                }
-            }
-            log_error("invalid output transform '{}'", *str_opt);
-        }
+        constexpr auto output_transform_table = std::to_array<std::pair<std::string_view, wl_output_transform>>({
+            {"normal", WL_OUTPUT_TRANSFORM_NORMAL},
+            {"90", WL_OUTPUT_TRANSFORM_90},
+            {"180", WL_OUTPUT_TRANSFORM_180},
+            {"270", WL_OUTPUT_TRANSFORM_270},
+            {"flipped", WL_OUTPUT_TRANSFORM_FLIPPED},
+            {"flipped-90", WL_OUTPUT_TRANSFORM_FLIPPED_90},
+            {"flipped-180", WL_OUTPUT_TRANSFORM_FLIPPED_180},
+            {"flipped-270", WL_OUTPUT_TRANSFORM_FLIPPED_270},
+        });
 
         void parse_output_position(const kdl::Node& node, std::optional<OutputPosition>& out) {
             const auto& args = node.args();
@@ -548,7 +552,7 @@ namespace frost {
                         cfg.scale = static_cast<float>(scale);
                     }
                 } else if (iequals(name, "transform")) {
-                    parse_output_transform(child, cfg.transform);
+                    parse_enum(child, output_transform_table, cfg.transform, "output transform");
                 } else if (iequals(name, "position")) {
                     parse_output_position(child, cfg.position);
                 } else {
@@ -665,28 +669,16 @@ namespace frost {
             }
         }
 
-        void parse_layout_mode(const kdl::Node& node, Layout& out) {
-            auto mode = parse_string(node);
-            if (!mode) {
-                return;
-            }
-            if (iequals(*mode, "master")) {
-                out = Layout::Master;
-                return;
-            }
-            if (iequals(*mode, "monocle")) {
-                out = Layout::Monocle;
-                return;
-            }
-            std::string_view name = node_name(node);
-            log_error("invalid layout mode '{}' for {}", *mode, name);
-        }
+        constexpr auto layout_mode_table = std::to_array<std::pair<std::string_view, Layout>>({
+            {"master", Layout::Master},
+            {"monocle", Layout::Monocle},
+        });
 
         void parse_layout(LayoutConfig& layout, const kdl::Node& layout_node) {
             for (const auto& child : layout_node.children()) {
                 std::string_view name = node_name(child);
                 if (iequals(name, "mode")) {
-                    parse_layout_mode(child, layout.mode);
+                    parse_enum(child, layout_mode_table, layout.mode, "layout mode");
                 } else if (iequals(name, "gaps")) {
                     parse_gaps(layout.gaps, child);
                 } else if (iequals(name, "border")) {
