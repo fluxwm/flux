@@ -246,6 +246,20 @@ namespace frost {
             }
         });
 
+        auto* xdg_tag_mgr = wlr_xdg_toplevel_tag_manager_v1_create(m_display, 1);
+        m_listeners.listen(&xdg_tag_mgr->events.set_tag, [](void* data) {
+            const auto* event = static_cast<wlr_xdg_toplevel_tag_manager_v1_set_tag_event*>(data);
+            if (auto* window = Window::try_from(event->toplevel)) {
+                window->set_tag(event->tag);
+            }
+        });
+        m_listeners.listen(&xdg_tag_mgr->events.set_description, [](void* data) {
+            const auto* event = static_cast<wlr_xdg_toplevel_tag_manager_v1_set_description_event*>(data);
+            if (auto* window = Window::try_from(event->toplevel)) {
+                window->set_description(event->description);
+            }
+        });
+
         m_input = std::make_unique<Input>(*this);
         m_config->set_on_reload([this] {
             if (!m_config->animations().enabled) {

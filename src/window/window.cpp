@@ -645,6 +645,24 @@ namespace frost {
         update_foreign_toplevel();
     }
 
+    void Window::set_tag(const char* tag) {
+        const std::string_view next = tag ? tag : "";
+        if (next == m_tag) {
+            return;
+        }
+        m_tag = next;
+        log_debug("window tag updated: '{}' [{}]", m_tag, m_app_id);
+    }
+
+    void Window::set_description(const char* description) {
+        const std::string_view next = description ? description : "";
+        if (next == m_description) {
+            return;
+        }
+        m_description = next;
+        log_debug("window description updated: '{}' [{}]", m_description, m_app_id);
+    }
+
     void Window::on_set_parent() {
         Window* parent = query_parent();
         const bool output_changed =

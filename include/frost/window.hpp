@@ -60,6 +60,8 @@ namespace frost {
         [[nodiscard]] virtual wlr_xwayland_surface* xwayland_surface() const noexcept { return nullptr; }
         [[nodiscard]] std::string_view title() const noexcept { return m_title; }
         [[nodiscard]] std::string_view app_id() const noexcept { return m_app_id; }
+        [[nodiscard]] std::string_view tag() const noexcept { return m_tag; }
+        [[nodiscard]] std::string_view description() const noexcept { return m_description; }
         [[nodiscard]] bool is_maximized() const noexcept { return m_maximized; }
         [[nodiscard]] bool is_fullscreen() const noexcept { return m_fullscreen; }
         [[nodiscard]] bool is_floating() const noexcept { return !m_fullscreen && !m_maximized && m_floating; }
@@ -120,6 +122,8 @@ namespace frost {
         void finish_resize() noexcept;
         virtual void set_decoration(wlr_xdg_toplevel_decoration_v1* /*decoration*/) {}
         virtual void set_dialog(wlr_xdg_dialog_v1* /*dialog*/) {}
+        void set_tag(const char* tag);
+        void set_description(const char* description);
         virtual void close() noexcept = 0;
 
     protected:
@@ -194,6 +198,8 @@ namespace frost {
         uint32_t m_workspace_id = 1;
         std::string m_title;
         std::string m_app_id;
+        std::string m_tag;
+        std::string m_description;
         wlr_ext_foreign_toplevel_handle_v1* m_ext_toplevel_handle = nullptr;
         Border m_border;
     };
