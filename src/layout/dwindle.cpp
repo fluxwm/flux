@@ -137,7 +137,7 @@ namespace frost::layout {
             void arrange(const Context& ctx) override {
                 std::vector<const Window*> stale;
                 for (const auto& [win, _] : m_leaves) {
-                    if (!win->is_tiled() || !std::ranges::contains(ctx.windows, win)) {
+                    if (!std::ranges::contains(ctx.windows, win) || !win->is_tiled()) {
                         stale.push_back(win);
                     }
                 }
